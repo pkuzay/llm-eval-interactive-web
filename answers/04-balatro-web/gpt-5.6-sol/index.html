@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <meta name="theme-color" content="#07111f" />
+  <title>Joker's Orbit — 小丑星轨</title>
+  <style>
+    :root{
+      --ink:#07111f;--ink2:#0b1b2b;--cream:#f3e6c5;--paper:#fff8e7;
+      --red:#e83d36;--blue:#18a9c9;--gold:#f6b84a;--green:#45c486;
+      --shadow:#02070e;--outline:#07101a;--ease:cubic-bezier(.2,.85,.25,1.15);
+    }
+    *{box-sizing:border-box} html,body{width:100%;height:100%;margin:0;overflow:hidden}
+    body{background:var(--ink);color:var(--cream);font-family:Impact,"Arial Narrow",system-ui,sans-serif;
+      user-select:none;cursor:default;letter-spacing:.02em}
+    button{font:inherit;color:inherit;border:0;cursor:pointer}
+    .noise,.scanlines,.vignette{position:fixed;inset:0;pointer-events:none;z-index:90}
+    .noise{opacity:.12;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");mix-blend-mode:overlay}
+    .scanlines{opacity:.11;background:repeating-linear-gradient(0deg,transparent 0 3px,#000 4px)}
+    .vignette{box-shadow:inset 0 0 13vw 3vw #000}
+    .screen{position:absolute;inset:0;transition:opacity .55s ease,transform .55s var(--ease)}
+    .hidden{opacity:0!important;pointer-events:none!important;transform:scale(1.035)!important}
+
+    /* start */
+    #start{z-index:10;display:grid;place-items:center;background:
+      linear-gradient(90deg,rgba(3,10,20,.8),rgba(3,10,20,.12) 35% 65%,rgba(3,10,20,.8)),
+      linear-gradient(0deg,rgba(4,10,18,.78),transparent 50%),url('assets/cosmic-jester-bg.png') center/cover}
+    .start-inner{text-align:center;position:relative;margin-top:17vh;filter:drop-shadow(0 14px 22px #000)}
+    .eyebrow{font-family:ui-monospace,monospace;font-weight:900;letter-spacing:.45em;color:var(--gold);font-size:clamp(11px,1.1vw,16px)}
+    h1{font-size:clamp(58px,9.8vw,150px);line-height:.72;margin:.17em 0 .1em;letter-spacing:-.045em;
+      transform:rotate(-2deg);text-shadow:6px 6px 0 var(--red),-5px -3px 0 var(--blue),10px 13px 0 #02070c;
+      animation:titleFloat 4s ease-in-out infinite}
+    h1 span{display:block;font-size:.32em;letter-spacing:.24em;color:var(--gold);text-shadow:3px 3px 0 #8b2828,-2px -2px 0 #082f43;margin-left:.2em}
+    @keyframes titleFloat{50%{transform:rotate(1deg) translateY(-7px) scale(1.015)}}
+    .start-copy{font-family:ui-monospace,monospace;font-size:12px;opacity:.72;margin:18px}
+    .main-btn,.action-btn,.shop-btn{position:relative;background:var(--red);padding:14px 35px;border:3px solid var(--outline);border-radius:9px;
+      box-shadow:0 6px 0 #791e25,0 9px 20px #000;letter-spacing:.15em;text-transform:uppercase;transition:.16s var(--ease)}
+    .main-btn:hover,.action-btn:hover,.shop-btn:hover{transform:translateY(-3px) scale(1.04);filter:brightness(1.12)}
+    .main-btn:active,.action-btn:active,.shop-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #791e25}
+    .main-btn::after,.action-btn::after{content:"";position:absolute;inset:4px;border:1px dashed rgba(255,255,255,.4);border-radius:4px}
+    .credits{position:absolute;bottom:18px;left:0;right:0;text-align:center;font:10px ui-monospace,monospace;opacity:.45;letter-spacing:.1em}
+
+    /* game shell */
+    #game{display:grid;grid-template-columns:240px 1fr;background:
+      linear-gradient(rgba(5,16,27,.91),rgba(5,16,27,.91)),url('assets/cosmic-jester-bg.png') center/cover;z-index:5}
+    #game::after{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(circle at 60% 44%,rgba(20,130,146,.22),transparent 43%),repeating-linear-gradient(115deg,transparent 0 38px,rgba(255,255,255,.012) 40px)}
+    .sidebar{padding:18px 15px;background:linear-gradient(90deg,rgba(4,12,20,.97),rgba(9,27,42,.93));border-right:3px solid #153a4b;display:flex;flex-direction:column;gap:12px;z-index:3}
+    .brand{font-size:23px;letter-spacing:-.03em;transform:rotate(-1deg);text-shadow:2px 2px var(--red),-2px -1px var(--blue);padding-left:5px}
+    .blind-card{background:linear-gradient(145deg,#aa242b,#571627);border:3px solid #e8b35b;border-radius:13px;padding:15px 12px;box-shadow:0 6px 0 #260915,0 10px 25px #000;position:relative;overflow:hidden}
+    .blind-card::before{content:"◈";position:absolute;right:-12px;top:-30px;font-size:110px;opacity:.09;transform:rotate(20deg)}
+    .blind-label{font:10px ui-monospace,monospace;letter-spacing:.2em;color:#ffd788}.blind-name{font-size:27px;margin:4px 0}
+    .score-target{font:800 20px ui-monospace,monospace;color:#fff}.score-target small{font-size:9px;opacity:.7;display:block;margin-bottom:3px}
+    .score-panel{border:2px solid #24495b;border-radius:12px;background:#07121d;padding:12px;box-shadow:inset 0 0 20px #02070d}
+    .score-number{font:900 clamp(22px,2vw,32px) ui-monospace,monospace;color:#77e2ef;text-shadow:0 0 15px #18a9c9;overflow:hidden;text-overflow:ellipsis}
+    .score-number.bump{animation:scoreBump .3s var(--ease)}
+    @keyframes scoreBump{50%{transform:scale(1.16);color:#fff}}
+    .score-bar{height:9px;border-radius:9px;background:#02070c;margin-top:8px;overflow:hidden;border:1px solid #1b4353}.score-fill{height:100%;width:0;background:linear-gradient(90deg,var(--blue),#74f0df);box-shadow:0 0 9px var(--blue);transition:width .55s var(--ease)}
+    .stats{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+    .stat{border:2px solid #1d3b4a;background:#0b1c29;border-radius:8px;padding:8px;text-align:center}.stat b{display:block;font:900 22px ui-monospace,monospace}.stat span{font:9px ui-monospace,monospace;opacity:.55;letter-spacing:.1em}.stat.money b{color:#f6c653}.stat.hand b{color:#ff716d}.stat.discard b{color:#62cde1}
+    .poker-guide{margin-top:auto;border-top:1px solid #214151;padding-top:10px;font:10px/1.55 ui-monospace,monospace;color:#7794a2}.poker-guide b{color:#c8e3e8;letter-spacing:.1em}.poker-guide div{display:flex;justify-content:space-between}.poker-guide em{font-style:normal;color:#f0b650}
+    .stage{min-width:0;display:grid;grid-template-rows:112px 1fr 222px;position:relative}
+    .joker-rack{display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 25px;border-bottom:1px solid rgba(71,145,166,.2)}
+    .joker-slot{width:78px;height:92px;border:2px dashed #315265;border-radius:9px;display:grid;place-items:center;color:#426373;font:24px serif;transition:.2s}
+    .joker-card{width:78px;height:92px;border:3px solid #081019;border-radius:9px;background:linear-gradient(140deg,var(--jc1),var(--jc2));box-shadow:0 5px 0 #02070c,0 8px 15px #000;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;transform:rotate(var(--rot,0deg));transition:.18s var(--ease);overflow:hidden}
+    .joker-card:hover{transform:translateY(-8px) rotate(0) scale(1.08);z-index:5}.joker-card::before{content:"";position:absolute;inset:-20%;background:repeating-linear-gradient(45deg,transparent 0 10px,rgba(255,255,255,.09) 11px 12px);animation:stripe 7s linear infinite}@keyframes stripe{to{transform:translateX(30px)}}
+    .joker-card .jicon{font-size:34px;z-index:1;filter:drop-shadow(2px 2px 0 #111)}.joker-card .jname{font:900 9px ui-monospace,monospace;background:#081019;padding:3px 4px;width:100%;text-align:center;z-index:1;margin-top:5px}.joker-card.trigger{animation:jokerFire .55s var(--ease)}
+    @keyframes jokerFire{40%{transform:translateY(-16px) scale(1.22) rotate(-4deg);filter:brightness(1.7) drop-shadow(0 0 13px var(--gold))}}
+    .table{display:flex;align-items:center;justify-content:center;flex-direction:column;position:relative;min-height:0;perspective:1100px}
+    .table::before{content:"";position:absolute;width:min(68vw,900px);height:min(34vw,410px);border-radius:50%;background:radial-gradient(ellipse,#123d47 0,#0b2b36 52%,#061824 72%);border:4px solid #23586a;box-shadow:inset 0 0 60px #02080e,0 0 0 8px #07111a,0 0 45px rgba(15,158,177,.16);transform:rotateX(57deg)}
+    .hand-readout{z-index:2;text-align:center;min-height:72px;transition:.2s}.hand-name{font-size:clamp(25px,3vw,46px);color:#f2ddab;text-shadow:3px 3px 0 #1a4260;letter-spacing:.03em}.hand-formula{font:900 16px ui-monospace,monospace;margin-top:5px}.chips{color:#4ad8ee;background:#0a2c3d;padding:4px 8px;border-radius:5px}.mult{color:#ff6862;background:#421521;padding:4px 8px;border-radius:5px}
+    .play-zone{height:140px;z-index:3;display:flex;justify-content:center;align-items:center;gap:8px}.play-zone .card{animation:dealIn .32s var(--ease) both}
+    .combo-pop{position:absolute;z-index:20;font-size:40px;color:#fff;text-shadow:3px 3px var(--red),-3px -3px var(--blue),0 0 20px var(--gold);animation:popAway .8s var(--ease) forwards;pointer-events:none}
+    @keyframes popAway{0%{opacity:0;transform:scale(.3) rotate(-10deg)}35%{opacity:1;transform:scale(1.25) rotate(2deg)}100%{opacity:0;transform:translateY(-80px) scale(.9)}}
+    .bottom-area{z-index:4;background:linear-gradient(0deg,rgba(3,9,15,.98),rgba(5,17,27,.75));border-top:2px solid #173b4a;padding:12px 18px 14px;display:grid;grid-template-columns:145px 1fr 145px;gap:13px;align-items:center}
+    .hand-cards{display:flex;justify-content:center;align-items:center;height:190px;min-width:0;perspective:900px}
+    .card{--r:0deg;width:clamp(67px,7vw,103px);aspect-ratio:.71;background:var(--paper);color:#101010;border:3px solid #081019;border-radius:9px;box-shadow:0 6px 0 #081019,0 11px 18px #0009;position:relative;margin-left:clamp(-19px,-1.2vw,-9px);transform-style:preserve-3d;transform:translateY(var(--up,0)) rotate(var(--r)) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .2s var(--ease),filter .2s;cursor:pointer}
+    .card:first-child{margin-left:0}.card:hover{--up:-18px;z-index:12;filter:brightness(1.07)}.card.selected{--up:-34px;box-shadow:0 7px 0 var(--blue),0 13px 22px #000,0 0 24px rgba(24,169,201,.7);z-index:11}.card.scoring{animation:cardScore .52s var(--ease);z-index:14}.card.used{animation:cardFly .45s ease-in forwards}
+    @keyframes dealIn{from{opacity:0;transform:translateY(130px) rotate(20deg) scale(.55)}}
+    @keyframes cardScore{45%{transform:translateY(-28px) scale(1.14);filter:brightness(1.35) drop-shadow(0 0 13px var(--gold))}}
+    @keyframes cardFly{to{opacity:0;transform:translateY(-140px) rotate(17deg) scale(.4)}}
+    .card .shine{position:absolute;inset:0;border-radius:6px;background:radial-gradient(circle at var(--mx,50%) var(--my,50%),rgba(255,255,255,.55),transparent 36%);opacity:0;mix-blend-mode:soft-light;transition:.15s}.card:hover .shine{opacity:1}
+    .corner{position:absolute;top:6px;left:7px;text-align:center;font:900 clamp(16px,1.7vw,24px)/.85 Georgia,serif}.corner.bottom{top:auto;left:auto;bottom:6px;right:7px;transform:rotate(180deg)}.suit{display:block;font-size:.84em;margin-top:4px}.pip{position:absolute;inset:20% 8%;display:grid;place-items:center;font-size:clamp(33px,4.3vw,64px);font-family:Georgia,serif;text-shadow:1px 2px #ccc}.red{color:#cf2929}.black{color:#121820}.face-art{font-size:clamp(28px,3vw,48px);filter:drop-shadow(2px 2px 0 #d8b578)}
+    .action-btn{width:135px;padding:12px 7px;letter-spacing:.06em}.action-btn small{display:block;font:8px ui-monospace,monospace;opacity:.6;margin-top:3px}.action-btn.discard-btn{background:#1688a6;box-shadow:0 6px 0 #08435c,0 9px 20px #000}.action-btn:disabled{filter:grayscale(.8);opacity:.35;cursor:not-allowed;transform:none}
+    .selection-count{font:10px ui-monospace,monospace;text-align:center;opacity:.55;margin-top:8px}
+
+    /* overlays + shop */
+    .overlay{position:absolute;inset:0;z-index:50;background:rgba(1,6,12,.82);backdrop-filter:blur(8px);display:grid;place-items:center;transition:.35s}
+    .overlay.hidden{display:grid}.panel{width:min(92vw,780px);background:#102839;border:4px solid #edbf65;border-radius:18px;padding:25px;box-shadow:0 13px 0 #050b13,0 25px 70px #000;position:relative;text-align:center}
+    .panel::after{content:"";position:absolute;inset:7px;border:1px dashed rgba(246,184,74,.35);border-radius:11px;pointer-events:none}.panel h2{font-size:clamp(38px,6vw,72px);margin:0;color:#ffe5a6;text-shadow:4px 4px var(--red),-3px -3px var(--blue)}.panel p{font:13px/1.5 ui-monospace,monospace;color:#a9c2c9}
+    .shop-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.shop-head h2{font-size:44px}.shop-money{font:900 25px ui-monospace,monospace;color:#f7c85a}
+    .shop-items{display:flex;justify-content:center;gap:18px;min-height:240px}.shop-item{width:180px;border:2px solid #31586a;border-radius:13px;background:#091a27;padding:13px;display:flex;flex-direction:column;align-items:center;transition:.2s var(--ease)}.shop-item:hover{transform:translateY(-7px);border-color:#edbf65}.shop-item .joker-card{width:92px;height:115px}.shop-item h3{font-size:17px;margin:13px 0 5px}.shop-item p{font-size:10px;margin:0;min-height:46px}.shop-btn{padding:8px 13px;margin-top:auto;background:#d13a38;box-shadow:0 4px 0 #68141d;letter-spacing:.05em}.shop-btn:disabled{opacity:.35;filter:grayscale(1);cursor:not-allowed}.next-btn{margin-top:20px;background:#1699a8;box-shadow:0 6px 0 #075066,0 9px 20px #000}
+    .toast{position:absolute;top:126px;left:50%;z-index:60;transform:translateX(-50%) translateY(-30px);background:#0b1e2b;border:2px solid #f1bf62;border-radius:8px;padding:9px 15px;font:11px ui-monospace,monospace;opacity:0;transition:.3s;pointer-events:none}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    .particle{position:fixed;z-index:80;pointer-events:none;width:8px;height:8px;background:var(--pcol);clip-path:polygon(50% 0,62% 36%,100% 50%,62% 64%,50% 100%,38% 64%,0 50%,38% 36%);animation:particle 1s ease-out forwards}@keyframes particle{to{opacity:0;transform:translate(var(--dx),var(--dy)) rotate(260deg) scale(.2)}}
+    .floating-score{position:fixed;z-index:70;font:900 25px ui-monospace,monospace;color:var(--gold);text-shadow:2px 2px #000;pointer-events:none;animation:floatScore .8s ease-out forwards}@keyframes floatScore{to{opacity:0;transform:translateY(-65px) scale(1.25)}}
+    .screen-shake{animation:shake .28s linear}@keyframes shake{25%{transform:translate(5px,-2px)}50%{transform:translate(-4px,3px)}75%{transform:translate(3px,2px)}}
+    @media(max-width:850px){#game{grid-template-columns:175px 1fr}.sidebar{padding:10px}.stage{grid-template-rows:92px 1fr 190px}.joker-rack{gap:5px}.joker-card,.joker-slot{width:59px;height:71px}.joker-card .jicon{font-size:24px}.bottom-area{grid-template-columns:90px 1fr 90px;padding:7px}.action-btn{width:88px;font-size:11px}.hand-cards{height:170px}.poker-guide{display:none}.blind-name{font-size:21px}.shop-item{width:30%}}
+    @media(max-width:620px){#game{grid-template-columns:1fr;grid-template-rows:122px 1fr}.sidebar{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:5px;border-right:0;border-bottom:2px solid #153a4b}.brand,.poker-guide{display:none}.blind-card{padding:8px}.blind-name{font-size:16px}.score-panel{padding:7px}.score-number{font-size:19px}.stats{gap:3px}.stat{padding:4px}.stat b{font-size:17px}.stage{grid-template-rows:75px 1fr 178px}.joker-rack{padding:5px}.joker-card,.joker-slot{width:48px;height:60px}.joker-card .jname{font-size:6px}.table::before{width:90vw;height:50vw}.bottom-area{grid-template-columns:62px 1fr 62px;padding:5px;gap:3px}.action-btn{width:58px;font-size:8px;padding:10px 2px}.action-btn small{font-size:6px}.card{width:62px;margin-left:-26px}.hand-cards{height:155px}.shop-items{gap:5px}.shop-item{padding:6px}.shop-item .joker-card{width:62px;height:78px}.shop-item h3{font-size:11px}.shop-item p{font-size:8px}.panel{padding:15px 8px}}
+  </style>
+</head>
+<body>
+  <div class="noise"></div><div class="scanlines"></div><div class="vignette"></div>
+  <section id="start" class="screen">
+    <div class="start-inner">
+      <div class="eyebrow">A ROGUELIKE POKER FEVER</div>
+      <h1>JOKER'S<span>ORBIT · 小丑星轨</span></h1>
+      <p class="start-copy">组建你的诡奇牌组，让分数突破天际。</p>
+      <button id="startBtn" class="main-btn">开始一局</button>
+    </div>
+    <div class="credits">ORIGINAL LEARNING PROJECT · ART & CODE CREATED FOR THIS DEMO</div>
+  </section>
+
+  <main id="game" class="screen hidden">
+    <aside class="sidebar">
+      <div class="brand">JOKER'S ORBIT</div>
+      <div class="blind-card">
+        <div class="blind-label" id="blindLabel">ANTE 1 · ROUND 1</div>
+        <div class="blind-name" id="blindName">微光盲注</div>
+        <div class="score-target"><small>目标分数</small><span id="targetScore">300</span></div>
+      </div>
+      <div class="score-panel">
+        <div class="blind-label">本轮得分</div><div class="score-number" id="score">0</div>
+        <div class="score-bar"><div class="score-fill" id="scoreFill"></div></div>
+      </div>
+      <div class="stats">
+        <div class="stat hand"><b id="handsLeft">4</b><span>出牌</span></div>
+        <div class="stat discard"><b id="discardsLeft">3</b><span>弃牌</span></div>
+        <div class="stat money"><b id="money">$4</b><span>金币</span></div>
+        <div class="stat"><b id="roundNo">1/9</b><span>进度</span></div>
+      </div>
+      <div class="poker-guide">
+        <b>牌型基础分</b>
+        <div><span>同花大顺 / 四条</span><em>100×8 / 60×7</em></div><div><span>葫芦 / 同花</span><em>40×4 / 35×4</em></div><div><span>顺子 / 三条</span><em>30×4 / 30×3</em></div><div><span>两对 / 对子</span><em>20×2 / 10×2</em></div><div><span>高牌</span><em>5×1</em></div>
+      </div>
+    </aside>
+
+    <section class="stage">
+      <div id="jokerRack" class="joker-rack"></div>
+      <div class="table">
+        <div id="handReadout" class="hand-readout"><div class="hand-name">选择 1–5 张牌</div><div class="hand-formula"><span class="chips">0 筹码</span> × <span class="mult">0 倍率</span></div></div>
+        <div id="playZone" class="play-zone"></div>
+      </div>
+      <div class="bottom-area">
+        <div><button id="playBtn" class="action-btn" disabled>打出选牌<small>计算牌型</small></button><div class="selection-count" id="selectCount">已选 0/5</div></div>
+        <div id="handCards" class="hand-cards"></div>
+        <div><button id="discardBtn" class="action-btn discard-btn" disabled>弃掉选牌<small>抽取新牌</small></button></div>
+      </div>
+      <div id="toast" class="toast"></div>
+    </section>
+
+    <div id="shopOverlay" class="overlay hidden">
+      <div class="panel">
+        <div class="shop-head"><div><div class="eyebrow">ORBITAL ODDITIES</div><h2>奇物商店</h2></div><div id="shopMoney" class="shop-money">$0</div></div>
+        <div id="shopItems" class="shop-items"></div>
+        <button id="nextBtn" class="main-btn next-btn">进入下一盲注</button>
+      </div>
+    </div>
+    <div id="endOverlay" class="overlay hidden"><div class="panel"><div class="eyebrow" id="endEyebrow">THE ORBIT COLLAPSED</div><h2 id="endTitle">本局结束</h2><p id="endCopy"></p><button id="restartBtn" class="main-btn">再来一局</button></div></div>
+  </main>
+
+  <script>
+  (()=>{
+    'use strict';
+    const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+    const suits=[{s:'♠',c:'black'},{s:'♥',c:'red'},{s:'♦',c:'red'},{s:'♣',c:'black'}];
+    const ranks=[['2',2,2],['3',3,3],['4',4,4],['5',5,5],['6',6,6],['7',7,7],['8',8,8],['9',9,9],['10',10,10],['J',11,10],['Q',12,10],['K',13,10],['A',14,11]];
+    const handBases={royal:['皇家同花',100,8],straightFlush:['同花顺',100,8],four:['四条',60,7],full:['葫芦',40,4],flush:['同花',35,4],straight:['顺子',30,4],three:['三条',30,3],twoPair:['两对',20,2],pair:['对子',10,2],high:['高牌',5,1]};
+    const blinds=[['微光盲注',300],['赤红盲注',520],['月蚀首领',850],['湍流盲注',1400],['彗尾盲注',2300],['虚空首领',3800],['脉冲盲注',6200],['星环盲注',10000],['终焉首领',16500]];
+    const JOKERS=[
+      {id:'tooth',name:'幸运金牙',icon:'🦷',cost:4,desc:'每次出牌 +4 倍率',c1:'#ce762d',c2:'#753519',effect:(ctx)=>{ctx.mult+=4;return '+4 倍率'}},
+      {id:'mime',name:'霓虹哑剧',icon:'🎭',cost:5,desc:'每张人头牌 +2 倍率',c1:'#2da7c7',c2:'#4032a7',effect:(ctx,cards)=>{let n=cards.filter(c=>c.v>=11&&c.v<=13).length*2;ctx.mult+=n;return n?`+${n} 倍率`:''}},
+      {id:'fib',name:'螺旋预言',icon:'🌀',cost:6,desc:'含 A/2/3/5/8 时 +8 倍率',c1:'#42ae7d',c2:'#155350',effect:(ctx,cards)=>{let ok=cards.some(c=>[14,2,3,5,8].includes(c.v));if(ok)ctx.mult+=8;return ok?'+8 倍率':''}},
+      {id:'half',name:'半份笑话',icon:'◐',cost:7,desc:'出牌不超过 3 张，倍率 ×2',c1:'#e25468',c2:'#6d193b',effect:(ctx,cards)=>{if(cards.length<=3)ctx.mult*=2;return cards.length<=3?'×2 倍率':''}},
+      {id:'red',name:'红线俱乐部',icon:'♦',cost:5,desc:'每张红色牌 +12 筹码',c1:'#ed4a36',c2:'#811729',effect:(ctx,cards)=>{let n=cards.filter(c=>c.color==='red').length*12;ctx.chips+=n;return n?`+${n} 筹码`:''}},
+      {id:'stencil',name:'空白面具',icon:'▱',cost:8,desc:'每个空小丑槽使倍率 ×1.35',c1:'#e5ddbd',c2:'#596670',effect:(ctx)=>{let n=5-G.jokers.length;if(n){ctx.mult*=1+n*.35;return `×${(1+n*.35).toFixed(2)} 倍率`}return''}},
+      {id:'anchor',name:'深海锚点',icon:'⚓',cost:6,desc:'固定 +65 筹码',c1:'#276a8a',c2:'#102845',effect:(ctx)=>{ctx.chips+=65;return '+65 筹码'}},
+      {id:'pair',name:'双生怪客',icon:'♊',cost:7,desc:'对子或更高牌型 +10 倍率',c1:'#8d52b7',c2:'#351d68',effect:(ctx,cards,key)=>{if(key!=='high')ctx.mult+=10;return key!=='high'?'+10 倍率':''}},
+      {id:'glass',name:'碎镜之王',icon:'✦',cost:9,desc:'最终倍率 ×1.5',c1:'#56c9ca',c2:'#244f82',effect:(ctx)=>{ctx.mult*=1.5;return '×1.5 倍率'}}
+    ];
+    const G={deck:[],hand:[],selected:new Set(),jokers:[],score:0,target:300,hands:4,discards:3,money:4,round:0,busy:false,shop:[]};
+    let audio=null;
+
+    function sfx(type='tap'){
+      try{audio ||= new (window.AudioContext||window.webkitAudioContext)();const o=audio.createOscillator(),g=audio.createGain();o.connect(g);g.connect(audio.destination);let t=audio.currentTime;
+        const cfg={tap:[330,.035,.025],select:[520,.05,.035],deal:[180,.06,.025],score:[680,.12,.06],cash:[900,.14,.07],bad:[95,.22,.06]}[type];o.type=type==='score'?'triangle':'square';o.frequency.setValueAtTime(cfg[0],t);o.frequency.exponentialRampToValueAtTime(cfg[0]*(type==='bad'?.55:1.55),t+cfg[1]);g.gain.setValueAtTime(cfg[2],t);g.gain.exponentialRampToValueAtTime(.0001,t+cfg[1]);o.start(t);o.stop(t+cfg[1]);
+      }catch(e){}
+    }
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    function deck(){let d=[],id=0;for(const su of suits)for(const [r,v,chips] of ranks)d.push({id:id++,rank:r,v,chips,suit:su.s,color:su.c});return shuffle(d)}
+    function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+    function draw(n){for(let i=0;i<n;i++){if(!G.deck.length)G.deck=deck();G.hand.push(G.deck.pop())}G.hand.sort((a,b)=>b.v-a.v||a.suit.localeCompare(b.suit))}
+    function cardHTML(c,i=0){const face=c.v>=11&&c.v<=13?`<span class="face-art">${c.v===11?'♞':c.v===12?'♛':'♚'}</span>`:`<span>${c.suit}</span>`;return `<div class="card ${c.color}" data-id="${c.id}" style="--r:${(i-(G.hand.length-1)/2)*1.4}deg;animation-delay:${i*35}ms"><span class="shine"></span><div class="corner">${c.rank}<span class="suit">${c.suit}</span></div><div class="pip">${face}</div><div class="corner bottom">${c.rank}<span class="suit">${c.suit}</span></div></div>`}
+    function addTilt(el){el.addEventListener('pointermove',e=>{let r=el.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;el.style.setProperty('--rx',`${(y-.5)*-13}deg`);el.style.setProperty('--ry',`${(x-.5)*17}deg`);el.style.setProperty('--mx',`${x*100}%`);el.style.setProperty('--my',`${y*100}%`)});el.addEventListener('pointerleave',()=>{el.style.setProperty('--rx','0deg');el.style.setProperty('--ry','0deg')})}
+    function renderHand(){
+      $('#handCards').innerHTML=G.hand.map(cardHTML).join('');
+      $$('#handCards .card').forEach(el=>{addTilt(el);el.addEventListener('click',()=>toggleCard(+el.dataset.id))});
+      updateSelection();
+    }
+    function toggleCard(id){if(G.busy)return;sfx('select');if(G.selected.has(id))G.selected.delete(id);else{if(G.selected.size>=5){toast('最多选择 5 张');return}G.selected.add(id)}updateSelection()}
+    function updateSelection(){
+      $$('#handCards .card').forEach(el=>el.classList.toggle('selected',G.selected.has(+el.dataset.id)));
+      let cards=G.hand.filter(c=>G.selected.has(c.id));$('#selectCount').textContent=`已选 ${cards.length}/5`;$('#playBtn').disabled=!cards.length||G.busy;$('#discardBtn').disabled=!cards.length||!G.discards||G.busy;
+      if(cards.length){let ev=evaluate(cards);$('#handReadout').innerHTML=`<div class="hand-name">${ev.name}</div><div class="hand-formula"><span class="chips">${ev.chips} 筹码</span> × <span class="mult">${ev.mult} 倍率</span></div>`}else $('#handReadout').innerHTML='<div class="hand-name">选择 1–5 张牌</div><div class="hand-formula"><span class="chips">0 筹码</span> × <span class="mult">0 倍率</span></div>';
+    }
+    function evaluate(cards){
+      const vals=cards.map(c=>c.v).sort((a,b)=>a-b),counts={};vals.forEach(v=>counts[v]=(counts[v]||0)+1);const groups=Object.values(counts).sort((a,b)=>b-a);let flush=cards.length===5&&cards.every(c=>c.suit===cards[0].suit);let uniq=[...new Set(vals)];let straight=cards.length===5&&uniq.length===5&&(uniq[4]-uniq[0]===4||JSON.stringify(uniq)==='[2,3,4,5,14]');let key='high';
+      if(straight&&flush&&vals.includes(14)&&vals.includes(10))key='royal';else if(straight&&flush)key='straightFlush';else if(groups[0]===4)key='four';else if(groups[0]===3&&groups[1]===2)key='full';else if(flush)key='flush';else if(straight)key='straight';else if(groups[0]===3)key='three';else if(groups[0]===2&&groups[1]===2)key='twoPair';else if(groups[0]===2)key='pair';
+      let [name,chips,mult]=handBases[key];return{key,name,chips,mult,cardChips:cards.reduce((s,c)=>s+c.chips,0)}
+    }
+    function jokerHTML(j,i=0){return `<div class="joker-card" data-joker="${j.id}" title="${j.desc}" style="--jc1:${j.c1};--jc2:${j.c2};--rot:${(i%2?2:-2)}deg"><span class="jicon">${j.icon}</span><span class="jname">${j.name}</span></div>`}
+    function renderJokers(){let h=G.jokers.map(jokerHTML).join('');for(let i=G.jokers.length;i<5;i++)h+='<div class="joker-slot">+</div>';$('#jokerRack').innerHTML=h}
+    function updateUI(){
+      $('#blindLabel').textContent=`ANTE ${Math.floor(G.round/3)+1} · ROUND ${G.round+1}`;$('#blindName').textContent=blinds[G.round][0];$('#targetScore').textContent=G.target.toLocaleString();$('#score').textContent=Math.floor(G.score).toLocaleString();$('#scoreFill').style.width=`${Math.min(100,G.score/G.target*100)}%`;$('#handsLeft').textContent=G.hands;$('#discardsLeft').textContent=G.discards;$('#money').textContent=`$${G.money}`;$('#roundNo').textContent=`${G.round+1}/9`;renderJokers();updateSelection();
+    }
+    async function play(){
+      if(G.busy||!G.selected.size)return;G.busy=true;G.hands--;updateSelection();sfx('deal');let cards=G.hand.filter(c=>G.selected.has(c.id)),ev=evaluate(cards);$('#playZone').innerHTML=cards.map(cardHTML).join('');$('#handCards').style.opacity='.26';
+      let ctx={chips:ev.chips,mult:ev.mult};$('#handReadout').innerHTML=`<div class="hand-name">${ev.name}</div><div class="hand-formula"><span class="chips" id="liveChips">${ctx.chips} 筹码</span> × <span class="mult" id="liveMult">${ctx.mult} 倍率</span></div>`;combo(ev.name);await wait(480);
+      for(const c of cards){let el=$(`#playZone .card[data-id="${c.id}"]`);el?.classList.add('scoring');ctx.chips+=c.chips;$('#liveChips').textContent=`${Math.round(ctx.chips)} 筹码`;floatText(el,`+${c.chips}`);sfx('tap');await wait(180);el?.classList.remove('scoring')}
+      for(const j of G.jokers){let el=$(`[data-joker="${j.id}"]`),msg=j.effect(ctx,cards,ev.key);if(msg){el?.classList.add('trigger');$('#liveChips').textContent=`${Math.round(ctx.chips)} 筹码`;$('#liveMult').textContent=`${fmt(ctx.mult)} 倍率`;floatText(el,msg);sfx('score');await wait(330);el?.classList.remove('trigger')}}
+      let gained=Math.round(ctx.chips*ctx.mult);await wait(120);combo(`+${gained.toLocaleString()}`);G.score+=gained;$('#score').textContent=G.score.toLocaleString();$('#score').classList.add('bump');$('#scoreFill').style.width=`${Math.min(100,G.score/G.target*100)}%`;document.body.classList.add('screen-shake');burst(innerWidth*.72,innerHeight*.45,22);sfx('cash');setTimeout(()=>{$('#score').classList.remove('bump');document.body.classList.remove('screen-shake')},310);await wait(650);
+      G.hand=G.hand.filter(c=>!G.selected.has(c.id));G.selected.clear();draw(8-G.hand.length);$('#playZone').innerHTML='';$('#handCards').style.opacity='1';renderHand();G.busy=false;updateUI();
+      if(G.score>=G.target)await roundWon();else if(G.hands<=0)end(false);
+    }
+    async function discard(){if(G.busy||!G.selected.size||!G.discards)return;G.busy=true;G.discards--;sfx('deal');$$('#handCards .selected').forEach(e=>e.classList.add('used'));await wait(350);G.hand=G.hand.filter(c=>!G.selected.has(c.id));G.selected.clear();draw(8-G.hand.length);G.busy=false;renderHand();updateUI()}
+    async function roundWon(){G.busy=true;let reward=5+(G.round%3===2?3:0)+G.hands;G.money+=reward;combo('盲注击破！');burst(innerWidth*.62,innerHeight*.45,45);await wait(900);openShop()}
+    function openShop(){G.shop=shuffle(JOKERS.filter(j=>!G.jokers.some(x=>x.id===j.id))).slice(0,3);renderShop();$('#shopOverlay').classList.remove('hidden')}
+    function renderShop(){
+      $('#shopMoney').textContent=`$${G.money}`;$('#shopItems').innerHTML=G.shop.map((j,i)=>`<div class="shop-item" data-shop="${i}">${jokerHTML(j)}<h3>${j.name}</h3><p>${j.desc}</p><button class="shop-btn" ${G.money<j.cost||G.jokers.length>=5?'disabled':''}>购买 · $${j.cost}</button></div>`).join('');
+      $$('.shop-item .shop-btn').forEach((b,i)=>b.addEventListener('click',()=>buy(i)));
+    }
+    function buy(i){let j=G.shop[i];if(!j||G.money<j.cost||G.jokers.length>=5)return;G.money-=j.cost;G.jokers.push(j);G.shop.splice(i,1);sfx('cash');toast(`${j.name} 已加入牌组`);renderJokers();renderShop()}
+    function nextRound(){if(G.round>=blinds.length-1){end(true);return}G.round++;G.target=blinds[G.round][1];G.score=0;G.hands=4;G.discards=3;G.deck=deck();G.hand=[];G.selected.clear();draw(8);$('#shopOverlay').classList.add('hidden');G.busy=false;renderHand();updateUI();combo(blinds[G.round][0])}
+    function newGame(){Object.assign(G,{deck:deck(),hand:[],selected:new Set(),jokers:[],score:0,target:blinds[0][1],hands:4,discards:3,money:4,round:0,busy:false,shop:[]});draw(8);$('#endOverlay').classList.add('hidden');$('#shopOverlay').classList.add('hidden');renderHand();updateUI()}
+    function end(win){G.busy=true;$('#endEyebrow').textContent=win?'THE STARS ARE YOURS':'THE ORBIT COLLAPSED';$('#endTitle').textContent=win?'星轨征服！':'轨道崩塌';$('#endCopy').textContent=win?`你击破了全部 9 个盲注，带着 ${G.jokers.length} 张小丑牌抵达宇宙尽头。`:`你在第 ${G.round+1} 轮获得 ${G.score.toLocaleString()} / ${G.target.toLocaleString()} 分。换个小丑组合，再试一次。`;$('#endOverlay').classList.remove('hidden');win&&burst(innerWidth/2,innerHeight/2,70)}
+    function combo(text){let d=document.createElement('div');d.className='combo-pop';d.textContent=text;d.style.left=`calc(50% - ${Math.min(text.length*10,120)}px)`;d.style.top='43%';$('.stage').appendChild(d);setTimeout(()=>d.remove(),850)}
+    function floatText(el,text){if(!el)return;let r=el.getBoundingClientRect(),d=document.createElement('div');d.className='floating-score';d.textContent=text;d.style.left=`${r.left+r.width/2-20}px`;d.style.top=`${r.top}px`;document.body.appendChild(d);setTimeout(()=>d.remove(),850)}
+    function burst(x,y,n=18){let cols=['#e83d36','#18a9c9','#f6b84a','#f3e6c5'];for(let i=0;i<n;i++){let p=document.createElement('i'),a=Math.random()*Math.PI*2,d=45+Math.random()*150;p.className='particle';p.style.cssText=`left:${x}px;top:${y}px;--pcol:${cols[i%4]};--dx:${Math.cos(a)*d}px;--dy:${Math.sin(a)*d}px`;document.body.appendChild(p);setTimeout(()=>p.remove(),1000)}}
+    function toast(t){let el=$('#toast');el.textContent=t;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),1500)}
+    function fmt(n){return Number.isInteger(n)?n:n.toFixed(2)}
+    $('#startBtn').addEventListener('click',()=>{sfx('cash');$('#start').classList.add('hidden');$('#game').classList.remove('hidden');newGame();setTimeout(()=>combo('微光盲注'),450)});
+    $('#playBtn').addEventListener('click',play);$('#discardBtn').addEventListener('click',discard);$('#nextBtn').addEventListener('click',nextRound);$('#restartBtn').addEventListener('click',newGame);
+    window.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();$('#playBtn').click()}if(e.key.toLowerCase()==='d')$('#discardBtn').click()});
+    renderJokers();
+  })();
+  </script>
+</body>
+</html>
