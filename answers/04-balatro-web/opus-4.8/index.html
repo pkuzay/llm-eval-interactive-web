@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>小丑牌 · Balatro Web</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Chivo:wght@400;700;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="crt" class="crt"></div>
+
+  <main id="game" class="game">
+    <!-- 左侧信息栏 -->
+    <aside class="sidebar">
+      <div class="blind-token" id="blindToken">
+        <div class="blind-name" id="blindName">小盲注</div>
+        <div class="blind-goal">目标分数</div>
+        <div class="blind-score" id="blindGoal">300</div>
+        <div class="blind-reward" id="blindReward">奖励 $$$</div>
+      </div>
+
+      <div class="round-score-box">
+        <div class="rsb-label">本轮得分</div>
+        <div class="rsb-value" id="roundScore">0</div>
+      </div>
+
+      <div class="score-formula">
+        <div class="chips-box" id="chipsBox">0</div>
+        <div class="times">×</div>
+        <div class="mult-box" id="multBox">0</div>
+      </div>
+
+      <div class="hand-label" id="handLabel">&nbsp;</div>
+
+      <div class="stat-grid">
+        <div class="stat stat-hands"><span>出牌</span><b id="statHands">4</b></div>
+        <div class="stat stat-discards"><span>弃牌</span><b id="statDiscards">3</b></div>
+        <div class="stat stat-money"><span>金钱</span><b id="statMoney">$4</b></div>
+        <div class="stat stat-ante"><span>底注</span><b id="statAnte">1/8</b></div>
+        <div class="stat stat-round"><span>回合</span><b id="statRound">1</b></div>
+        <div class="stat stat-hsize"><span>手牌</span><b id="statHandSize">8</b></div>
+      </div>
+    </aside>
+
+    <!-- 主区域 -->
+    <section class="board">
+      <div class="jokers-row" id="jokersRow" aria-label="小丑牌区"></div>
+
+      <div class="play-area" id="playArea"></div>
+
+      <div class="hand-dock">
+        <div class="hand" id="hand"></div>
+        <div class="controls">
+          <button class="btn btn-play" id="btnPlay" disabled>出牌</button>
+          <button class="btn btn-sort" id="btnSortRank">排序 · 点数</button>
+          <button class="btn btn-sort" id="btnSortSuit">排序 · 花色</button>
+          <button class="btn btn-discard" id="btnDiscard" disabled>弃牌</button>
+        </div>
+        <div class="deck-info">
+          <span id="deckCount">52</span> 张牌堆
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 结算 / 提示浮层 -->
+  <div class="overlay" id="overlay" hidden>
+    <div class="overlay-card" id="overlayCard">
+      <h2 id="overlayTitle">回合通过！</h2>
+      <p id="overlayText"></p>
+      <button class="btn btn-play" id="overlayBtn">继续</button>
+    </div>
+  </div>
+
+  <!-- 商店 -->
+  <div class="shop" id="shop" hidden>
+    <div class="shop-inner">
+      <div class="shop-head">
+        <h2>商店</h2>
+        <button class="btn btn-play" id="shopNext">下一轮 →</button>
+      </div>
+      <div class="shop-money">金钱：<b id="shopMoney">$4</b></div>
+      <div class="shop-items" id="shopItems"></div>
+    </div>
+  </div>
+
+  <script src="js/engine.js"></script>
+  <script src="js/animations.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

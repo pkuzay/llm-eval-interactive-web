@@ -29,7 +29,8 @@ answers/
 │   ├── kimi-k3/
 │   ├── glm-5.2/
 │   ├── qwen-3.8-max-preview/
-│   └── gpt-5.6-sol/
+│   ├── gpt-5.6-sol/
+│   └── opus-4.8/
 └── 05-double-wishbone-suspension/
     ├── deepseek/
     ├── glm-5.2/
