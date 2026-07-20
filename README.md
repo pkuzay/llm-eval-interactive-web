@@ -10,6 +10,7 @@
 | 02 | FPV 穿越机花飞模拟器 | [`prompts/02-fpv-drone-simulator.md`](prompts/02-fpv-drone-simulator.md) |
 | 03 | 赛车实时遥测与多圈对比工具 | [`prompts/03-racing-telemetry-analyzer.md`](prompts/03-racing-telemetry-analyzer.md) |
 | 04 | 小丑牌网页版 | [`prompts/04-balatro-web.md`](prompts/04-balatro-web.md) |
+| 05 | 双叉臂悬挂运动学显示页面 | [`prompts/05-double-wishbone-suspension.md`](prompts/05-double-wishbone-suspension.md) |
 
 ## 记录约定
 
