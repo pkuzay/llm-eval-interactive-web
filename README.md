@@ -34,6 +34,6 @@ GitHub Pages 总入口：<https://pkuzay.github.io/llm-eval-interactive-web/>
 | GLM 5.2 | [已归档](answers/01-2048-roguelike/glm-5.2/) | [已归档](answers/02-fpv-drone-simulator/glm-5.2/) | [已归档](answers/03-racing-telemetry-analyzer/glm-5.2/) | [已归档](answers/04-balatro-web/glm-5.2/) | [已归档](answers/05-double-wishbone-suspension/glm-5.2/) |
 | Qwen 3.8 Max Preview | [已归档](answers/01-2048-roguelike/qwen-3.8-max-preview/) | [已归档](answers/02-fpv-drone-simulator/qwen-3.8-max-preview/) | [已归档](answers/03-racing-telemetry-analyzer/qwen-3.8-max-preview/) | [已归档](answers/04-balatro-web/qwen-3.8-max-preview/) | [已归档](answers/05-double-wishbone-suspension/qwen-3.8-max-preview/) |
 | GPT 5.6 Sol | [已归档](answers/01-2048-roguelike/gpt-5.6-sol/) | [已归档](answers/02-fpv-drone-simulator/gpt-5.6-sol/) | [已归档](answers/03-racing-telemetry-analyzer/gpt-5.6-sol/) | [已归档](answers/04-balatro-web/gpt-5.6-sol/) | [已归档](answers/05-double-wishbone-suspension/gpt-5.6-sol/) |
-| Opus 4.8 | 待补充 | [已归档](answers/02-fpv-drone-simulator/opus-4.8/) | [已归档](answers/03-racing-telemetry-analyzer/opus-4.8/) | [已归档](answers/04-balatro-web/opus-4.8/) | [已归档](answers/05-double-wishbone-suspension/opus-4.8/) |
+| Opus 4.8 | [已归档](answers/01-2048-roguelike/opus-4.8/) | [已归档](answers/02-fpv-drone-simulator/opus-4.8/) | [已归档](answers/03-racing-telemetry-analyzer/opus-4.8/) | [已归档](answers/04-balatro-web/opus-4.8/) | [已归档](answers/05-double-wishbone-suspension/opus-4.8/) |
 
 更多目录说明见 [`answers/README.md`](answers/README.md)。

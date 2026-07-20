@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>符文深渊 · Rune Depths</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<style>
+:root{
+  --bg0:#080611; --bg1:#120a26; --bg2:#1c0f3a;
+  --ink:#f4ecff; --muted:#a99bd0; --dim:#6f6394;
+  --gold:#f7c66b; --gold2:#ffe6a8;
+  --teal:#4fe0c8; --violet:#a274ff; --rose:#ff6b8b; --blood:#ff4d5e;
+  --glass:rgba(28,18,54,.62);
+  --stroke:rgba(160,130,255,.20);
+  --cell:70px; --gap:12px;
+  --ease:cubic-bezier(.2,.9,.25,1);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  font-family:"Space Grotesk","Noto Sans SC",sans-serif;
+  color:var(--ink);
+  background:radial-gradient(120% 140% at 50% -10%,#241147 0%,#120a26 42%,#080611 100%);
+  overflow:hidden; position:relative;
+  display:flex; align-items:center; justify-content:center;
+  min-height:100dvh; touch-action:none;
+}
+#bgfx{position:fixed; inset:0; z-index:0; pointer-events:none;}
+.vignette{position:fixed; inset:0; z-index:1; pointer-events:none;
+  background:radial-gradient(120% 120% at 50% 40%,transparent 55%,rgba(4,2,10,.85) 100%);}
+#hurt{position:fixed; inset:0; z-index:60; pointer-events:none; opacity:0;
+  background:radial-gradient(120% 120% at 50% 50%,transparent 40%,rgba(255,40,70,.55) 100%);
+  mix-blend-mode:screen;}
+
+/* ============ Stage layout ============ */
+.stage{position:relative; z-index:3; width:min(92vw,470px);
+  display:flex; flex-direction:column; gap:14px; padding:10px 0 20px;}
+.title-mini{display:flex; align-items:baseline; justify-content:space-between; gap:10px;}
+.title-mini h1{font-family:"Cinzel",serif; font-weight:900; letter-spacing:.06em;
+  font-size:clamp(19px,5.4vw,26px);
+  background:linear-gradient(180deg,var(--gold2),var(--gold) 55%,#c98b2e);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  text-shadow:0 0 24px rgba(247,198,107,.25);}
+.title-mini .depth{font-family:"Cinzel",serif; font-weight:700; color:var(--teal);
+  font-size:13px; letter-spacing:.14em; text-transform:uppercase;}
+
+/* ============ Enemy card ============ */
+.enemy{position:relative; background:var(--glass); border:1px solid var(--stroke);
+  border-radius:18px; padding:14px 16px; backdrop-filter:blur(9px);
+  box-shadow:0 18px 40px -20px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.05);
+  overflow:hidden;}
+.enemy::before{content:""; position:absolute; inset:0;
+  background:radial-gradient(80% 120% at 85% -20%,rgba(255,77,94,.18),transparent 60%);
+  pointer-events:none;}
+.enemy-top{display:flex; align-items:center; gap:14px; position:relative;}
+.sigil{width:62px; height:62px; flex:0 0 auto; border-radius:16px; position:relative;
+  display:grid; place-items:center; font-size:34px; line-height:1;
+  background:linear-gradient(160deg,rgba(255,255,255,.08),rgba(0,0,0,.25));
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:inset 0 0 22px rgba(0,0,0,.4);}
+.sigil .ring{position:absolute; inset:-6px; border-radius:20px;
+  border:2px solid transparent; border-top-color:var(--rose); border-right-color:var(--violet);
+  animation:spin 6s linear infinite; opacity:.7;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.enemy-info{flex:1; min-width:0;}
+.enemy-name{font-weight:700; font-size:16px; letter-spacing:.02em; display:flex; gap:8px; align-items:center;}
+.enemy-name .tag{font-size:10px; font-weight:700; padding:2px 7px; border-radius:999px;
+  background:rgba(162,116,255,.18); color:var(--violet); letter-spacing:.08em;}
+.enemy-name .tag.boss{background:rgba(255,77,94,.2); color:var(--rose);}
+.hpbar{margin-top:8px; height:14px; border-radius:999px; background:rgba(0,0,0,.4);
+  border:1px solid rgba(255,255,255,.08); position:relative; overflow:hidden;}
+.hpbar .fill{position:absolute; inset:0; width:100%; transform-origin:left;
+  background:linear-gradient(90deg,#ff5d6e,#ff9b57); box-shadow:0 0 16px rgba(255,93,110,.6);}
+.hpbar .txt{position:absolute; inset:0; display:grid; place-items:center;
+  font-size:10.5px; font-weight:700; letter-spacing:.06em; text-shadow:0 1px 2px rgba(0,0,0,.7);}
+.intent{margin-top:9px; display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--muted);}
+.intent b{color:var(--gold2); font-weight:700;}
+.intent .icon{font-size:16px;}
+.intent .pips{display:flex; gap:4px; margin-left:auto;}
+.intent .pip{width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,.14);}
+.intent .pip.on{background:var(--rose); box-shadow:0 0 8px var(--rose);}
+
+/* ============ Player bar ============ */
+.player{display:flex; align-items:center; gap:12px;}
+.avatar{width:40px; height:40px; border-radius:12px; display:grid; place-items:center; font-size:22px;
+  background:linear-gradient(160deg,rgba(79,224,200,.25),rgba(0,0,0,.2));
+  border:1px solid rgba(79,224,200,.35);}
+.php{flex:1;}
+.php .row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px;}
+.php .row .lbl{font-size:11px; letter-spacing:.14em; color:var(--dim); text-transform:uppercase;}
+.php .row .val{font-family:"Cinzel",serif; font-weight:700; font-size:14px;}
+.php .val .sh{color:var(--teal); font-size:12px; margin-left:6px;}
+.phpbar{height:13px; border-radius:999px; background:rgba(0,0,0,.4);
+  border:1px solid rgba(255,255,255,.08); position:relative; overflow:hidden;}
+.phpbar .fill{position:absolute; inset:0; transform-origin:left;
+  background:linear-gradient(90deg,#4fe0c8,#7bd0ff); box-shadow:0 0 14px rgba(79,224,200,.55);}
+.phpbar .shield{position:absolute; inset:0; transform-origin:left; opacity:.55;
+  background:repeating-linear-gradient(45deg,rgba(180,230,255,.6) 0 6px,rgba(180,230,255,.25) 6px 12px);}
+
+/* ============ Board ============ */
+.board-wrap{position:relative;}
+.board{position:relative; width:100%; aspect-ratio:1/1; border-radius:20px;
+  padding:var(--gap);
+  background:linear-gradient(160deg,rgba(20,12,42,.9),rgba(9,6,20,.94));
+  border:1px solid var(--stroke);
+  box-shadow:0 26px 60px -26px rgba(0,0,0,.9), inset 0 0 40px rgba(80,40,140,.15);}
+.grid-bg{position:absolute; inset:var(--gap); display:grid; gap:var(--gap);}
+.grid-bg .slot{border-radius:13px; background:rgba(255,255,255,.035);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.03);}
+.tiles{position:absolute; inset:var(--gap);}
+.tile{position:absolute; width:var(--cell); height:var(--cell); border-radius:13px;
+  display:grid; place-items:center; will-change:transform;
+  font-family:"Cinzel",serif; font-weight:900;
+  box-shadow:0 6px 16px -6px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.18);
+  overflow:hidden;}
+.tile .num{position:relative; z-index:2; line-height:1;}
+.tile .glyph{position:absolute; inset:0; display:grid; place-items:center; z-index:1;
+  font-size:2.2em; opacity:.16; filter:blur(.2px);}
+.tile.corrupt{filter:grayscale(.4) brightness(.8);}
+.tile.corrupt::after{content:"☠"; position:absolute; inset:0; display:grid; place-items:center;
+  font-size:1.5em; opacity:.5; color:#7bd0ff;}
+
+/* combo flash */
+.combo-flash{position:absolute; left:50%; top:12%; transform:translateX(-50%);
+  font-family:"Cinzel",serif; font-weight:900; pointer-events:none; z-index:20;
+  text-shadow:0 2px 10px rgba(0,0,0,.7); opacity:0; white-space:nowrap;}
+
+/* floating damage layer */
+.fx-layer{position:absolute; inset:0; pointer-events:none; z-index:30; overflow:visible;}
+.dmg{position:absolute; font-family:"Cinzel",serif; font-weight:900; font-size:20px;
+  transform:translate(-50%,-50%); pointer-events:none; white-space:nowrap;
+  text-shadow:0 2px 6px rgba(0,0,0,.8);}
+
+/* ============ Footer hint ============ */
+.hint{display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:var(--dim);}
+.hint .score{font-family:"Cinzel",serif; color:var(--gold2); font-weight:700; font-size:13px;}
+.relic-tray{display:flex; gap:6px; flex-wrap:wrap;}
+.relic-chip{width:30px; height:30px; border-radius:9px; display:grid; place-items:center; font-size:16px;
+  background:rgba(247,198,107,.1); border:1px solid rgba(247,198,107,.28); position:relative; cursor:default;}
+.relic-chip .cnt{position:absolute; right:-4px; bottom:-4px; font-size:9px; font-weight:700;
+  background:var(--gold); color:#2a1a05; border-radius:999px; padding:0 4px; font-family:"Space Grotesk";}
+.relic-chip:hover .tip,.relic-chip:active .tip{opacity:1; transform:translateY(0);}
+.relic-chip .tip{position:absolute; bottom:120%; left:50%; transform:translate(-50%,6px);
+  width:150px; background:#160c30; border:1px solid var(--stroke); border-radius:10px; padding:8px 10px;
+  font-family:"Space Grotesk"; font-weight:400; font-size:11px; color:var(--muted); opacity:0;
+  transition:.18s var(--ease); pointer-events:none; z-index:80; text-align:left;}
+.relic-chip .tip b{color:var(--gold2); display:block; margin-bottom:3px; font-size:12px;}
+
+/* ============ Overlays ============ */
+.overlay{position:fixed; inset:0; z-index:70; display:none; align-items:center; justify-content:center;
+  background:rgba(6,3,16,.7); backdrop-filter:blur(6px); padding:20px;}
+.overlay.show{display:flex;}
+.panel{width:min(94vw,560px); max-height:90dvh; overflow:auto; background:linear-gradient(170deg,#1a1036,#0e0722);
+  border:1px solid var(--stroke); border-radius:22px; padding:26px 24px;
+  box-shadow:0 40px 90px -30px rgba(0,0,0,.9);}
+.panel h2{font-family:"Cinzel",serif; font-weight:900; font-size:24px; text-align:center;
+  background:linear-gradient(180deg,var(--gold2),var(--gold));
+  -webkit-background-clip:text; background-clip:text; color:transparent; letter-spacing:.04em;}
+.panel .sub{text-align:center; color:var(--muted); font-size:13px; margin-top:6px; line-height:1.6;}
+.panel .sub .k{color:var(--teal); font-weight:700;}
+
+.cards{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-top:22px;}
+@media(max-width:520px){.cards{grid-template-columns:1fr;}}
+.rcard{position:relative; border-radius:16px; padding:16px 14px; cursor:pointer; overflow:hidden;
+  background:linear-gradient(170deg,rgba(40,26,80,.9),rgba(18,10,38,.95));
+  border:1px solid var(--stroke); transition:transform .18s var(--ease), box-shadow .18s var(--ease), border-color .18s;
+  display:flex; flex-direction:column; gap:8px; text-align:center; min-height:150px;}
+.rcard:hover{transform:translateY(-6px) scale(1.02); border-color:var(--gold);
+  box-shadow:0 22px 40px -18px rgba(247,198,107,.4);}
+.rcard .ricon{font-size:38px; filter:drop-shadow(0 4px 10px rgba(0,0,0,.5));}
+.rcard .rname{font-family:"Cinzel",serif; font-weight:700; font-size:15px; color:var(--gold2);}
+.rcard .rdesc{font-size:12px; color:var(--muted); line-height:1.55; flex:1; display:flex; align-items:center; justify-content:center;}
+.rcard .rar{position:absolute; top:8px; right:10px; font-size:10px; font-weight:700; letter-spacing:.1em;}
+.rar.common{color:var(--dim);} .rar.rare{color:var(--teal);} .rar.epic{color:var(--rose);}
+.rcard.heal{background:linear-gradient(170deg,rgba(24,64,58,.85),rgba(12,30,28,.95)); border-color:rgba(79,224,200,.3);}
+.rcard.heal .rname{color:var(--teal);}
+
+.btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; cursor:pointer;
+  font-family:"Cinzel",serif; font-weight:700; letter-spacing:.06em; font-size:15px;
+  padding:13px 26px; border-radius:14px; border:1px solid var(--gold);
+  color:#2a1a05; background:linear-gradient(180deg,var(--gold2),var(--gold));
+  box-shadow:0 12px 28px -12px rgba(247,198,107,.6); transition:transform .15s var(--ease);}
+.btn:hover{transform:translateY(-2px);}
+.btn.ghost{background:transparent; color:var(--muted); border-color:var(--stroke); box-shadow:none;}
+.center{display:flex; justify-content:center; gap:12px; margin-top:24px; flex-wrap:wrap;}
+
+.rules{margin-top:18px; background:rgba(0,0,0,.25); border:1px solid var(--stroke); border-radius:14px; padding:16px 18px;}
+.rules li{list-style:none; font-size:13px; color:var(--muted); line-height:1.9; display:flex; gap:9px;}
+.rules li .b{color:var(--gold2);}
+.rules li .em{font-size:16px;}
+
+.summary{margin-top:20px; display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+.stat{background:rgba(0,0,0,.28); border:1px solid var(--stroke); border-radius:13px; padding:14px;}
+.stat .n{font-family:"Cinzel",serif; font-weight:900; font-size:26px; color:var(--gold2);}
+.stat .l{font-size:11px; color:var(--dim); letter-spacing:.12em; text-transform:uppercase; margin-top:4px;}
+.deadglyph{font-size:52px; text-align:center; margin-bottom:6px; filter:drop-shadow(0 0 20px rgba(255,77,94,.5));}
+
+/* toast */
+#toast{position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+  z-index:90; background:#160c30; border:1px solid var(--stroke); border-radius:12px;
+  padding:10px 18px; font-size:13px; color:var(--gold2); opacity:0; pointer-events:none;
+  transition:.25s var(--ease); box-shadow:0 14px 30px -14px rgba(0,0,0,.8);}
+#toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<canvas id="bgfx"></canvas>
+<div class="vignette"></div>
+<div id="hurt"></div>
+
+<div class="stage" id="stage">
+  <div class="title-mini">
+    <h1>符文深渊</h1>
+    <div class="depth" id="depthLabel">DEPTH · 1</div>
+  </div>
+
+  <!-- Enemy -->
+  <div class="enemy" id="enemyCard">
+    <div class="enemy-top">
+      <div class="sigil" id="enemySigil"><span class="ring"></span><span id="enemyGlyph">👁️</span></div>
+      <div class="enemy-info">
+        <div class="enemy-name"><span id="enemyName">虚空守卫</span><span class="tag" id="enemyTag">精英</span></div>
+        <div class="hpbar"><div class="fill" id="enemyHpFill"></div><div class="txt" id="enemyHpTxt">100 / 100</div></div>
+        <div class="intent">
+          <span class="icon" id="intentIcon">⚔️</span>
+          <span id="intentText">蓄力攻击 <b>12</b></span>
+          <span class="pips" id="intentPips"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Player -->
+  <div class="player">
+    <div class="avatar">🜂</div>
+    <div class="php">
+      <div class="row"><span class="lbl">符文师 · 生命</span>
+        <span class="val" id="playerHpTxt">100 / 100 <span class="sh" id="shieldTxt"></span></span></div>
+      <div class="phpbar"><div class="fill" id="playerHpFill"></div><div class="shield" id="playerShield" style="width:0"></div></div>
+    </div>
+  </div>
+
+  <!-- Board -->
+  <div class="board-wrap">
+    <div class="board" id="board">
+      <div class="grid-bg" id="gridBg"></div>
+      <div class="tiles" id="tiles"></div>
+      <div class="fx-layer" id="fxLayer"></div>
+      <div class="combo-flash" id="comboFlash"></div>
+    </div>
+  </div>
+
+  <div class="hint">
+    <span>方向键 / WASD / 滑动 · 合并释放符文之力</span>
+    <span class="score">得分 <span id="scoreVal">0</span></span>
+  </div>
+  <div class="relic-tray" id="relicTray"></div>
+</div>
+
+<!-- START overlay -->
+<div class="overlay show" id="startOverlay">
+  <div class="panel">
+    <h2>符 文 深 渊</h2>
+    <div class="sub">你是被放逐的符文师，唯有向<span class="k">深渊</span>之底汇聚符文之力，才能挣脱诅咒。<br/>每一次滑动都是一次咒术编织 —— 合并同阶符文，将其威能倾泻于守卫之上。</div>
+    <div class="rules">
+      <li><span class="em">🎴</span><span><span class="b">编织：</span>滑动合并相同符文，合成的数值越高，对敌造成的<b class="b">符文伤害</b>越高。</span></li>
+      <li><span class="em">⚔️</span><span><span class="b">意图：</span>守卫每隔数回合发动一次攻击（回合＝一次滑动）。护盾会先行抵挡。</span></li>
+      <li><span class="em">💀</span><span><span class="b">崩解：</span>生命归零，或矩阵填满且无法移动，则本次探索终结。</span></li>
+      <li><span class="em">🏆</span><span><span class="b">遗物：</span>击败守卫后，从三件<b class="b">随机遗物</b>中择一，永久改写你的咒术规则。</span></li>
+    </div>
+    <div class="center"><button class="btn" id="startBtn">开 始 探 索 ⬇</button></div>
+  </div>
+</div>
+
+<!-- REWARD overlay -->
+<div class="overlay" id="rewardOverlay">
+  <div class="panel">
+    <h2 id="rewardTitle">守卫已陨落</h2>
+    <div class="sub" id="rewardSub">符文之力凝聚成形 —— 择取一件<span class="k">遗物</span>，继续深入。</div>
+    <div class="cards" id="rewardCards"></div>
+  </div>
+</div>
+
+<!-- DEATH overlay -->
+<div class="overlay" id="deathOverlay">
+  <div class="panel">
+    <div class="deadglyph" id="deathGlyph">☠</div>
+    <h2 id="deathTitle">咒术崩解</h2>
+    <div class="sub" id="deathSub">你的符文之力消散于深渊……但传说仍将流传。</div>
+    <div class="summary">
+      <div class="stat"><div class="n" id="sumDepth">1</div><div class="l">抵达深度</div></div>
+      <div class="stat"><div class="n" id="sumScore">0</div><div class="l">符文得分</div></div>
+      <div class="stat"><div class="n" id="sumKills">0</div><div class="l">守卫击杀</div></div>
+      <div class="stat"><div class="n" id="sumRelics">0</div><div class="l">遗物收集</div></div>
+    </div>
+    <div class="center"><button class="btn" id="restartBtn">再 度 挑 战 ⟳</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* =====================================================================
+   符文深渊 · Rune Depths — 2048 fusion + roguelike, single file
+   ===================================================================== */
+"use strict";
+const $ = s => document.querySelector(s);
+const rand = (a,b)=>a+Math.random()*(b-a);
+const randi = (a,b)=>Math.floor(rand(a,b+1));
+const pick = arr => arr[randi(0,arr.length-1)];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+/* ---------- Board geometry ---------- */
+const SIZE = 4;
+const boardEl = $('#board'), tilesEl = $('#tiles'), fxLayer = $('#fxLayer');
+let CELL=70, GAP=12;
+function measure(){
+  const w = boardEl.clientWidth;
+  GAP = Math.round(w*0.028);
+  CELL = Math.round((w - GAP*(SIZE+1))/SIZE);
+  document.documentElement.style.setProperty('--cell', CELL+'px');
+  document.documentElement.style.setProperty('--gap', GAP+'px');
+  buildGridBg();
+  renderTilesInstant();
+}
+function cellPos(r,c){ return { x:c*(CELL+GAP), y:r*(CELL+GAP) }; }
+
+function buildGridBg(){
+  const g = $('#gridBg');
+  g.style.gridTemplateColumns = `repeat(${SIZE},1fr)`;
+  g.style.gridTemplateRows = `repeat(${SIZE},1fr)`;
+  g.innerHTML='';
+  for(let i=0;i<SIZE*SIZE;i++){ const s=document.createElement('div'); s.className='slot'; g.appendChild(s); }
+}
+
+/* ---------- Rune palette (value -> style) ---------- */
+const RUNES = {
+  2:   {c1:'#3a2f66',c2:'#241a4a',ink:'#d8ccff',g:'ᚠ'},
+  4:   {c1:'#2f4d7a',c2:'#1c3355',ink:'#d6ecff',g:'ᚢ'},
+  8:   {c1:'#1f6b74',c2:'#0f4149',ink:'#c9fff4',g:'ᚦ'},
+  16:  {c1:'#1f7a52',c2:'#0f4a30',ink:'#c9ffe0',g:'ᚨ'},
+  32:  {c1:'#7a7a1f',c2:'#4a4a0f',ink:'#fbffb8',g:'ᚱ'},
+  64:  {c1:'#9a6a1c',c2:'#5c3f0f',ink:'#ffe6b0',g:'ᚲ'},
+  128: {c1:'#b8541f',c2:'#6e300f',ink:'#ffd9b8',g:'ᚷ'},
+  256: {c1:'#c23a5a',c2:'#742035',ink:'#ffc9d6',g:'ᚹ'},
+  512: {c1:'#a02fb8',c2:'#5c1a6e',ink:'#f2c9ff',g:'ᚺ'},
+  1024:{c1:'#5a3fd6',c2:'#2f1f7a',ink:'#d6ccff',g:'ᚾ'},
+  2048:{c1:'#f7c66b',c2:'#b8812e',ink:'#3a2a08',g:'ᛟ'},
+  4096:{c1:'#4fe0c8',c2:'#1f7a6c',ink:'#052a25',g:'ᛞ'},
+};
+function runeStyle(v){
+  const r = RUNES[v] || RUNES[4096];
+  let fs = v<128?'1.9em':v<1024?'1.55em':'1.15em';
+  return {r,fs};
+}
+
+/* =====================================================================
+   Game state
+   ===================================================================== */
+const G = {
+  grid:[], tiles:new Map(), nextId:1,
+  depth:1, score:0, kills:0,
+  hp:100, maxHp:100, shield:0,
+  enemy:null, animating:false, over:false, started:false,
+  relics:[], relicCounts:{},
+  // derived combat modifiers (recomputed from relics)
+  mods:null,
+  turnCount:0,
+  lastSpawnValueBias:0,
+};
+
+function baseMods(){
+  return {
+    dmgMult:1,            // global rune damage multiplier
+    mergeBonusFlat:0,     // flat dmg added per merge
+    shieldPerMerge:0,     // shield gained per merge
+    healPerMerge:0,       // hp healed per merge
+    critChance:0,         // chance to double a merge's damage
+    critMult:2,
+    thorns:0,             // reflect dmg when hit
+    spawnFour:0.12,       // chance a spawned tile is 4
+    lifestealPct:0,       // % of overkill/large hits back as hp
+    comboScale:0.18,      // extra dmg per combo count
+    firstMergeArmor:0,    // shield at start of each floor
+    chainLightning:false, // merges hit for splash
+    overloadEvery:0,      // every N merges deal bonus burst
+    frostSlow:0,          // adds to enemy attack interval
+    doubleSpawn:false,    // spawn 2 tiles some turns
+    goldHeart:0,          // extra max hp already applied
+  };
+}
+
+/* =====================================================================
+   Relic pool
+   ===================================================================== */
+const RELICS = [
+  {id:'ember', icon:'🔥', name:'炽焰符核', rar:'common',
+   desc:'每次合并额外造成 +4 固定符文伤害。',
+   apply:m=>m.mergeBonusFlat+=4},
+  {id:'aegis', icon:'🛡️', name:'守护之鳞', rar:'common',
+   desc:'每次合并获得 +3 点护盾。',
+   apply:m=>m.shieldPerMerge+=3},
+  {id:'leech', icon:'🩸', name:'汲血符文', rar:'rare',
+   desc:'每次合并回复 2 点生命。',
+   apply:m=>m.healPerMerge+=2},
+  {id:'crit', icon:'💠', name:'裂晶棱镜', rar:'rare',
+   desc:'合并有 25% 几率触发暴击，伤害翻倍。',
+   apply:m=>m.critChance+=0.25},
+  {id:'thorn', icon:'🌵', name:'荆棘之冠', rar:'common',
+   desc:'受到攻击时，向守卫反弹 6 点伤害。',
+   apply:m=>m.thorns+=6},
+  {id:'combo', icon:'⚡', name:'连锁咒轮', rar:'epic',
+   desc:'连击加成翻倍：单次移动合并越多，伤害成倍暴涨。',
+   apply:m=>m.comboScale+=0.28},
+  {id:'amplify', icon:'🔮', name:'放大法阵', rar:'epic',
+   desc:'所有符文伤害 ×1.35。',
+   apply:m=>m.dmgMult*=1.35},
+  {id:'frost', icon:'❄️', name:'凛冬指针', rar:'rare',
+   desc:'守卫的攻击蓄力回合 +1，出手更慢。',
+   apply:m=>m.frostSlow+=1},
+  {id:'rich', icon:'🍀', name:'丰饶之种', rar:'common',
+   desc:'新符文有 45% 几率直接生成为 4。',
+   apply:m=>m.spawnFour=0.45},
+  {id:'twin', icon:'👯', name:'孪生回响', rar:'epic',
+   desc:'移动后有几率同时召唤两枚符文，填盘更快也更险。',
+   apply:m=>m.doubleSpawn=true},
+  {id:'overload', icon:'🌟', name:'过载核心', rar:'rare',
+   desc:'每累计 4 次合并，释放一次 20 点范围爆发。',
+   apply:m=>m.overloadEvery=4},
+  {id:'heart', icon:'❤️‍🔥', name:'不灭心炉', rar:'common',
+   desc:'生命上限 +30 并立即回满这部分。',
+   apply:m=>{m.goldHeart+=30;}},
+  {id:'chain', icon:'🕸️', name:'链击之网', rar:'epic',
+   desc:'每次合并附带 30% 溅射伤害（基于该次伤害）。',
+   apply:m=>m.chainLightning=true},
+  {id:'bulwark', icon:'🏰', name:'磐岩壁垒', rar:'rare',
+   desc:'每进入新层，开局获得 15 点护盾。',
+   apply:m=>m.firstMergeArmor+=15},
+];
+// heal option (not a relic) offered sometimes
+const HEAL_OPTION = {id:'__heal', icon:'💚', name:'符文泉源', rar:'common', heal:true,
+  desc:'回复 40% 最大生命，并清理场上一枚最小符文。'};
+
+/* =====================================================================
+   Enemy definitions per depth
+   ===================================================================== */
+const ENEMY_NAMES = ['虚空守卫','熔渊魔像','霜牙巡守','腐蚀之影','雷鸣傀儡','深渊织网者','血月祭司','碎骨行者'];
+const ENEMY_GLYPHS = ['👁️','🗿','🐺','🫧','🤖','🕷️','🩸','💀'];
+const BOSS_NAMES = ['深渊之心 · 诺克斯','古神残躯 · 塞拉菲','终焉回响 · 欧米伽'];
+const BOSS_GLYPHS = ['🐲','👹','🌌'];
+
+function makeEnemy(depth){
+  const isBoss = depth % 5 === 0;
+  const idx = (depth-1) % ENEMY_NAMES.length;
+  const baseHp = isBoss
+    ? Math.round(220 + depth*46 + depth*depth*3.2)
+    : Math.round(58 + depth*26 + depth*depth*1.6);
+  const atk = isBoss
+    ? Math.round(14 + depth*2.4)
+    : Math.round(7 + depth*1.5);
+  let interval = isBoss ? 4 : (depth<3?4:3);
+  interval += (G.mods? G.mods.frostSlow:0);
+  const e = {
+    name: isBoss? BOSS_NAMES[Math.min((Math.floor(depth/5)-1),BOSS_NAMES.length-1)] : ENEMY_NAMES[idx],
+    glyph: isBoss? BOSS_GLYPHS[Math.min((Math.floor(depth/5)-1),BOSS_GLYPHS.length-1)] : ENEMY_GLYPHS[idx],
+    isBoss, maxHp:baseHp, hp:baseHp, atk, interval,
+    countdown: interval,
+    kind: pick(['strike','strike','heavy','guard']),
+  };
+  // pick an intent kind for boss = heavy more often
+  return e;
+}
+
+/* =====================================================================
+   Grid helpers
+   ===================================================================== */
+function emptyGrid(){ return Array.from({length:SIZE},()=>Array(SIZE).fill(0)); }
+function emptyCells(){
+  const out=[];
+  for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++) if(G.grid[r][c]===0) out.push([r,c]);
+  return out;
+}
+function spawnTile(force){
+  const cells = emptyCells();
+  if(!cells.length) return null;
+  const [r,c] = pick(cells);
+  const four = Math.random() < (G.mods?G.mods.spawnFour:0.12);
+  const v = force || (four?4:2);
+  const id = G.nextId++;
+  G.grid[r][c] = id;
+  const t = {id, r, c, v, el:null, isNew:true};
+  G.tiles.set(id, t);
+  return t;
+}
+
+/* =====================================================================
+   Rendering
+   ===================================================================== */
+function makeTileEl(t){
+  const el = document.createElement('div');
+  el.className='tile';
+  el.dataset.id=t.id;
+  applyTileStyle(el,t.v);
+  el.innerHTML = `<span class="glyph"></span><span class="num"></span>`;
+  updateTileFace(el,t.v);
+  tilesEl.appendChild(el);
+  t.el = el;
+  const p = cellPos(t.r,t.c);
+  gsap.set(el,{x:p.x,y:p.y});
+  return el;
+}
+function applyTileStyle(el,v){
+  const {r,fs}=runeStyle(v);
+  el.style.background = `linear-gradient(155deg, ${r.c1}, ${r.c2})`;
+  el.style.color = r.ink;
+  el.style.fontSize = fs;
+  el.style.boxShadow = `0 6px 16px -6px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.2), 0 0 ${v>=64?24:0}px ${v>=64?hexA(r.c1,.5):'transparent'}`;
+}
+function hexA(hex,a){ // hex like #rrggbb
+  const n=parseInt(hex.slice(1),16); const R=(n>>16)&255,Gc=(n>>8)&255,B=n&255;
+  return `rgba(${R},${Gc},${B},${a})`;
+}
+function updateTileFace(el,v){
+  const {r}=runeStyle(v);
+  el.querySelector('.num').textContent = v;
+  el.querySelector('.glyph').textContent = r.g;
+}
+function renderTilesInstant(){
+  // ensure DOM matches state, no animation (used on resize/new floor)
+  for(const [id,t] of G.tiles){
+    if(!t.el) makeTileEl(t);
+    else{ applyTileStyle(t.el,t.v); updateTileFace(t.el,t.v);
+      const p=cellPos(t.r,t.c); gsap.set(t.el,{x:p.x,y:p.y}); }
+  }
+}
+
+/* =====================================================================
+   Movement + merge with animation
+   ===================================================================== */
+const DIRS = {
+  left:  {dr:0,dc:-1}, right:{dr:0,dc:1},
+  up:    {dr:-1,dc:0}, down: {dr:1,dc:0},
+};
+
+function move(dir){
+  if(G.animating || G.over || !G.started) return;
+  const {dr,dc}=DIRS[dir];
+  // build traversal order
+  const rows=[...Array(SIZE).keys()], cols=[...Array(SIZE).keys()];
+  if(dr>0) rows.reverse(); if(dc>0) cols.reverse();
+
+  let moved=false;
+  const mergedThisMove=[]; // {value, r, c}
+  const moves=[];          // {t, r,c}  final resting for survivors
+  const removals=[];       // {t} tiles merged away
+  const newGrid = emptyGrid();
+  // process line by line
+  const lines = buildLines(dir);
+  let mergeCount=0;
+  for(const line of lines){
+    const ids = line.map(([r,c])=>G.grid[r][c]).filter(x=>x!==0);
+    const tilesArr = ids.map(id=>G.tiles.get(id));
+    const resultSlots=[]; // sequence after merge (values with source tiles)
+    let i=0;
+    while(i<tilesArr.length){
+      const cur=tilesArr[i];
+      if(i+1<tilesArr.length && tilesArr[i+1].v===cur.v){
+        // merge cur + next
+        const nv=cur.v*2;
+        resultSlots.push({v:nv, keep:cur, gone:tilesArr[i+1]});
+        mergeCount++;
+        i+=2;
+      }else{
+        resultSlots.push({v:cur.v, keep:cur, gone:null});
+        i++;
+      }
+    }
+    // place results along line direction (line array already ordered from "front")
+    for(let s=0;s<resultSlots.length;s++){
+      const [tr,tc]=line[s];
+      const slot=resultSlots[s];
+      const keep=slot.keep;
+      if(keep.r!==tr || keep.c!==tc) moved=true;
+      // record final position
+      moves.push({t:keep, r:tr, c:tc, v:slot.v});
+      newGrid[tr][tc]=keep.id;
+      if(slot.gone){
+        moved=true;
+        removals.push({t:slot.gone, r:tr, c:tc});
+        mergedThisMove.push({value:slot.v, r:tr, c:tc, keep});
+      }
+    }
+  }
+
+  if(!moved){ shakeBoardNudge(dir); return; }
+
+  G.animating=true;
+  G.grid=newGrid;
+  G.turnCount++;
+
+  // animate survivors sliding
+  const dur=0.13;
+  moves.forEach(m=>{
+    const t=m.t; t.r=m.r; t.c=m.c;
+    const p=cellPos(m.r,m.c);
+    gsap.to(t.el,{x:p.x,y:p.y,duration:dur,ease:'power3.out'});
+  });
+  // animate merged-away tiles sliding to target then removing
+  removals.forEach(rm=>{
+    const p=cellPos(rm.r,rm.c);
+    gsap.to(rm.t.el,{x:p.x,y:p.y,duration:dur,ease:'power3.out',onComplete:()=>{
+      rm.t.el.remove(); G.tiles.delete(rm.t.id);
+    }});
+  });
+
+  // after slide, apply merges (value bump + pop + damage)
+  gsap.delayedCall(dur, ()=>{
+    let totalDamage=0;
+    const combo = mergedThisMove.length;
+    mergedThisMove.forEach((mg,idx)=>{
+      const t=mg.keep; t.v=mg.value;
+      applyTileStyle(t.el,t.v); updateTileFace(t.el,t.v);
+      // juicy pop
+      gsap.fromTo(t.el,{scale:1},{scale:1.28,duration:0.08,ease:'power2.out',
+        onComplete:()=>gsap.to(t.el,{scale:1,duration:0.18,ease:'elastic.out(1,0.45)'})});
+      spawnMergeBurst(t, mg.value);
+      totalDamage += runeDamage(mg.value, idx, combo);
+      // score
+      G.score += mg.value;
+    });
+    if(combo>=2) showCombo(combo, mergedThisMove);
+    // apply relic per-merge effects
+    applyMergeSideEffects(combo);
+    // deal damage to enemy
+    if(totalDamage>0) dealDamage(totalDamage, combo);
+
+    // spawn new tile(s)
+    const spawnN = (G.mods.doubleSpawn && Math.random()<0.5)?2:1;
+    const spawned=[];
+    for(let k=0;k<spawnN;k++){ const t=spawnTile(); if(t){ makeTileEl(t); spawned.push(t);} }
+    spawned.forEach(t=>{
+      gsap.fromTo(t.el,{scale:0,rotate:-40,opacity:0},
+        {scale:1,rotate:0,opacity:1,duration:0.26,ease:'back.out(2.2)'});
+    });
+
+    // enemy turn
+    enemyTick();
+
+    updateHUD();
+    G.animating=false;
+
+    // check loss by full board
+    if(!canMove()){ endGame('矩阵已被符文淹没，再无空隙可编织。'); }
+  });
+
+  // subtle whole-board shove for feedback
+  shakeBoardNudge(dir);
+  updateScoreQuick();
+}
+
+function buildLines(dir){
+  // returns array of lines; each line is array of [r,c] ordered from the
+  // side the tiles move toward (front) to back.
+  const lines=[];
+  if(dir==='left'){
+    for(let r=0;r<SIZE;r++){ const l=[]; for(let c=0;c<SIZE;c++) l.push([r,c]); lines.push(l);}
+  }else if(dir==='right'){
+    for(let r=0;r<SIZE;r++){ const l=[]; for(let c=SIZE-1;c>=0;c--) l.push([r,c]); lines.push(l);}
+  }else if(dir==='up'){
+    for(let c=0;c<SIZE;c++){ const l=[]; for(let r=0;r<SIZE;r++) l.push([r,c]); lines.push(l);}
+  }else{ // down
+    for(let c=0;c<SIZE;c++){ const l=[]; for(let r=SIZE-1;r>=0;r--) l.push([r,c]); lines.push(l);}
+  }
+  return lines;
+}
+
+function canMove(){
+  if(emptyCells().length) return true;
+  for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){
+    const v=tileVal(r,c);
+    if(c+1<SIZE && tileVal(r,c+1)===v) return true;
+    if(r+1<SIZE && tileVal(r+1,c)===v) return true;
+  }
+  return false;
+}
+function tileVal(r,c){ const id=G.grid[r][c]; return id?G.tiles.get(id).v:-999; }
+
+/* =====================================================================
+   Combat math
+   ===================================================================== */
+function runeDamage(value, indexInMove, combo){
+  // damage scales with log of value so higher merges hit harder
+  let base = Math.round(value * 0.9 + Math.log2(value)*value*0.05);
+  base = Math.max(base, Math.round(value*0.6));
+  base += G.mods.mergeBonusFlat;
+  // combo scaling
+  const comboMult = 1 + G.mods.comboScale*(combo-1);
+  let dmg = base * comboMult * G.mods.dmgMult;
+  // crit
+  if(Math.random() < G.mods.critChance){ dmg *= G.mods.critMult; }
+  return Math.round(dmg);
+}
+
+let mergeAccum=0;
+function applyMergeSideEffects(combo){
+  const m=G.mods;
+  const merges=combo;
+  if(m.shieldPerMerge>0){ addShield(m.shieldPerMerge*merges); }
+  if(m.healPerMerge>0){ heal(m.healPerMerge*merges); }
+  mergeAccum += merges;
+  if(m.overloadEvery>0){
+    while(mergeAccum>=m.overloadEvery){
+      mergeAccum-=m.overloadEvery;
+      const burst=20;
+      dealDamage(burst,1,true);
+      toast('🌟 过载核心迸发 · '+burst+' 爆发伤害');
+    }
+  }
+}
+
+function dealDamage(amount, combo, silent){
+  if(!G.enemy) return;
+  let dmg=amount;
+  // chain lightning splash already folded per merge? keep simple: chain adds 30%
+  if(G.mods.chainLightning){ dmg = Math.round(dmg*1.3); }
+  G.enemy.hp -= dmg;
+  // lifesteal
+  if(G.mods.lifestealPct>0){ heal(Math.round(dmg*G.mods.lifestealPct)); }
+  flyDamage(dmg, 'enemy');
+  hitEnemyShake();
+  if(G.enemy.hp<=0){ G.enemy.hp=0; updateEnemyHUD(); enemyDefeated(); }
+  else updateEnemyHUD();
+}
+
+/* =====================================================================
+   Enemy behavior
+   ===================================================================== */
+function enemyTick(){
+  const e=G.enemy; if(!e || e.hp<=0) return;
+  e.countdown--;
+  if(e.countdown<=0){
+    enemyAttack();
+    e.countdown = e.interval;
+    // reroll intent
+    e.kind = e.isBoss ? pick(['heavy','strike','heavy','guard'])
+                      : pick(['strike','strike','heavy','guard']);
+  }
+  updateEnemyHUD();
+}
+
+function enemyAttack(){
+  const e=G.enemy;
+  let dmg=e.atk;
+  let label='';
+  if(e.kind==='heavy'){ dmg=Math.round(e.atk*1.8); label='重击'; }
+  else if(e.kind==='guard'){ dmg=Math.round(e.atk*0.5);
+    // guard also heals itself a little
+    e.hp=Math.min(e.maxHp, e.hp+Math.round(e.maxHp*0.04)); label='戒备反击'; }
+  else{ label='攻击'; }
+  // apply to shield first
+  playerTakeDamage(dmg, label);
+  // thorns reflect
+  if(G.mods.thorns>0){ dealDamage(G.mods.thorns,1,true); flyDamage(G.mods.thorns,'enemy'); }
+}
+
+function playerTakeDamage(dmg, label){
+  let remaining=dmg;
+  if(G.shield>0){
+    const absorbed=Math.min(G.shield,remaining);
+    G.shield-=absorbed; remaining-=absorbed;
+  }
+  G.hp-=remaining;
+  flyDamage(dmg,'player');
+  flashHurt(remaining>0?Math.min(1,remaining/G.maxHp+0.15):0.12);
+  screenShake(remaining>0?10:4);
+  toast('☠ 守卫'+label+' · 造成 '+dmg+(remaining<dmg?'（护盾吸收）':'')+' 伤害');
+  updatePlayerHUD();
+  if(G.hp<=0){ G.hp=0; updatePlayerHUD(); endGame('你的生命之火被守卫熄灭。'); }
+}
+
+function heal(n){ G.hp=Math.min(G.maxHp,G.hp+n); }
+function addShield(n){ G.shield+=n; }
+
+function enemyDefeated(){
+  G.kills++;
+  // dramatic dissolve
+  gsap.to('#enemyCard',{ '--x':1, duration:0.1 });
+  const card=$('#enemyCard');
+  gsap.fromTo(card,{scale:1},{scale:0.96,duration:0.1,yoyo:true,repeat:3,ease:'power1.inOut'});
+  spawnEnemyDeathFx();
+  // slight heal + reward after short beat
+  setTimeout(()=>offerRewards(), 620);
+}
+
+/* =====================================================================
+   Rewards / relics
+   ===================================================================== */
+function offerRewards(){
+  G.animating=true;
+  const owned = new Set(G.relics.map(r=>r.id));
+  // allow repeatable stackers even if owned (ember/aegis/leech/thorn/crit/heart)
+  const stackable = new Set(['ember','aegis','leech','thorn','crit','heart','frost','bulwark']);
+  let pool = RELICS.filter(r=> stackable.has(r.id) || !owned.has(r.id));
+  if(pool.length<3) pool=RELICS.slice();
+  // weighted by rarity
+  const weight = r => r.rar==='epic'?1: r.rar==='rare'?2:3.4;
+  const chosen=[];
+  const tmp=pool.slice();
+  while(chosen.length<3 && tmp.length){
+    const total=tmp.reduce((a,r)=>a+weight(r),0);
+    let roll=Math.random()*total, idx=0;
+    for(let i=0;i<tmp.length;i++){ roll-=weight(tmp[i]); if(roll<=0){idx=i;break;} }
+    chosen.push(tmp.splice(idx,1)[0]);
+  }
+  // sometimes replace 3rd with heal option if hurt
+  if(G.hp < G.maxHp*0.6 && Math.random()<0.7){ chosen[2]=HEAL_OPTION; }
+
+  const wrap=$('#rewardCards'); wrap.innerHTML='';
+  $('#rewardTitle').textContent = G.enemy.isBoss?'BOSS 已陨落！':'守卫已陨落';
+  $('#rewardSub').innerHTML = '符文之力凝聚成形 —— 择取一件<span class="k">遗物</span>，继续深入第 '+(G.depth+1)+' 层。';
+  chosen.forEach(rc=>{
+    const el=document.createElement('div');
+    el.className='rcard'+(rc.heal?' heal':'');
+    el.innerHTML=`<span class="rar ${rc.rar}">${rc.rar.toUpperCase()}</span>
+      <div class="ricon">${rc.icon}</div>
+      <div class="rname">${rc.name}</div>
+      <div class="rdesc">${rc.desc}</div>`;
+    el.addEventListener('click',()=>chooseReward(rc));
+    wrap.appendChild(el);
+  });
+  showOverlay('rewardOverlay');
+  gsap.fromTo('#rewardCards .rcard',{y:24,opacity:0},{y:0,opacity:1,stagger:0.08,duration:0.4,ease:'back.out(1.7)'});
+}
+
+function chooseReward(rc){
+  hideOverlay('rewardOverlay');
+  if(rc.heal){
+    heal(Math.round(G.maxHp*0.4));
+    // clear smallest tile
+    removeSmallestTile();
+    toast('💚 符文泉源 · 生命回复');
+  }else{
+    G.relics.push(rc);
+    G.relicCounts[rc.id]=(G.relicCounts[rc.id]||0)+1;
+    recomputeMods();
+    toast(rc.icon+' 获得遗物 · '+rc.name);
+  }
+  renderRelics();
+  updateHUD();
+  // descend to next floor
+  setTimeout(()=>descend(), 260);
+}
+
+function recomputeMods(){
+  const m=baseMods();
+  let heartBonus=0;
+  G.relics.forEach(r=>{
+    const def=RELICS.find(x=>x.id===r.id);
+    if(def) def.apply(m);
+  });
+  // apply gold heart into maxHp (relative to base 100 + heart stacks)
+  const heartCount=G.relicCounts['heart']||0;
+  const newMax=100 + heartCount*30;
+  const diff=newMax-G.maxHp;
+  if(diff>0){ G.maxHp=newMax; G.hp+=diff; }
+  m.goldHeart=heartCount*30;
+  G.mods=m;
+}
+
+function removeSmallestTile(){
+  let min=Infinity, tgt=null;
+  for(const [id,t] of G.tiles){ if(t.v<min){min=t.v; tgt=t;} }
+  if(tgt){
+    G.grid[tgt.r][tgt.c]=0;
+    gsap.to(tgt.el,{scale:0,opacity:0,duration:0.3,ease:'back.in(2)',onComplete:()=>{tgt.el.remove();}});
+    G.tiles.delete(tgt.id);
+  }
+}
+
+/* =====================================================================
+   Floors
+   ===================================================================== */
+function descend(){
+  G.depth++;
+  // floor-start armor
+  if(G.mods.firstMergeArmor>0){ addShield(G.mods.firstMergeArmor); }
+  G.enemy = makeEnemy(G.depth);
+  // depth transition anim
+  const tl=gsap.timeline();
+  tl.to('#board',{y:14,opacity:0.4,duration:0.2,ease:'power2.in'})
+    .add(()=>{ updateEnemyHUD(); updateHUD(); flashDepth(); })
+    .to('#board',{y:0,opacity:1,duration:0.35,ease:'power3.out'});
+  // occasionally add a corrupt/obstacle tile on deeper floors
+  if(G.depth>=4 && Math.random()<0.5){ addObstacle(); }
+  G.animating=false;
+  updateHUD();
+}
+
+function addObstacle(){
+  // spawn a locked "corrupt" tile of small value that can still merge
+  const t=spawnTile(2);
+  if(t){ makeTileEl(t); t.el.classList.add('corrupt');
+    toast('☠ 深渊腐蚀 —— 一枚被侵蚀的符文出现'); }
+}
+
+/* =====================================================================
+   HUD updates
+   ===================================================================== */
+function updateHUD(){ updatePlayerHUD(); updateEnemyHUD(); updateScoreQuick(); $('#depthLabel').textContent='DEPTH · '+G.depth; }
+function updateScoreQuick(){ $('#scoreVal').textContent=G.score; }
+
+function updatePlayerHUD(){
+  const pct=clamp(G.hp/G.maxHp,0,1);
+  gsap.to('#playerHpFill',{scaleX:pct,duration:0.35,ease:'power2.out',transformOrigin:'left'});
+  const sPct=clamp(G.shield/G.maxHp,0,1);
+  $('#playerShield').style.width=(clamp(G.shield/G.maxHp,0,1)*100)+'%';
+  $('#playerHpTxt').innerHTML=`${Math.max(0,Math.round(G.hp))} / ${G.maxHp}` + (G.shield>0?` <span class="sh">🛡 ${Math.round(G.shield)}</span>`:'');
+}
+function updateEnemyHUD(){
+  const e=G.enemy; if(!e) return;
+  const pct=clamp(e.hp/e.maxHp,0,1);
+  gsap.to('#enemyHpFill',{scaleX:pct,duration:0.35,ease:'power2.out',transformOrigin:'left'});
+  $('#enemyHpTxt').textContent=`${Math.max(0,Math.round(e.hp))} / ${e.maxHp}`;
+  $('#enemyName').textContent=e.name;
+  $('#enemyGlyph').textContent=e.glyph;
+  const tag=$('#enemyTag'); tag.textContent=e.isBoss?'BOSS':'守卫';
+  tag.className='tag'+(e.isBoss?' boss':'');
+  // intent
+  let icon='⚔️', txt='';
+  let dmgPreview=e.atk;
+  if(e.kind==='heavy'){icon='💥'; dmgPreview=Math.round(e.atk*1.8); txt=`蓄力重击 <b>${dmgPreview}</b>`;}
+  else if(e.kind==='guard'){icon='🛡️'; dmgPreview=Math.round(e.atk*0.5); txt=`戒备 · 回血 & 反击 <b>${dmgPreview}</b>`;}
+  else{icon='⚔️'; txt=`攻击 <b>${dmgPreview}</b>`;}
+  $('#intentIcon').textContent=icon;
+  $('#intentText').innerHTML=txt;
+  // pips = countdown
+  const pipWrap=$('#intentPips'); pipWrap.innerHTML='';
+  for(let i=0;i<e.interval;i++){
+    const p=document.createElement('span');
+    p.className='pip'+(i<(e.interval-e.countdown)?' on':'');
+    pipWrap.appendChild(p);
+  }
+  if(e.countdown===1){ // about to hit -> pulse
+    gsap.fromTo('#enemyCard',{boxShadow:'0 0 0 rgba(255,77,94,0)'},
+      {boxShadow:'0 0 26px rgba(255,77,94,.5)',duration:0.4,yoyo:true,repeat:1});
+  }
+}
+
+function renderRelics(){
+  const tray=$('#relicTray'); tray.innerHTML='';
+  const seen={};
+  G.relics.forEach(r=>{ seen[r.id]=(seen[r.id]||0)+1; });
+  Object.keys(seen).forEach(id=>{
+    const def=RELICS.find(x=>x.id===id);
+    const chip=document.createElement('div');
+    chip.className='relic-chip';
+    chip.innerHTML=`${def.icon}${seen[id]>1?`<span class="cnt">${seen[id]}</span>`:''}
+      <span class="tip"><b>${def.name}</b>${def.desc}</span>`;
+    tray.appendChild(chip);
+  });
+}
+
+/* =====================================================================
+   Juice / FX
+   ===================================================================== */
+function spawnMergeBurst(t, value){
+  const {r}=runeStyle(value);
+  const cx = t.c*(CELL+GAP)+CELL/2;
+  const cy = t.r*(CELL+GAP)+CELL/2;
+  // ring
+  const ring=document.createElement('div');
+  ring.style.cssText=`position:absolute;left:${cx}px;top:${cy}px;width:${CELL}px;height:${CELL}px;
+    transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;
+    border:2px solid ${hexA(r.c1,.9)};box-shadow:0 0 20px ${hexA(r.c1,.7)};`;
+  fxLayer.appendChild(ring);
+  gsap.fromTo(ring,{scale:0.3,opacity:1},{scale:2,opacity:0,duration:0.5,ease:'power2.out',onComplete:()=>ring.remove()});
+  // particles
+  const n = value>=64?12:8;
+  for(let i=0;i<n;i++){
+    const p=document.createElement('div');
+    const size=rand(4,8);
+    p.style.cssText=`position:absolute;left:${cx}px;top:${cy}px;width:${size}px;height:${size}px;
+      border-radius:50%;pointer-events:none;background:${i%2?r.ink:hexA(r.c1,1)};
+      box-shadow:0 0 8px ${hexA(r.c1,.9)};`;
+    fxLayer.appendChild(p);
+    const ang=rand(0,Math.PI*2), dist=rand(CELL*0.5,CELL*1.3);
+    gsap.to(p,{x:Math.cos(ang)*dist,y:Math.sin(ang)*dist,opacity:0,scale:0.2,
+      duration:rand(0.4,0.7),ease:'power2.out',onComplete:()=>p.remove()});
+  }
+}
+
+function showCombo(combo, merges){
+  const el=$('#comboFlash');
+  const colors=['#4fe0c8','#a274ff','#ff6b8b','#f7c66b'];
+  const col=colors[Math.min(combo-2,colors.length-1)];
+  el.style.color=col;
+  el.style.fontSize=(20+combo*6)+'px';
+  el.style.textShadow=`0 0 20px ${col}, 0 2px 8px rgba(0,0,0,.7)`;
+  el.textContent = combo>=4?`✦ 咒术连环 ×${combo} ✦` : `连击 ×${combo}`;
+  gsap.killTweensOf(el);
+  gsap.fromTo(el,{opacity:0,scale:0.6,y:10},{opacity:1,scale:1,y:0,duration:0.22,ease:'back.out(2.4)',
+    onComplete:()=>gsap.to(el,{opacity:0,y:-16,duration:0.5,delay:0.35,ease:'power2.in'})});
+}
+
+function flyDamage(amount, who){
+  const el=document.createElement('div');
+  el.className='dmg';
+  let x,y,color;
+  if(who==='enemy'){
+    const rect=$('#enemyCard').getBoundingClientRect();
+    const b=boardEl.getBoundingClientRect();
+    x = rect.left - b.left + rect.width*rand(0.35,0.7);
+    y = rect.top - b.top + rect.height*0.5;
+    color='#ffd25e'; el.textContent='-'+amount;
+    el.style.fontSize=(18+Math.min(amount,60)*0.18)+'px';
+  }else{
+    const rect=$('.player').getBoundingClientRect();
+    const b=boardEl.getBoundingClientRect();
+    x = rect.left - b.left + rect.width*rand(0.3,0.6);
+    y = rect.top - b.top + rect.height*0.5;
+    color='#ff5d6e'; el.textContent='-'+amount;
+    el.style.fontSize='22px';
+  }
+  el.style.left=x+'px'; el.style.top=y+'px'; el.style.color=color;
+  el.style.textShadow=`0 0 14px ${color}, 0 2px 6px rgba(0,0,0,.8)`;
+  fxLayer.appendChild(el);
+  gsap.fromTo(el,{opacity:0,scale:0.5,y:y+6},{opacity:1,scale:1.15,duration:0.16,ease:'back.out(3)'});
+  gsap.to(el,{y:y-46,opacity:0,duration:0.7,delay:0.16,ease:'power1.out',onComplete:()=>el.remove()});
+}
+
+function hitEnemyShake(){
+  gsap.fromTo('#enemySigil',{x:0},{x:0,duration:0.01});
+  gsap.fromTo('#enemyCard',{x:-6},{x:0,duration:0.4,ease:'elastic.out(1,0.4)'});
+  // impact flash
+  const card=$('#enemyCard');
+  gsap.fromTo(card,{filter:'brightness(1.6)'},{filter:'brightness(1)',duration:0.25});
+}
+function spawnEnemyDeathFx(){
+  const rect=$('#enemyCard').getBoundingClientRect();
+  for(let i=0;i<26;i++){
+    const p=document.createElement('div');
+    const size=rand(4,10);
+    p.style.cssText=`position:fixed;left:${rect.left+rect.width*rand(0.2,0.8)}px;top:${rect.top+rect.height*rand(0.2,0.8)}px;
+      width:${size}px;height:${size}px;border-radius:50%;z-index:50;pointer-events:none;
+      background:${pick(['#ff6b8b','#a274ff','#f7c66b','#4fe0c8'])};box-shadow:0 0 10px currentColor;`;
+    document.body.appendChild(p);
+    gsap.to(p,{x:rand(-160,160),y:rand(-140,60),opacity:0,scale:0.2,duration:rand(0.6,1.1),
+      ease:'power2.out',onComplete:()=>p.remove()});
+  }
+}
+
+function flashHurt(intensity){
+  const h=$('#hurt');
+  gsap.killTweensOf(h);
+  gsap.fromTo(h,{opacity:clamp(intensity,0,0.9)},{opacity:0,duration:0.6,ease:'power2.out'});
+}
+function flashDepth(){
+  const d=$('#depthLabel');
+  gsap.fromTo(d,{scale:1.5,color:'#f7c66b'},{scale:1,color:'#4fe0c8',duration:0.6,ease:'power2.out'});
+  toast('⬇ 深入第 '+G.depth+' 层 · '+(G.enemy.isBoss?'⚠ BOSS 守卫':'新的守卫现身'));
+}
+
+let shakeTween=null;
+function screenShake(mag){
+  const stage=$('#stage');
+  gsap.killTweensOf(stage);
+  const tl=gsap.timeline();
+  for(let i=0;i<4;i++){
+    tl.to(stage,{x:rand(-mag,mag),y:rand(-mag,mag)*0.6,duration:0.05,ease:'power1.inOut'});
+  }
+  tl.to(stage,{x:0,y:0,duration:0.12,ease:'power2.out'});
+}
+function shakeBoardNudge(dir){
+  const {dr,dc}=DIRS[dir];
+  gsap.fromTo('#board',{x:dc*5,y:dr*5},{x:0,y:0,duration:0.3,ease:'elastic.out(1,0.5)'});
+}
+
+/* toast */
+let toastTimer=null;
+function toast(msg){
+  const t=$('#toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),1900);
+}
+
+/* =====================================================================
+   Overlays + game lifecycle
+   ===================================================================== */
+function showOverlay(id){ $('#'+id).classList.add('show'); }
+function hideOverlay(id){ $('#'+id).classList.remove('show'); }
+
+function startGame(){
+  hideOverlay('startOverlay');
+  hideOverlay('deathOverlay');
+  // reset state
+  G.grid=emptyGrid(); G.tiles.forEach(t=>t.el&&t.el.remove()); G.tiles.clear();
+  G.nextId=1; G.depth=1; G.score=0; G.kills=0;
+  G.hp=100; G.maxHp=100; G.shield=0;
+  G.relics=[]; G.relicCounts={}; mergeAccum=0;
+  G.over=false; G.started=true; G.animating=false; G.turnCount=0;
+  recomputeMods();
+  G.enemy=makeEnemy(1);
+  // seed tiles
+  const a=spawnTile(); const b=spawnTile();
+  makeTileEl(a); makeTileEl(b);
+  gsap.fromTo([a.el,b.el],{scale:0,opacity:0},{scale:1,opacity:1,duration:0.3,ease:'back.out(2)',stagger:0.06});
+  renderRelics();
+  updateHUD();
+  measure();
+}
+
+function endGame(reason){
+  if(G.over) return;
+  G.over=true; G.started=false;
+  $('#sumDepth').textContent=G.depth;
+  $('#sumScore').textContent=G.score;
+  $('#sumKills').textContent=G.kills;
+  $('#sumRelics').textContent=G.relics.length;
+  $('#deathSub').textContent=reason+' 你抵达了第 '+G.depth+' 层。';
+  $('#deathGlyph').textContent = G.hp<=0?'☠':'🌀';
+  $('#deathTitle').textContent = G.hp<=0?'咒术崩解':'深渊吞噬';
+  setTimeout(()=>{
+    showOverlay('deathOverlay');
+    gsap.fromTo('#deathOverlay .panel',{scale:0.85,opacity:0},{scale:1,opacity:1,duration:0.5,ease:'back.out(1.6)'});
+    gsap.fromTo('#deathOverlay .stat',{y:20,opacity:0},{y:0,opacity:1,stagger:0.08,duration:0.4,delay:0.2});
+  }, 500);
+}
+
+/* =====================================================================
+   Input
+   ===================================================================== */
+window.addEventListener('keydown',e=>{
+  const map={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',
+    a:'left',d:'right',w:'up',s:'down',A:'left',D:'right',W:'up',S:'down'};
+  if(map[e.key]){ e.preventDefault(); move(map[e.key]); }
+});
+
+// touch swipe
+let tsx=0,tsy=0,tActive=false;
+boardEl.addEventListener('touchstart',e=>{ const t=e.changedTouches[0]; tsx=t.clientX; tsy=t.clientY; tActive=true; },{passive:true});
+boardEl.addEventListener('touchend',e=>{
+  if(!tActive) return; tActive=false;
+  const t=e.changedTouches[0]; const dx=t.clientX-tsx, dy=t.clientY-tsy;
+  const ax=Math.abs(dx), ay=Math.abs(dy);
+  if(Math.max(ax,ay)<24) return;
+  if(ax>ay) move(dx>0?'right':'left'); else move(dy>0?'down':'up');
+},{passive:true});
+// also allow swipe anywhere
+let bsx=0,bsy=0,bActive=false;
+document.body.addEventListener('touchstart',e=>{ if(!G.started)return; const t=e.changedTouches[0]; bsx=t.clientX; bsy=t.clientY; bActive=true; },{passive:true});
+document.body.addEventListener('touchmove',e=>{ if(G.started&&bActive) e.preventDefault(); },{passive:false});
+
+// mouse drag as swipe (desktop convenience)
+let msx=0,msy=0,mDown=false;
+boardEl.addEventListener('mousedown',e=>{ msx=e.clientX; msy=e.clientY; mDown=true; });
+window.addEventListener('mouseup',e=>{
+  if(!mDown) return; mDown=false;
+  const dx=e.clientX-msx, dy=e.clientY-msy; const ax=Math.abs(dx),ay=Math.abs(dy);
+  if(Math.max(ax,ay)<30) return;
+  if(ax>ay) move(dx>0?'right':'left'); else move(dy>0?'down':'up');
+});
+
+$('#startBtn').addEventListener('click',startGame);
+$('#restartBtn').addEventListener('click',startGame);
+window.addEventListener('resize',()=>{ if(G.started) measure(); });
+
+/* =====================================================================
+   Background canvas — drifting rune motes + depth gradient
+   ===================================================================== */
+const bg=$('#bgfx'), bctx=bg.getContext('2d');
+let motes=[];
+function resizeBg(){ bg.width=innerWidth; bg.height=innerHeight;
+  motes=[]; const n=Math.round((innerWidth*innerHeight)/26000);
+  for(let i=0;i<n;i++) motes.push(newMote()); }
+function newMote(){ return {x:rand(0,innerWidth),y:rand(0,innerHeight),
+  r:rand(0.6,2.4),s:rand(0.05,0.4),a:rand(0.1,0.6),
+  hue:pick([260,275,180,42]),ph:rand(0,Math.PI*2)}; }
+function drawBg(t){
+  bctx.clearRect(0,0,bg.width,bg.height);
+  for(const m of motes){
+    m.y-=m.s; m.x+=Math.sin(t*0.0003+m.ph)*0.15;
+    if(m.y< -5){ m.y=bg.height+5; m.x=rand(0,bg.width); }
+    const tw=0.5+0.5*Math.sin(t*0.002+m.ph);
+    bctx.beginPath();
+    bctx.fillStyle=`hsla(${m.hue},80%,70%,${m.a*tw})`;
+    bctx.arc(m.x,m.y,m.r,0,Math.PI*2); bctx.fill();
+  }
+  requestAnimationFrame(drawBg);
+}
+resizeBg();
+window.addEventListener('resize',resizeBg);
+requestAnimationFrame(drawBg);
+
+/* boot */
+measure();
+updateEnemyHUD();
+</script>
+</body>
+</html>
