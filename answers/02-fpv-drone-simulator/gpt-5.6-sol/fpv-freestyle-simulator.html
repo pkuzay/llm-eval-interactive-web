@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>FPV 穿越机花飞模拟器</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --cyan:#58f5ff; --orange:#ff7b28; --red:#ff354f; --green:#7dff9a;
+      --glass:rgba(5,12,18,.58); --line:rgba(151,230,255,.28); --text:#e9fbff;
+    }
+    *{box-sizing:border-box}
+    html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#071018;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    canvas{display:block;width:100%;height:100%}
+    #app{position:relative;width:100%;height:100%}
+    #hud{position:absolute;inset:0;pointer-events:none;text-shadow:0 1px 3px #000;z-index:4}
+    .panel{position:absolute;background:linear-gradient(135deg,rgba(6,16,23,.72),rgba(5,10,16,.4));border:1px solid var(--line);backdrop-filter:blur(9px);box-shadow:0 8px 34px rgba(0,0,0,.28)}
+    #telemetry{left:18px;top:18px;padding:13px 15px;width:278px;clip-path:polygon(0 0,95% 0,100% 16%,100% 100%,5% 100%,0 84%)}
+    .brand{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;color:var(--cyan);letter-spacing:.18em;font-size:12px}
+    .status{font-weight:800;letter-spacing:.13em}.status.armed{color:var(--green)}.status.failsafe{color:var(--red);animation:blink .45s steps(2) infinite}
+    @keyframes blink{50%{opacity:.35}}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:12px}
+    .metric{display:flex;justify-content:space-between;gap:8px;color:#a8bbc1}.metric b{color:var(--text);font-weight:700}
+    #linkPanel{right:18px;top:18px;padding:12px 14px;width:235px}
+    .linkrow{display:flex;align-items:center;justify-content:space-between;font-size:12px;margin-bottom:8px}
+    #bars{display:flex;gap:3px;align-items:flex-end;height:20px}
+    #bars i{display:block;width:6px;background:var(--green);box-shadow:0 0 8px currentColor}
+    #bars i:nth-child(1){height:5px}#bars i:nth-child(2){height:8px}#bars i:nth-child(3){height:11px}#bars i:nth-child(4){height:15px}#bars i:nth-child(5){height:20px}
+    #signalTrack{height:5px;background:rgba(255,255,255,.13);overflow:hidden}#signalFill{height:100%;width:100%;background:var(--green);transition:width .1s linear}
+    #center{position:absolute;left:50%;top:50%;width:70px;height:70px;transform:translate(-50%,-50%)}
+    #center:before,#center:after{content:"";position:absolute;background:rgba(235,255,255,.75);box-shadow:0 0 4px #000}
+    #center:before{left:0;right:0;height:1px;top:50%}#center:after{top:0;bottom:0;width:1px;left:50%}
+    #center i{position:absolute;inset:24px;border:1px solid rgba(235,255,255,.68);border-radius:50%}
+    #horizonWrap{position:absolute;left:50%;top:50%;width:330px;height:160px;transform:translate(-50%,-50%);overflow:hidden;opacity:.68}
+    #horizon{position:absolute;left:15px;right:15px;top:79px;border-top:2px solid rgba(88,245,255,.82);transform-origin:center}
+    #horizon:before,#horizon:after{content:"";position:absolute;width:45px;border-top:1px solid rgba(88,245,255,.7);top:-13px}
+    #horizon:before{left:52px;transform:rotate(8deg)}#horizon:after{right:52px;transform:rotate(-8deg)}
+    #inputs{position:absolute;left:18px;bottom:18px;width:278px;padding:12px 14px}
+    .axis{display:grid;grid-template-columns:68px 1fr 42px;align-items:center;gap:8px;font-size:11px;margin:5px 0;color:#aac1c8}.axisbar{height:5px;background:rgba(255,255,255,.12);position:relative}.axisbar i{position:absolute;top:-2px;width:4px;height:9px;background:var(--cyan);box-shadow:0 0 7px var(--cyan);left:50%}.axis output{text-align:right;color:#fff}
+    #help{right:18px;bottom:18px;width:305px;padding:12px 14px;font-size:11px;color:#b7c7cc;line-height:1.55}
+    #help b{color:#fff}.kbd{display:inline-block;border:1px solid rgba(255,255,255,.25);padding:0 4px;border-radius:3px;background:rgba(255,255,255,.08);color:#fff}
+    #actions{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto}
+    button,select,input{font:inherit;color:#eaffff;background:rgba(7,18,25,.86);border:1px solid rgba(108,224,255,.38);border-radius:3px}
+    button{padding:9px 13px;cursor:pointer;letter-spacing:.06em}button:hover{border-color:var(--cyan);background:rgba(28,66,78,.9)}button.primary{background:#ca3d13;border-color:#ff9a66;font-weight:800}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+    #settings{right:18px;top:107px;width:305px;padding:14px;pointer-events:auto;display:none;max-height:calc(100vh - 190px);overflow:auto}
+    #settings.open{display:block}
+    #settings h2{font-size:13px;margin:0 0 12px;color:var(--cyan);letter-spacing:.12em}
+    .setting{display:grid;grid-template-columns:1fr 100px;align-items:center;gap:10px;margin:9px 0;font-size:11px;color:#b9cbd0}.setting input,.setting select{width:100%;padding:5px}.setting input[type=range]{padding:0;accent-color:var(--cyan)}
+    .tiny{color:#82969c;font-size:10px;line-height:1.45;margin-top:10px}
+    #message{position:absolute;left:50%;top:18%;transform:translateX(-50%);padding:10px 18px;border:1px solid rgba(255,70,85,.6);background:rgba(45,3,8,.72);font-size:13px;letter-spacing:.11em;color:#fff;display:none}
+    #hud.lost>section,#hud.lost>nav,#hud.lost>#center,#hud.lost>#horizonWrap{opacity:0}
+    #intro{position:absolute;inset:0;z-index:9;background:radial-gradient(circle at 50% 40%,rgba(20,61,72,.76),rgba(2,7,11,.96) 67%);display:grid;place-items:center;padding:20px}
+    #intro .box{max-width:680px;border:1px solid rgba(95,231,255,.34);background:rgba(4,12,17,.7);padding:28px 30px;box-shadow:0 24px 80px #000}
+    #intro h1{font-size:clamp(22px,4vw,39px);margin:0 0 9px;letter-spacing:.08em;color:#eaffff}#intro h1 em{color:var(--orange);font-style:normal}
+    #intro p{color:#9db3ba;font-size:12px;line-height:1.7;margin:8px 0 20px}#intro .startrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.device{color:#6ff2ff;font-size:11px}
+    @media(max-width:720px){#help{display:none}#telemetry{width:230px}.grid{grid-template-columns:1fr}#inputs{width:230px}#linkPanel{width:190px}#settings{top:98px;width:min(305px,calc(100vw - 36px))}}
+    @media(max-width:520px){#inputs{display:none}#telemetry{left:8px;top:8px;width:190px}#linkPanel{right:8px;top:8px;width:145px}.brand{font-size:9px}.grid{font-size:10px}#actions{bottom:8px;width:100%;justify-content:center}button{padding:7px 9px;font-size:10px}}
+  </style>
+  <script type="importmap">
+  {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+  </script>
+</head>
+<body>
+<main id="app" aria-label="FPV 穿越机花飞模拟器">
+  <div id="hud">
+    <section id="telemetry" class="panel" aria-label="飞行遥测">
+      <div class="brand"><span>FREESTYLE / ACRO</span><span id="armState" class="status">DISARMED</span></div>
+      <div class="grid">
+        <div class="metric"><span>ALT</span><b id="alt">0.0 m</b></div><div class="metric"><span>SPD</span><b id="speed">0.0 m/s</b></div>
+        <div class="metric"><span>DIST</span><b id="dist">0 m</b></div><div class="metric"><span>V/S</span><b id="vs">0.0 m/s</b></div>
+        <div class="metric"><span>RATE P</span><b id="rateP">0 °/s</b></div><div class="metric"><span>RATE R</span><b id="rateR">0 °/s</b></div>
+      </div>
+    </section>
+    <section id="linkPanel" class="panel" aria-label="图传信号">
+      <div class="linkrow"><span id="device">KEYBOARD</span><span id="signalPct">100%</span><span id="bars"><i></i><i></i><i></i><i></i><i></i></span></div>
+      <div id="signalTrack"><div id="signalFill"></div></div>
+    </section>
+    <div id="center" aria-hidden="true"><i></i></div><div id="horizonWrap" aria-hidden="true"><div id="horizon"></div></div>
+    <section id="inputs" class="panel" aria-label="遥控器输入">
+      <div class="axis"><span>THROTTLE</span><div class="axisbar"><i id="barT"></i></div><output id="outT">0.00</output></div>
+      <div class="axis"><span>ROLL</span><div class="axisbar"><i id="barR"></i></div><output id="outR">0.00</output></div>
+      <div class="axis"><span>PITCH</span><div class="axisbar"><i id="barP"></i></div><output id="outP">0.00</output></div>
+      <div class="axis"><span>YAW</span><div class="axisbar"><i id="barY"></i></div><output id="outY">0.00</output></div>
+    </section>
+    <section id="help" class="panel" aria-label="键盘控制说明"><b>KEYBOARD FALLBACK</b><br><span class="kbd">R/F</span> 油门　<span class="kbd">W/S</span> 俯仰　<span class="kbd">A/D</span> 横滚　<span class="kbd">Q/E</span> 偏航<br><span class="kbd">Space</span> 解锁　<span class="kbd">Backspace</span> 重置　<span class="kbd">H</span> 设置</section>
+    <nav id="actions" aria-label="模拟器操作">
+      <button id="armBtn" class="primary" type="button">解锁 / ARM</button><button id="resetBtn" type="button">重置</button><button id="settingsBtn" type="button" aria-expanded="false">设置</button><button id="fullBtn" type="button">全屏</button>
+    </nav>
+    <section id="settings" class="panel" aria-label="遥控器与飞行参数">
+      <h2>RADIO / FLIGHT SETUP</h2>
+      <label class="setting"><span>Roll 轴</span><select id="rollAxis"></select></label>
+      <label class="setting"><span>Pitch 轴</span><select id="pitchAxis"></select></label>
+      <label class="setting"><span>Throttle 轴</span><select id="throttleAxis"></select></label>
+      <label class="setting"><span>Yaw 轴</span><select id="yawAxis"></select></label>
+      <label class="setting"><span>反向 Roll</span><input id="rollRev" type="checkbox"></label>
+      <label class="setting"><span>反向 Pitch</span><input id="pitchRev" type="checkbox"></label>
+      <label class="setting"><span>反向 Throttle</span><input id="throttleRev" type="checkbox"></label>
+      <label class="setting"><span>反向 Yaw</span><input id="yawRev" type="checkbox"></label>
+      <label class="setting"><span>摇杆死区</span><input id="deadzone" type="range" min="0" max="0.2" step="0.01" value="0.04"></label>
+      <label class="setting"><span>RC Expo</span><input id="expo" type="range" min="0" max="0.8" step="0.01" value="0.28"></label>
+      <label class="setting"><span>最大角速度</span><input id="maxRate" type="range" min="200" max="1200" step="10" value="720"></label>
+      <label class="setting"><span>相机仰角</span><input id="camAngle" type="range" min="0" max="55" step="1" value="25"></label>
+      <label class="setting"><span>图传极限距离</span><input id="vtxRange" type="range" min="80" max="500" step="10" value="230"></label>
+      <p class="tiny">默认轴序：Roll 0 / Pitch 1 / Throttle 2 / Yaw 3。不同 EdgeTX/OpenTX 发射机的 USB HID 通道顺序可能不同，可在此直接改映射。Gamepad 按钮 0 解锁，按钮 1 重置。</p>
+    </section>
+    <div id="message" role="alert">VTX LOST — MOTOR FAILSAFE</div>
+  </div>
+  <section id="intro" aria-label="启动模拟器">
+    <div class="box"><h1>FPV <em>FREESTYLE</em> LAB</h1><p>从零实现的 6-DOF 刚体动力学、Acro 三轴角速度闭环、SO(3) 指数映射姿态积分与距离衰减模拟图传。连接 USB 遥控器后会自动读取；没有遥控器也可使用键盘。</p><div class="startrow"><button id="startBtn" class="primary" type="button">进入模拟器</button><span id="introDevice" class="device">正在检测 USB HID…</span></div></div>
+  </section>
+</main>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+const $ = id => document.getElementById(id);
+const app = $('app');
+const renderer = new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.65));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.insertBefore(renderer.domElement, app.firstChild);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0xbad8dc,0.0027);
+const camera = new THREE.PerspectiveCamera(104,innerWidth/innerHeight,0.025,900);
+const clock = new THREE.Clock();
+
+// ---------- Procedural world lighting / equirectangular environment ----------
+function makeSky(){
+  const c=document.createElement('canvas'); c.width=1024;c.height=512;
+  const x=c.getContext('2d'); const g=x.createLinearGradient(0,0,0,c.height);
+  g.addColorStop(0,'#07152e');g.addColorStop(.28,'#307aa8');g.addColorStop(.51,'#b8e4e2');g.addColorStop(.56,'#d7b879');g.addColorStop(1,'#15291d');
+  x.fillStyle=g;x.fillRect(0,0,c.width,c.height);
+  const sun=x.createRadialGradient(760,210,2,760,210,75);sun.addColorStop(0,'rgba(255,249,213,1)');sun.addColorStop(.12,'rgba(255,221,145,.7)');sun.addColorStop(1,'rgba(255,187,82,0)');x.fillStyle=sun;x.fillRect(650,100,220,220);
+  const t=new THREE.CanvasTexture(c);t.mapping=THREE.EquirectangularReflectionMapping;t.colorSpace=THREE.SRGBColorSpace;return t;
+}
+const sky=makeSky();scene.background=sky;
+const pmrem=new THREE.PMREMGenerator(renderer);scene.environment=pmrem.fromEquirectangular(sky).texture;pmrem.dispose();
+scene.add(new THREE.HemisphereLight(0xc8eeff,0x314018,2.1));
+const sun=new THREE.DirectionalLight(0xffe5ba,3.2);sun.position.set(-55,80,-25);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-80;sun.shadow.camera.right=80;sun.shadow.camera.top=80;sun.shadow.camera.bottom=-80;scene.add(sun);
+
+function makeGrass(){
+  const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');x.fillStyle='#496d31';x.fillRect(0,0,256,256);
+  let seed=19321;const rnd=()=>((seed=Math.imul(seed,1664525)+1013904223|0)>>>0)/4294967296;
+  for(let i=0;i<5000;i++){const hue=88+rnd()*35,light=22+rnd()*24;x.fillStyle=`hsla(${hue},${35+rnd()*35}%,${light}%,${.14+rnd()*.35})`;const px=rnd()*256,py=rnd()*256;x.fillRect(px,py,1+rnd()*1.5,2+rnd()*5)}
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(135,135);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;
+}
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(1100,1100),new THREE.MeshStandardMaterial({map:makeGrass(),roughness:.92,metalness:0}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+const grid=new THREE.GridHelper(300,60,0x183f36,0x35563f);grid.position.y=.012;grid.material.opacity=.16;grid.material.transparent=true;scene.add(grid);
+
+// ---------- Track generation and analytical colliders ----------
+const colliders=[];
+const mats={orange:new THREE.MeshStandardMaterial({color:0xff5b16,emissive:0x6e1600,emissiveIntensity:1.1,roughness:.37}),cyan:new THREE.MeshStandardMaterial({color:0x19dfea,emissive:0x005d63,emissiveIntensity:1.25,roughness:.32}),concrete:new THREE.MeshStandardMaterial({color:0x777b78,roughness:.92}),yellow:new THREE.MeshStandardMaterial({color:0xffdd21,emissive:0x4d3f00,emissiveIntensity:.55,roughness:.48}),dark:new THREE.MeshStandardMaterial({color:0x202629,metalness:.56,roughness:.5})};
+function addBox(pos,size,mat=mats.concrete){const m=new THREE.Mesh(new THREE.BoxGeometry(...size),mat);m.position.set(...pos);m.castShadow=m.receiveShadow=true;scene.add(m);colliders.push({type:'box',c:m.position.clone(),h:new THREE.Vector3(...size).multiplyScalar(.5)});return m}
+function addPillar(x,z,h=9,r=.62,mat=mats.yellow){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,24),mat);m.position.set(x,h/2,z);m.castShadow=m.receiveShadow=true;scene.add(m);colliders.push({type:'cylinder',x,z,r,y0:0,y1:h});return m}
+function addGate(x,y,z,r=3.2,yaw=0,color='orange'){
+  const q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),yaw);const m=new THREE.Mesh(new THREE.TorusGeometry(r,.24,16,64),mats[color]);m.position.set(x,y,z);m.quaternion.copy(q);m.castShadow=true;scene.add(m);colliders.push({type:'torus',c:m.position.clone(),q:q.clone(),r,t:.24});
+  const p1=new THREE.Vector3(-r, -y,0).applyQuaternion(q).add(m.position),p2=new THREE.Vector3(r,-y,0).applyQuaternion(q).add(m.position);addPillar(p1.x,p1.z,y-.05,.16,mats.dark);addPillar(p2.x,p2.z,y-.05,.16,mats.dark);
+}
+addGate(0,3.4,-17,3.05,0,'orange');addGate(14,5,-31,3.5,-.55,'cyan');addGate(-19,2.8,-43,2.45,.62,'orange');addGate(3,8.2,-60,3.2,-.2,'cyan');addGate(29,4.2,-51,3.0,1.12,'orange');addGate(-32,6.3,-18,3.3,-1.05,'cyan');
+// Bridge tunnels
+function bridge(x,z,w,h,d,mat=mats.concrete){addBox([x-w/2-.45,h/2,z],[.9,h,d],mat);addBox([x+w/2+.45,h/2,z],[.9,h,d],mat);addBox([x,h+.45,z],[w+1.8,.9,d],mat)}
+bridge(0,-35,8,4.5,3);bridge(-24,-61,6.5,3.4,5,mats.dark);bridge(26,-18,10,6,2.2,mats.concrete);
+// Ruin wall with two openings
+addBox([-9,2.5,-50],[5,5,1]);addBox([0,1,-50],[13,2,1]);addBox([9,2.5,-50],[5,5,1]);addBox([0,5.8,-50],[23,1.6,1]);
+// Slalom forest
+[[-9,-22,8],[8,-25,11],[-12,-33,12],[18,-40,10],[-6,-65,13],[10,-72,9],[35,-31,12],[-37,-35,11]].forEach((p,i)=>addPillar(p[0],p[1],p[2],.58,i%2?mats.cyan:mats.yellow));
+// Distant pylons for visual navigation
+for(let i=0;i<18;i++){const a=i/18*Math.PI*2,r=95+(i%3)*13;addPillar(Math.cos(a)*r,Math.sin(a)*r,7+(i%5)*2,.32,i%2?mats.orange:mats.dark)}
+
+// Small model is hidden in FPV but its shadow/geometry helps future camera modes.
+const droneVisual=new THREE.Group();
+const body=new THREE.Mesh(new THREE.BoxGeometry(.28,.09,.42),mats.dark);body.castShadow=true;droneVisual.add(body);
+for(const s of [-1,1])for(const z of [-1,1]){const arm=new THREE.Mesh(new THREE.BoxGeometry(.48,.035,.045),mats.dark);arm.rotation.y=z*s*.72;droneVisual.add(arm);const motor=new THREE.Mesh(new THREE.CylinderGeometry(.055,.055,.06,12),mats.orange);motor.position.set(s*.19,.025,z*.19);motor.castShadow=true;droneVisual.add(motor)}
+scene.add(droneVisual);
+
+// ---------- VTX degradation post-process ----------
+const VTXShader={
+  uniforms:{tDiffuse:{value:null},uTime:{value:0},uSignal:{value:1},uResolution:{value:new THREE.Vector2(innerWidth*devicePixelRatio,innerHeight*devicePixelRatio)}},
+  vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+  fragmentShader:`
+    uniform sampler2D tDiffuse;uniform float uTime;uniform float uSignal;uniform vec2 uResolution;varying vec2 vUv;
+    float hash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+    float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1)),f.x),f.y);}
+    void main(){
+      float damage=1.0-uSignal;vec2 uv=vUv;
+      float line=floor(uv.y*uResolution.y*.48);float lineRnd=hash(vec2(line,floor(uTime*28.0)));
+      float tear=smoothstep(.48,.95,damage);float burst=step(.78,lineRnd)*step(.35,noise(vec2(line*.018,uTime*3.1)));
+      uv.x+=tear*(lineRnd-.5)*.22*burst;
+      uv.x+=sin(uv.y*730.0+uTime*47.0)*.0017*smoothstep(.28,.72,damage);
+      vec3 col=texture2D(tDiffuse,uv).rgb;
+      float lum=dot(col,vec3(.299,.587,.114));col=mix(col,vec3(lum),smoothstep(.18,.82,damage)*.78);
+      float fine=hash(vec2(floor(gl_FragCoord.x*.72),floor(gl_FragCoord.y*.72)+floor(uTime*60.0)*91.0));
+      float snow=smoothstep(.17,.95,damage);col=mix(col,vec3(fine),snow*(.08+.66*damage));
+      float streak=step(.965,hash(vec2(line,floor(uTime*34.0))))*smoothstep(.28,.8,damage);col=mix(col,vec3(fine>.43?1.0:0.0),streak*.68);
+      float rollY=fract(uv.y-uTime*.18);float blackBand=smoothstep(.035,0.0,abs(rollY-.52))*smoothstep(.45,.92,damage);col*=1.0-blackBand*.92;
+      float syncBand=smoothstep(.02,0.0,abs(fract(uv.y*3.0+uTime*.31)-.5))*smoothstep(.65,.98,damage);col*=1.0-syncBand*.75;
+      float lost=1.0-step(.012,uSignal);vec3 fullSnow=vec3(step(.48,hash(floor(gl_FragCoord.xy)+floor(uTime*70.0)*vec2(17.0,61.0))));
+      fullSnow=mix(fullSnow,vec3(fine),.55);col=mix(col,fullSnow,lost);gl_FragColor=vec4(col,1.0);
+    }`
+};
+const composer=new EffectComposer(renderer);composer.addPass(new RenderPass(scene,camera));const vtxPass=new ShaderPass(VTXShader);composer.addPass(vtxPass);
+
+// ---------- 6-DOF rigid body / SO(3) state ----------
+const DEG=Math.PI/180, UP=new THREE.Vector3(0,1,0);
+const cfg={mass:.82,maxThrust:22.5,inertia:new THREE.Vector3(.0048,.0085,.0057),angularDrag:new THREE.Vector3(.0021,.0029,.0021),rho:1.225,dragArea:.075,dragCd:1.12,droneRadius:.17,maxRate:720*DEG,expo:.28,deadzone:.04,vtxRange:230,camAngle:25*DEG};
+const state={p:new THREE.Vector3(0,.24,1.5),v:new THREE.Vector3(),q:new THREE.Quaternion(),w:new THREE.Vector3(),armed:false,lost:false,signal:1,distance:0};
+const input={roll:0,pitch:0,yaw:0,throttle:0};
+const pid={kp:new THREE.Vector3(.038,.029,.038),ki:new THREE.Vector3(.012,.008,.012),kd:new THREE.Vector3(.00115,.00085,.00115),integral:new THREE.Vector3(),lastError:new THREE.Vector3()};
+const tmp={a:new THREE.Vector3(),b:new THREE.Vector3(),c:new THREE.Vector3(),q:new THREE.Quaternion(),invq:new THREE.Quaternion(),local:new THREE.Vector3(),closest:new THREE.Vector3()};
+let lastContact=0;
+
+function resetFlight(){state.p.set(0,.24,1.5);state.v.set(0,0,0);state.q.identity();state.w.set(0,0,0);state.armed=false;state.lost=false;state.signal=1;pid.integral.set(0,0,0);pid.lastError.set(0,0,0);$('message').style.display='none';}
+function toggleArm(){if(state.lost)return;state.armed=!state.armed;if(!state.armed){pid.integral.set(0,0,0);}}
+function rcCurve(x){return (1-cfg.expo)*x+cfg.expo*x*x*x}
+function resolveCollisions(){
+  const r=cfg.droneRadius,p=state.p;
+  if(p.y<r){p.y=r;if(state.v.y<0)state.v.y*=-.18;state.v.x*=.86;state.v.z*=.86;state.w.multiplyScalar(.9)}
+  for(const c of colliders){
+    let normal=null,depth=0;
+    if(c.type==='box'){
+      tmp.closest.set(THREE.MathUtils.clamp(p.x,c.c.x-c.h.x,c.c.x+c.h.x),THREE.MathUtils.clamp(p.y,c.c.y-c.h.y,c.c.y+c.h.y),THREE.MathUtils.clamp(p.z,c.c.z-c.h.z,c.c.z+c.h.z));
+      tmp.a.copy(p).sub(tmp.closest);const d=tmp.a.length();if(d<r){if(d>1e-5){normal=tmp.a.multiplyScalar(1/d);depth=r-d}else{const dx=c.h.x-Math.abs(p.x-c.c.x),dy=c.h.y-Math.abs(p.y-c.c.y),dz=c.h.z-Math.abs(p.z-c.c.z);if(dx<dy&&dx<dz)normal=new THREE.Vector3(Math.sign(p.x-c.c.x)||1,0,0),depth=r+dx;else if(dy<dz)normal=new THREE.Vector3(0,Math.sign(p.y-c.c.y)||1,0),depth=r+dy;else normal=new THREE.Vector3(0,0,Math.sign(p.z-c.c.z)||1),depth=r+dz}}
+    }else if(c.type==='cylinder'&&p.y>c.y0-r&&p.y<c.y1+r){
+      tmp.a.set(p.x-c.x,0,p.z-c.z);const d=tmp.a.length(),limit=c.r+r;if(d<limit){normal=d>1e-5?tmp.a.multiplyScalar(1/d):new THREE.Vector3(1,0,0);depth=limit-d}
+    }else if(c.type==='torus'){
+      tmp.invq.copy(c.q).invert();tmp.local.copy(p).sub(c.c).applyQuaternion(tmp.invq);const radial=Math.hypot(tmp.local.x,tmp.local.y);const tubeDist=Math.hypot(radial-c.r,tmp.local.z);if(tubeDist<c.t+r){const rr=radial>1e-6?radial:1;tmp.a.set(tmp.local.x/rr*(radial-c.r),tmp.local.y/rr*(radial-c.r),tmp.local.z);if(tmp.a.lengthSq()<1e-8)tmp.a.set(1,0,0);normal=tmp.a.normalize().applyQuaternion(c.q);depth=c.t+r-tubeDist}
+    }
+    if(normal&&depth>0){p.addScaledVector(normal,depth+.002);const vn=state.v.dot(normal);if(vn<0)state.v.addScaledVector(normal,-1.22*vn);state.v.multiplyScalar(.92);state.w.multiplyScalar(.88);lastContact=performance.now()}
+  }
+}
+function physicsStep(dt){
+  state.distance=Math.hypot(state.p.x,state.p.z);
+  const k=34,raw=1/(1+state.distance/k),edge=1/(1+cfg.vtxRange/k);state.signal=THREE.MathUtils.clamp((raw-edge)/(1-edge),0,1);
+  if(state.distance>=cfg.vtxRange&&!state.lost){state.lost=true;state.armed=false;$('message').style.display='block'}
+  // Positive stick means pitch-forward / yaw-right / roll-right; body axes are X-right, Y-up, Z-back.
+  const target=tmp.a.set(-rcCurve(input.pitch)*cfg.maxRate,-rcCurve(input.yaw)*cfg.maxRate,-rcCurve(input.roll)*cfg.maxRate);
+  const err=tmp.b.copy(target).sub(state.w);
+  if(state.armed){pid.integral.addScaledVector(err,dt);pid.integral.x=THREE.MathUtils.clamp(pid.integral.x,-1.3,1.3);pid.integral.y=THREE.MathUtils.clamp(pid.integral.y,-1.3,1.3);pid.integral.z=THREE.MathUtils.clamp(pid.integral.z,-1.3,1.3)}else pid.integral.multiplyScalar(.92);
+  const deriv=tmp.c.copy(err).sub(pid.lastError).multiplyScalar(1/dt);pid.lastError.copy(err);
+  const torque=new THREE.Vector3(err.x*pid.kp.x+pid.integral.x*pid.ki.x+deriv.x*pid.kd.x,err.y*pid.kp.y+pid.integral.y*pid.ki.y+deriv.y*pid.kd.y,err.z*pid.kp.z+pid.integral.z*pid.ki.z+deriv.z*pid.kd.z);
+  torque.clamp(new THREE.Vector3(-.62,-.42,-.62),new THREE.Vector3(.62,.42,.62));if(!state.armed)torque.set(0,0,0);
+  // Euler rigid-body equation in body frame: I*wDot = tau - w×(I*w) - quadratic angular drag.
+  const Iw=tmp.a.set(state.w.x*cfg.inertia.x,state.w.y*cfg.inertia.y,state.w.z*cfg.inertia.z);const gyro=tmp.b.copy(state.w).cross(Iw);
+  const ad=tmp.c.set(cfg.angularDrag.x*state.w.x*Math.abs(state.w.x),cfg.angularDrag.y*state.w.y*Math.abs(state.w.y),cfg.angularDrag.z*state.w.z*Math.abs(state.w.z));
+  state.w.x+=(torque.x-gyro.x-ad.x)/cfg.inertia.x*dt;state.w.y+=(torque.y-gyro.y-ad.y)/cfg.inertia.y*dt;state.w.z+=(torque.z-gyro.z-ad.z)/cfg.inertia.z*dt;
+  // Exact Lie-group update: R_{n+1}=R_n exp(hat(w)*dt). Quaternion right-multiplication is the same body-frame exponential map.
+  const theta=state.w.length()*dt;if(theta>1e-10){tmp.q.setFromAxisAngle(tmp.a.copy(state.w).normalize(),theta);state.q.multiply(tmp.q).normalize()}
+  // Translational dynamics: m*vDot = R*[0,T,0] + m*g - 0.5*rho*Cd*A*|v|v.
+  const thrust=state.armed&&!state.lost?cfg.maxThrust*input.throttle*input.throttle:0;
+  const force=tmp.a.set(0,thrust,0).applyQuaternion(state.q);force.y-=cfg.mass*9.80665;
+  const speed=state.v.length();if(speed>1e-5)force.addScaledVector(state.v,-.5*cfg.rho*cfg.dragCd*cfg.dragArea*speed);
+  state.v.addScaledVector(force,dt/cfg.mass);state.p.addScaledVector(state.v,dt);resolveCollisions();
+  if(state.p.y<-20)resetFlight();
+}
+
+// ---------- Gamepad + keyboard input ----------
+const keys=new Set();let pad=null,lastPadButtons=[];const maps={roll:0,pitch:1,throttle:2,yaw:3},reverse={roll:false,pitch:false,throttle:false,yaw:false};
+function deadband(v){const a=Math.abs(v);return a<cfg.deadzone?0:Math.sign(v)*(a-cfg.deadzone)/(1-cfg.deadzone)}
+function findPad(){const list=navigator.getGamepads?navigator.getGamepads():[];pad=[...list].find(Boolean)||null;return pad}
+function ensureAxisOptions(count=8){for(const [name,elId] of [['roll','rollAxis'],['pitch','pitchAxis'],['throttle','throttleAxis'],['yaw','yawAxis']]){const el=$(elId);if(el.options.length!==count){el.innerHTML='';for(let i=0;i<count;i++){const o=document.createElement('option');o.value=i;o.textContent=`Axis ${i}`;el.appendChild(o)}el.value=maps[name]}}}
+ensureAxisOptions();
+function readControls(dt){
+  pad=findPad();
+  if(pad&&pad.axes.length){ensureAxisOptions(Math.max(4,pad.axes.length));const a=i=>deadband(pad.axes[i]??0);input.roll=a(maps.roll)*(reverse.roll?-1:1);input.pitch=-a(maps.pitch)*(reverse.pitch?-1:1);input.yaw=a(maps.yaw)*(reverse.yaw?-1:1);const tr=pad.axes[maps.throttle]??1;input.throttle=THREE.MathUtils.clamp((1+(reverse.throttle?tr:-tr))*.5,0,1);
+    const b0=!!pad.buttons[0]?.pressed,b1=!!pad.buttons[1]?.pressed;if(b0&&!lastPadButtons[0])toggleArm();if(b1&&!lastPadButtons[1])resetFlight();lastPadButtons=[b0,b1];
+  }else{
+    const approach=(v,t,s)=>v+(t-v)*Math.min(1,s*dt);const roll=(keys.has('KeyD')?1:0)-(keys.has('KeyA')?1:0),pitch=(keys.has('KeyW')?1:0)-(keys.has('KeyS')?1:0),yaw=(keys.has('KeyE')?1:0)-(keys.has('KeyQ')?1:0);
+    input.roll=approach(input.roll,roll,7);input.pitch=approach(input.pitch,pitch,7);input.yaw=approach(input.yaw,yaw,7);if(keys.has('KeyR'))input.throttle=Math.min(1,input.throttle+dt*.48);if(keys.has('KeyF'))input.throttle=Math.max(0,input.throttle-dt*.48);
+  }
+}
+addEventListener('gamepadconnected',e=>{pad=e.gamepad;$('introDevice').textContent=`已连接：${e.gamepad.id}`});addEventListener('gamepaddisconnected',()=>{pad=null;$('introDevice').textContent='遥控器已断开，可使用键盘'});
+addEventListener('keydown',e=>{if(['Space','Backspace','KeyH'].includes(e.code))e.preventDefault();if(!e.repeat&&e.code==='Space')toggleArm();if(!e.repeat&&e.code==='Backspace')resetFlight();if(!e.repeat&&e.code==='KeyH')toggleSettings();keys.add(e.code)});addEventListener('keyup',e=>keys.delete(e.code));
+
+// ---------- UI bindings ----------
+function toggleSettings(){const el=$('settings'),open=!el.classList.contains('open');el.classList.toggle('open',open);$('settingsBtn').setAttribute('aria-expanded',String(open))}
+$('startBtn').onclick=()=>{$('intro').style.display='none';clock.start()};$('armBtn').onclick=toggleArm;$('resetBtn').onclick=resetFlight;$('settingsBtn').onclick=toggleSettings;$('fullBtn').onclick=()=>document.fullscreenElement?document.exitFullscreen():app.requestFullscreen();
+for(const [name,id] of [['roll','rollAxis'],['pitch','pitchAxis'],['throttle','throttleAxis'],['yaw','yawAxis']])$(id).onchange=e=>maps[name]=Number(e.target.value);
+for(const [name,id] of [['roll','rollRev'],['pitch','pitchRev'],['throttle','throttleRev'],['yaw','yawRev']])$(id).onchange=e=>reverse[name]=e.target.checked;
+$('deadzone').oninput=e=>cfg.deadzone=Number(e.target.value);$('expo').oninput=e=>cfg.expo=Number(e.target.value);$('maxRate').oninput=e=>cfg.maxRate=Number(e.target.value)*DEG;$('camAngle').oninput=e=>cfg.camAngle=Number(e.target.value)*DEG;$('vtxRange').oninput=e=>cfg.vtxRange=Number(e.target.value);
+function setAxis(id,out,v,throttle=false){$(id).style.left=`${throttle?v*100:(v*.5+.5)*100}%`;$(out).textContent=v.toFixed(2)}
+function updateHud(){
+  $('alt').textContent=`${Math.max(0,state.p.y-cfg.droneRadius).toFixed(1)} m`;$('speed').textContent=`${state.v.length().toFixed(1)} m/s`;$('dist').textContent=`${state.distance.toFixed(0)} m`;$('vs').textContent=`${state.v.y.toFixed(1)} m/s`;$('rateP').textContent=`${(state.w.x/DEG).toFixed(0)} °/s`;$('rateR').textContent=`${(-state.w.z/DEG).toFixed(0)} °/s`;
+  const arm=$('armState');arm.textContent=state.lost?'FAILSAFE':state.armed?'ARMED':'DISARMED';arm.className=`status ${state.lost?'failsafe':state.armed?'armed':''}`;$('hud').classList.toggle('lost',state.lost);
+  $('device').textContent=pad?'USB HID':'KEYBOARD';const pct=Math.round(state.signal*100);$('signalPct').textContent=`${pct}%`;$('signalFill').style.width=`${pct}%`;const c=state.signal>.52?'var(--green)':state.signal>.2?'var(--orange)':'var(--red)';$('signalFill').style.background=c;[...$('bars').children].forEach((b,i)=>{b.style.visibility=i<Math.ceil(state.signal*5)?'visible':'hidden';b.style.background=c});
+  setAxis('barT','outT',input.throttle,true);setAxis('barR','outR',input.roll);setAxis('barP','outP',input.pitch);setAxis('barY','outY',input.yaw);
+  const right=tmp.a.set(1,0,0).applyQuaternion(state.q),forward=tmp.b.set(0,0,-1).applyQuaternion(state.q),bodyUp=tmp.c.set(0,1,0).applyQuaternion(state.q);const roll=Math.atan2(right.y,bodyUp.y);const pitch=Math.asin(THREE.MathUtils.clamp(forward.y,-1,1));$('horizon').style.transform=`translateY(${pitch*125}px) rotate(${roll}rad)`;
+}
+
+// ---------- Fixed-step simulation + camera ----------
+let accumulator=0;const FIXED=1/240;
+function animate(){requestAnimationFrame(animate);const frame=Math.min(clock.getDelta(),.05);readControls(frame);accumulator+=frame;let steps=0;while(accumulator>=FIXED&&steps++<16){physicsStep(FIXED);accumulator-=FIXED}
+  droneVisual.position.copy(state.p);droneVisual.quaternion.copy(state.q);
+  const camOffset=tmp.a.set(0,.055,-.235).applyQuaternion(state.q);camera.position.copy(state.p).add(camOffset);tmp.q.setFromAxisAngle(new THREE.Vector3(1,0,0),cfg.camAngle);camera.quaternion.copy(state.q).multiply(tmp.q);
+  vtxPass.uniforms.uTime.value=performance.now()*.001;vtxPass.uniforms.uSignal.value=state.signal;updateHud();composer.render();
+}
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);vtxPass.uniforms.uResolution.value.set(innerWidth*renderer.getPixelRatio(),innerHeight*renderer.getPixelRatio())});
+resetFlight();animate();
+</script>
+</body>
+</html>
