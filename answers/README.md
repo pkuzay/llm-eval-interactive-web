@@ -32,7 +32,8 @@ answers/
     ├── deepseek/
     ├── glm-5.2/
     ├── qwen-3.8-max-preview/
-    └── gpt-5.6-sol/
+    ├── gpt-5.6-sol/
+    └── kimi-k3/
 ```
 
 最终对比模型及目录名：

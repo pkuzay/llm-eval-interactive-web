@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>双叉臂式独立悬架 · 运动学实时仿真</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{background:#101214;color:#c6ccd3;font-family:Consolas,'Courier New',monospace;font-size:12px;display:flex;flex-direction:column}
+header{height:42px;flex:0 0 42px;background:#16191c;border-bottom:1px solid #33383e;display:flex;align-items:center;justify-content:space-between;padding:0 12px}
+.ttl{font-size:13px;letter-spacing:2px;color:#e3e8ee;white-space:nowrap}
+.ttl .sub{margin-left:14px;font-size:10px;letter-spacing:1px;color:#6d7681}
+.hstat{display:flex;gap:18px;color:#7f8894;font-size:11px;white-space:nowrap}
+#main{flex:1;display:flex;min-height:0}
+aside{background:#14171a;overflow-y:auto}
+#left{width:232px;flex:0 0 232px;border-right:1px solid #33383e}
+#right{width:300px;flex:0 0 300px;border-left:1px solid #33383e}
+#view{flex:1;position:relative;min-width:0;background:#14171a}
+#gl{position:absolute;inset:0}
+.sec{padding:10px 12px;border-bottom:1px solid #262a2f}
+.st{font-size:10px;letter-spacing:3px;color:#7f8894;border-left:2px solid #35b5e0;padding-left:7px;margin-bottom:9px}
+.btnrow{display:flex;gap:6px;flex-wrap:wrap}
+button{background:#1e2125;border:1px solid #3a4046;color:#c6ccd3;padding:5px 0;cursor:pointer;letter-spacing:2px;font-size:11px;font-family:inherit;flex:1;min-width:0}
+button:hover{background:#262b30;border-color:#4a545e}
+button.active{background:#12303e;border-color:#35b5e0;color:#8fd8f7}
+label{display:flex;justify-content:space-between;margin:8px 0 3px;color:#9aa3ad;font-size:11px}
+label .v{color:#8fd8f7}
+input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:4px;background:#2b3036;border:1px solid #3a4046;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:10px;height:16px;background:#35b5e0;border:1px solid #0d6f8f;cursor:pointer}
+input[type=range]::-moz-range-thumb{width:10px;height:16px;background:#35b5e0;border:1px solid #0d6f8f;cursor:pointer;border-radius:0}
+.chk{display:flex;align-items:center;gap:8px;margin:6px 0;color:#9aa3ad;cursor:pointer;font-size:11px}
+.chk input{accent-color:#35b5e0}
+.row{display:grid;grid-template-columns:1fr 62px 62px;gap:4px;padding:3px 0;border-bottom:1px dashed #22262b}
+.row span:first-child{color:#9aa3ad}
+.row .v{text-align:right;color:#8fd8f7}
+.row .a{text-align:right;color:#e0a335}
+.row.hdr span{color:#5f6873;font-size:10px;letter-spacing:1px}
+.note{color:#6d7681;font-size:10px;line-height:1.7}
+canvas.plot{display:block;width:100%;background:#101315;border:1px solid #2b3036;margin-bottom:10px}
+#legend{position:absolute;left:10px;bottom:10px;background:rgba(18,21,24,.88);border:1px solid #33383e;padding:8px 10px;font-size:10px;color:#9aa3ad;line-height:1.9;pointer-events:none}
+#legend .lg-t{color:#7f8894;letter-spacing:2px;margin-bottom:2px}
+#legend i{display:inline-block;width:16px;height:2px;vertical-align:middle;margin-right:8px}
+#legend i.sq{width:6px;height:6px}
+#viewhint{position:absolute;right:10px;bottom:10px;background:rgba(18,21,24,.88);border:1px solid #33383e;padding:5px 10px;font-size:10px;color:#6d7681;pointer-events:none}
+footer{height:24px;flex:0 0 24px;background:#16191c;border-top:1px solid #33383e;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:10px;color:#6d7681}
+.v{color:#8fd8f7}.a{color:#e0a335}
+</style>
+</head>
+<body>
+<header>
+  <div class="ttl">双叉臂式独立悬架 · 运动学实时仿真<span class="sub">DOUBLE-WISHBONE KINEMATICS — RIGID LINK / DEFORMABLE LINK / NODE MODEL</span></div>
+  <div class="hstat"><span>坐标系 X-前 Y-左 Z-上</span><span>单位 mm / °</span><span>求解 <span class="v" id="hMs">--</span> ms</span></div>
+</header>
+<div id="main">
+  <aside id="left">
+    <div class="sec">
+      <div class="st">仿真模式 SIM MODE</div>
+      <div class="btnrow" id="modeRow">
+        <button data-m="manual" class="active">手动</button>
+        <button data-m="bounce">跳动</button>
+        <button data-m="steer">转向</button>
+        <button data-m="combo">组合工况</button>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="st">输入通道 INPUTS</div>
+      <label>轮心行程(手动) <span class="v" id="vTravel">0</span> mm</label>
+      <input id="sTravel" type="range" min="-90" max="90" value="0" step="1">
+      <label>齿条位移(手动) <span class="v" id="vRack">0.0</span> mm</label>
+      <input id="sRack" type="range" min="-45" max="45" value="0" step="0.5">
+      <label>跳动幅值 <span class="v" id="vAmp">70</span> mm</label>
+      <input id="sAmp" type="range" min="20" max="90" value="70" step="1">
+      <label>跳动频率 <span class="v" id="vFreq">0.8</span> Hz</label>
+      <input id="sFreq" type="range" min="0.2" max="2.5" value="0.8" step="0.1">
+      <label>转向幅值 <span class="v" id="vSA">35</span> mm</label>
+      <input id="sSAmp" type="range" min="10" max="45" value="35" step="1">
+      <label>路面相位(组合工况)</label>
+      <div class="btnrow" id="phaseRow">
+        <button data-p="in" class="active">同相</button>
+        <button data-p="anti">反相</button>
+        <button data-p="mix">复合</button>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="st">显示控制 DISPLAY</div>
+      <label class="chk"><input type="checkbox" id="cNodes" checked>节点标记 NODES</label>
+      <label class="chk"><input type="checkbox" id="cLabels" checked>节点标签 LABELS</label>
+      <label class="chk"><input type="checkbox" id="cKing" checked>主销轴线 KINGPIN</label>
+      <label class="chk"><input type="checkbox" id="cTrail">运动轨迹记录 TRAILS</label>
+      <label class="chk"><input type="checkbox" id="cSweep" checked>主销路径扫描 SWEEP</label>
+      <label class="chk"><input type="checkbox" id="cChassis" checked>车架参考 CHASSIS</label>
+      <label class="chk"><input type="checkbox" id="cGrid" checked>地面网格 GRID</label>
+    </div>
+    <div class="sec">
+      <div class="st">视角 VIEW</div>
+      <div class="btnrow" id="viewRow">
+        <button data-v="iso" class="active">轴测</button>
+        <button data-v="front">前视</button>
+        <button data-v="side">侧视</button>
+        <button data-v="top">俯视</button>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="st">操作 ACTION</div>
+      <div class="btnrow">
+        <button id="bClear">清除轨迹</button>
+        <button id="bReset">复位参数</button>
+      </div>
+    </div>
+    <div class="sec note">
+      模型说明：刚性线 = 上/下控制臂、转向节、转向横拉杆、齿条；可形变线 = 螺旋弹簧(变螺距)与减振器套筒；节点 = 球铰与硬点。每一帧对双叉臂四杆机构与转向拉杆约束进行牛顿迭代求解，输出车轮定位参数。
+    </div>
+  </aside>
+  <div id="view">
+    <div id="gl"></div>
+    <div id="legend">
+      <div class="lg-t">图例 LEGEND</div>
+      <div><i style="background:#8a9098"></i>刚性杆件(控制臂 / 车架)</div>
+      <div><i style="background:#ff7043"></i>转向节(刚性)</div>
+      <div><i style="background:#66bb6a"></i>转向横拉杆 / 齿条</div>
+      <div><i style="background:#ef5350"></i>螺旋弹簧 · 减振器(可形变)</div>
+      <div><i style="background:#d8dde3"></i>车轮(线框)</div>
+      <div><i style="background:#ffd54f"></i>主销轴线 / 接地点路径</div>
+      <div><i class="sq" style="background:#d6dde6"></i>节点(球铰 / 硬点)</div>
+    </div>
+    <div id="viewhint">左键旋转 · 右键平移 · 滚轮缩放</div>
+  </div>
+  <aside id="right">
+    <div class="sec">
+      <div class="st">车轮定位 WHEEL ALIGNMENT</div>
+      <div class="row hdr"><span>参数 PARAM</span><span style="text-align:right">左 L</span><span style="text-align:right">右 R</span></div>
+      <div class="row"><span>外倾角 CAMBER</span><span class="v" id="rCamL">--</span><span class="v" id="rCamR">--</span></div>
+      <div class="row"><span>前轮转角 STEER</span><span class="v" id="rDlL">--</span><span class="v" id="rDlR">--</span></div>
+      <div class="row"><span>主销后倾 CASTER</span><span class="v" id="rCaster">--</span><span></span></div>
+      <div class="row"><span>主销内倾 KPI</span><span class="v" id="rKpi">--</span><span></span></div>
+      <div class="row"><span>主销偏距 SCRUB</span><span class="v" id="rScrub">--</span><span></span></div>
+    </div>
+    <div class="sec">
+      <div class="st">悬架行程 RIDE</div>
+      <div class="row hdr"><span>参数 PARAM</span><span style="text-align:right">左 L</span><span style="text-align:right">右 R</span></div>
+      <div class="row"><span>轮心行程 TRAVEL</span><span class="v" id="rTrvL">--</span><span class="v" id="rTrvR">--</span></div>
+      <div class="row"><span>弹簧压缩 SPR.CMP</span><span class="v" id="rSprCmp">--</span><span></span></div>
+      <div class="row"><span>弹簧长度 SPR.LEN</span><span class="v" id="rSprLen">--</span><span></span></div>
+      <div class="row"><span>悬挂传动比 MR</span><span class="v" id="rMR">--</span><span></span></div>
+      <div class="row"><span>总前束 ΣTOE</span><span class="v" id="rToeSum">--</span><span></span></div>
+      <div class="row"><span>内外转角差 Δδ</span><span class="a" id="rAck">--</span><span></span></div>
+      <div class="row"><span>齿条位移 RACK</span><span class="a" id="rRack">--</span><span></span></div>
+    </div>
+    <div class="sec">
+      <div class="st">特性曲线 CHARACTERISTICS (左轮, 齿条中位)</div>
+      <canvas class="plot" id="pCam" width="272" height="104"></canvas>
+      <canvas class="plot" id="pToe" width="272" height="104"></canvas>
+      <canvas class="plot" id="pScr" width="272" height="104"></canvas>
+    </div>
+  </aside>
+</div>
+<footer>
+  <span>刚性杆件 22 · 节点 26 · 可形变元件 4 · 逐帧约束求解: 四杆机构 + 转向拉杆</span>
+  <span id="fSolve">READY</span>
+</footer>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+
+// ============================================================
+// 1. 设计硬点 (左侧, 单位 mm; 右侧由 Y 镜像得到)
+//    X-前  Y-左(外)  Z-上 ; 地面 Z = -50
+// ============================================================
+const GROUND_Z = -50;
+const BASE = {
+  lcaInA:    new THREE.Vector3( 150, 250, 240), // 下横臂内点-前
+  lcaInB:    new THREE.Vector3(-150, 250, 240), // 下横臂内点-后
+  lcaPivot:  new THREE.Vector3(   0, 250, 240), // 下横臂内轴线(沿X)
+  lbj:       new THREE.Vector3(  20, 640, 190), // 下球铰
+  ucaInA:    new THREE.Vector3( 130, 300, 400),
+  ucaInB:    new THREE.Vector3(-130, 300, 400),
+  ucaPivot:  new THREE.Vector3(   0, 300, 400), // 上横臂内轴线(沿X)
+  ubj:       new THREE.Vector3( -20, 600, 380), // 上球铰
+  wheel:     new THREE.Vector3(   0, 710, 250), // 轮心
+  tieOuter:  new THREE.Vector3( -95, 600, 280), // 横拉杆外球铰(转向节臂)
+  rackEnd:   new THREE.Vector3( -95, 280, 312), // 齿条端部(内球铰, 指向悬架瞬心, 低跳动转向)
+  springSeat:new THREE.Vector3(   0, 470, 245), // 弹簧下座(位于下横臂)
+  springTop: new THREE.Vector3( -10, 380, 560), // 弹簧上座(车架)
+};
+function mirrorV(v){ return new THREE.Vector3(v.x, -v.y, v.z); }
+const DES = {};
+for (const side of [1, -1]) {
+  const d = {};
+  for (const k in BASE) d[k] = side === 1 ? BASE[k].clone() : mirrorV(BASE[k]);
+  d.kAxis   = d.ubj.clone().sub(d.lbj).normalize();       // 设计主销轴线(单位)
+  d.dk2     = d.ubj.distanceToSquared(d.lbj);             // 主销距^2 (转向节刚性约束)
+  d.ltr2    = d.tieOuter.distanceToSquared(d.rackEnd);    // 横拉杆长^2 (转向约束)
+  d.springL0= d.springSeat.distanceTo(d.springTop);       // 弹簧自由基准长
+  DES[side] = d;
+}
+const DEG = 180 / Math.PI;
+const clamp1 = x => Math.max(-1, Math.min(1, x));
+
+// 绕平行于 X 轴的内轴线旋转 (控制臂转角)
+function rotAboutX(p, pivot, th){
+  const dy = p.y - pivot.y, dz = p.z - pivot.z;
+  const c = Math.cos(th), s = Math.sin(th);
+  return new THREE.Vector3(p.x, pivot.y + dy*c - dz*s, pivot.z + dy*s + dz*c);
+}
+
+// ============================================================
+// 2. 运动学求解: 给定下横臂角 th 与齿条位移 rack
+//    - 上横臂角 phi : |UBJ(phi) - LBJ| = 主销距      (四杆约束)
+//    - 转向角   psi : |T(psi) - RackEnd| = 拉杆长    (转向约束)
+//    牛顿迭代 + 分支保护扫描
+// ============================================================
+function solveTheta(side, th, rack, pv){
+  const d = DES[side];
+  const lbj = rotAboutX(d.lbj, d.lcaPivot, th);
+
+  // --- 上横臂角 phi ---
+  const F = ph => rotAboutX(d.ubj, d.ucaPivot, ph).distanceToSquared(lbj) - d.dk2;
+  let phi = pv.phi;
+  for (let i = 0; i < 16; i++){
+    const f = F(phi);
+    if (Math.abs(f) < 1e-7) break;
+    const df = (F(phi + 1e-5) - f) / 1e-5;
+    if (Math.abs(df) < 1e-9) break;
+    phi = Math.max(-1.2, Math.min(1.2, phi - f / df));
+  }
+  if (Math.abs(F(phi)) > 0.5){ // 分支保护
+    let best = phi, bf = Infinity;
+    for (let ph = -0.9; ph <= 0.9; ph += 0.01){
+      const f = Math.abs(F(ph));
+      if (f < bf){ bf = f; best = ph; }
+    }
+    phi = best;
+    for (let i = 0; i < 12; i++){
+      const f = F(phi);
+      if (Math.abs(f) < 1e-7) break;
+      const df = (F(phi + 1e-5) - f) / 1e-5;
+      if (Math.abs(df) < 1e-9) break;
+      phi -= f / df;
+    }
+  }
+  pv.phi = phi;
+  const ubj = rotAboutX(d.ubj, d.ucaPivot, phi);
+
+  // --- 转向节姿态: 主销轴 + 绕轴转角 psi (由拉杆约束确定) ---
+  const k  = ubj.clone().sub(lbj).normalize();
+  const q1 = new THREE.Quaternion().setFromUnitVectors(d.kAxis, k);
+  const Tc = d.tieOuter.clone().sub(d.lbj).applyQuaternion(q1).add(lbj);
+  const rackPos = d.rackEnd.clone(); rackPos.y += rack;
+  const Gf = ps => {
+    const T = Tc.clone().sub(lbj).applyAxisAngle(k, ps).add(lbj);
+    return T.distanceToSquared(rackPos) - d.ltr2;
+  };
+  let psi = pv.psi;
+  for (let i = 0; i < 16; i++){
+    const g = Gf(psi);
+    if (Math.abs(g) < 1e-7) break;
+    const dg = (Gf(psi + 1e-5) - g) / 1e-5;
+    if (Math.abs(dg) < 1e-9) break;
+    psi = Math.max(-1.5, Math.min(1.5, psi - g / dg));
+  }
+  if (Math.abs(Gf(psi)) > 0.5){
+    let best = psi, bf = Infinity;
+    for (let ps = -1.2; ps <= 1.2; ps += 0.005){
+      const g = Math.abs(Gf(ps));
+      if (g < bf){ bf = g; best = ps; }
+    }
+    psi = best;
+    for (let i = 0; i < 10; i++){
+      const g = Gf(psi);
+      if (Math.abs(g) < 1e-7) break;
+      const dg = (Gf(psi + 1e-5) - g) / 1e-5;
+      if (Math.abs(dg) < 1e-9) break;
+      psi -= g / dg;
+    }
+  }
+  pv.psi = psi;
+
+  // --- 转向节刚体变换 -> 轮心 / 外球铰 / 姿态向量 ---
+  const q = new THREE.Quaternion().setFromAxisAngle(k, psi).multiply(q1);
+  const W = d.wheel.clone().sub(d.lbj).applyQuaternion(q).add(lbj);
+  const T = Tc.clone().sub(lbj).applyAxisAngle(k, psi).add(lbj);
+  const fwd  = new THREE.Vector3(1, 0, 0).applyQuaternion(q);   // 车轮前向
+  const axle = new THREE.Vector3(0, side, 0).applyQuaternion(q); // 轮轴(外侧为正)
+
+  // --- 弹簧 ---
+  const seat = rotAboutX(d.springSeat, d.lcaPivot, th);
+  const springL = seat.distanceTo(d.springTop);
+
+  // --- 定位参数 ---
+  const tG = (GROUND_Z - lbj.z) / k.z;
+  const G  = lbj.clone().addScaledVector(k, tG);          // 主销延长线接地点
+  const camber = -Math.asin(clamp1(axle.z)) * DEG;           // 上跳负外倾增益
+  const toeIn  = -side * Math.asin(clamp1(fwd.y)) * DEG;  // 前束为正
+  const caster = Math.atan2(-k.x, k.z) * DEG;
+  const kpi    = Math.atan2(-side * k.y, k.z) * DEG;
+  const scrub  = (G.y - W.y) * side;                      // 主销接地点相对轮心接地(外+)
+
+  return { side, th, phi, psi, lbj, ubj, k, q, W, T, fwd, axle,
+           seat, springL, camber, toeIn, caster, kpi, scrub, G, rackPos };
+}
+
+// --- 标定: 下横臂角 th -> 轮心 Z (单调), 用于行程反查 ---
+//     从设计位形(th=0, 精确解)向两侧连续推进, 锁定四杆机构的设计装配回路,
+//     并记录各点的 phi/psi 作为后续牛顿迭代的初值种子
+const CAL = {}, W0Z = {};
+(function buildCal(){
+  for (const side of [1, -1]){
+    const pv = { phi: 0, psi: 0 };
+    const map = new Map();
+    const rec = (th, r) => map.set(Math.round(th * 10000), { th, z: r.W.z, phi: pv.phi, psi: pv.psi });
+    rec(0, solveTheta(side, 0, 0, pv));
+    W0Z[side] = solveTheta(side, 0, 0, { phi: 0, psi: 0 }).W.z;
+    for (let th = 0.005; th <= 0.5001; th += 0.005) rec(th, solveTheta(side, th, 0, pv));
+    pv.phi = 0; pv.psi = 0;
+    for (let th = -0.005; th >= -0.5001; th -= 0.005) rec(th, solveTheta(side, th, 0, pv));
+    CAL[side] = [...map.values()].sort((a, b) => a.z - b.z);
+  }
+})();
+function thetaForTravel(side, u, seed){
+  const arr = CAL[side], target = u + W0Z[side];
+  const hi0 = arr.length - 1;
+  let a, b, f;
+  if (target <= arr[0].z){ a = b = arr[0]; f = 0; }
+  else if (target >= arr[hi0].z){ a = b = arr[hi0]; f = 0; }
+  else {
+    let lo = 0, hi = hi0;
+    while (hi - lo > 1){
+      const m = (lo + hi) >> 1;
+      if (arr[m].z < target) lo = m; else hi = m;
+    }
+    a = arr[lo]; b = arr[hi];
+    f = (target - a.z) / (b.z - a.z);
+  }
+  if (seed){
+    seed.phi = a.phi + (b.phi - a.phi) * f;
+    seed.psi = a.psi + (b.psi - a.psi) * f;
+  }
+  return a.th + (b.th - a.th) * f;
+}
+
+// --- 行程入口: 轮心目标行程 u + 齿条位移 -> 全解 + 传动比 ---
+const pvMRa = { phi: 0, psi: 0 }, pvMRb = { phi: 0, psi: 0 };
+function solveSide(side, u, rack, pv){
+  const th = thetaForTravel(side, u, pv);   // 同时写入设计回路的初值种子
+  const r = solveTheta(side, th, rack, pv);
+  const e = 0.004;
+  pvMRa.phi = pv.phi; pvMRa.psi = pv.psi;
+  pvMRb.phi = pv.phi; pvMRb.psi = pv.psi;
+  const ra = solveTheta(side, th + e, rack, pvMRa);
+  const rb = solveTheta(side, th - e, rack, pvMRb);
+  r.mr = (rb.springL - ra.springL) / (ra.W.z - rb.W.z); // 弹簧压缩量/轮心行程
+  r.u  = r.W.z - W0Z[side];
+  return r;
+}
+
+// ============================================================
+// 3. 场景与渲染 (Z 向上)
+// ============================================================
+const C = { link:0x8a9098, chassis:0x49515a, knuckle:0xff7043, tie:0x66bb6a,
+            spring:0xef5350, damper:0x8e4441, wheel:0xd8dde3, king:0xffd54f,
+            ghost:0x6e6132, node:0xd6dde6, disc:0x7f8894, patch:0x35b5e0, dim:0x4a545e };
+const container = document.getElementById('gl');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+container.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x14171a);
+const camera = new THREE.PerspectiveCamera(38, 1, 1, 20000);
+camera.up.set(0, 0, 1);
+camera.position.set(1900, 2100, 1300);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 150);
+controls.enableDamping = true;
+controls.dampingFactor = 0.12;
+
+const grid = new THREE.GridHelper(3600, 36, 0x2b3036, 0x1e2226);
+grid.rotation.x = Math.PI / 2;
+grid.position.z = GROUND_Z;
+scene.add(grid);
+
+function makeSegs(n, color, opacity = 1){
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 6), 3));
+  const o = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color, transparent: opacity < 1, opacity }));
+  o.frustumCulled = false; return o;
+}
+function makeLine(n, color, opacity = 1){
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  const o = new THREE.Line(g, new THREE.LineBasicMaterial({ color, transparent: opacity < 1, opacity }));
+  o.frustumCulled = false; return o;
+}
+function makePts(n, color, size = 7){
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  const o = new THREE.Points(g, new THREE.PointsMaterial({ color, size, sizeAttenuation: false }));
+  o.frustumCulled = false; return o;
+}
+function setSeg(o, i, a, b){
+  const p = o.geometry.attributes.position;
+  p.setXYZ(i * 2, a.x, a.y, a.z); p.setXYZ(i * 2 + 1, b.x, b.y, b.z);
+}
+const upd = o => { o.geometry.attributes.position.needsUpdate = true; };
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+
+// ---------------- 静态车架 ----------------
+const chSegs = [];
+const ch = (a, b) => chSegs.push([a, b]);
+ch(V(-450, 250, 240), V(450, 250, 240));  ch(V(-450, -250, 240), V(450, -250, 240));
+ch(V(-450, 250, 240), V(-450, -250, 240)); ch(V(450, 250, 240), V(450, -250, 240));
+for (const s of [1, -1]){
+  ch(V(150, 250*s, 240), V(-150, 250*s, 240));            // 下横臂内轴
+  ch(V(130, 300*s, 400), V(-130, 300*s, 400));            // 上横臂内轴
+  ch(V(130, 300*s, 400), V(130, 250*s, 240));
+  ch(V(-130, 300*s, 400), V(-130, 250*s, 240));
+  ch(V(-10, 380*s, 560), V(0, 300*s, 400));               // 减振塔
+  ch(V(-10, 380*s, 560), V(-10, 250*s, 240));
+  ch(V(-95, 280*s, 312), V(-95, 250*s, 296));             // 齿条支座
+  ch(V(-95, 280*s, 304), V(-95, 250*s, 288));
+}
+ch(V(-95, -300, 304), V(-95, 300, 304));                  // 齿条壳体
+ch(V(-95, -300, 320), V(-95, 300, 320));
+ch(V(-95, -300, 304), V(-95, -300, 320)); ch(V(-95, 300, 304), V(-95, 300, 320));
+const chassis = makeSegs(chSegs.length, C.chassis);
+chSegs.forEach(([a, b], i) => setSeg(chassis, i, a, b)); upd(chassis);
+scene.add(chassis);
+
+const chassisPts = makePts(14, 0x6d7681, 6);
+{
+  const pts = [];
+  for (const s of [1, -1]){
+    pts.push(V(150, 250*s, 240), V(-150, 250*s, 240), V(130, 300*s, 400),
+             V(-130, 300*s, 400), V(-10, 380*s, 560), V(-95, 330*s, 315), V(-95, 330*s, 307));
+  }
+  const p = chassisPts.geometry.attributes.position;
+  pts.forEach((pt, i) => p.setXYZ(i, pt.x, pt.y, pt.z)); upd(chassisPts);
+}
+scene.add(chassisPts);
+
+// 齿条运动杆 (随转向平移)
+const rackBar = makeSegs(3, C.tie); scene.add(rackBar);
+
+// ---------------- 车轮 / 制动盘 局部几何 ----------------
+function buildWheelLocal(){
+  const pts = [];
+  const add = (ax, ay, az, bx, by, bz) => pts.push([V(ax, ay, az), V(bx, by, bz)]);
+  const circ = (r, y, n) => {
+    for (let i = 0; i < n; i++){
+      const a1 = i / n * 6.2831853, a2 = (i + 1) / n * 6.2831853;
+      add(r*Math.cos(a1), y, r*Math.sin(a1), r*Math.cos(a2), y, r*Math.sin(a2));
+    }
+  };
+  circ(300, 100, 40); circ(300, -100, 40); circ(300, 0, 40);      // 胎肩/胎面
+  for (let j = 0; j < 20; j++){                                    // 胎面连接
+    const a = j / 20 * 6.2831853;
+    add(300*Math.cos(a), 100, 300*Math.sin(a), 300*Math.cos(a), -100, 300*Math.sin(a));
+  }
+  circ(185, 98, 28); circ(185, -98, 28);                           // 轮辋
+  circ(45, 98, 14); circ(45, -98, 14);                             // 轮毂
+  for (let k2 = 0; k2 < 5; k2++){                                  // 辐条
+    const a = k2 / 5 * 6.2831853 + 0.31, c = Math.cos(a), s = Math.sin(a);
+    add(45*c, 98, 45*s, 185*c, 98, 185*s);
+    add(45*c, -98, 45*s, 185*c, -98, 185*s);
+  }
+  return pts;
+}
+const WL = { 1: buildWheelLocal() };
+WL[-1] = WL[1].map(([a, b]) => [V(a.x, -a.y, a.z), V(b.x, -b.y, b.z)]);
+const WSEG = WL[1].length;
+
+function buildDiscLocal(){
+  const pts = [];
+  const add = (ax, ay, az, bx, by, bz) => pts.push([V(ax, ay, az), V(bx, by, bz)]);
+  const circ = (r, y, n) => {
+    for (let i = 0; i < n; i++){
+      const a1 = i / n * 6.2831853, a2 = (i + 1) / n * 6.2831853;
+      add(r*Math.cos(a1), y, r*Math.sin(a1), r*Math.cos(a2), y, r*Math.sin(a2));
+    }
+  };
+  circ(130, -24, 26); circ(62, -24, 16);                           // 制动盘
+  add(70, -30, 20, 130, -30, 20); add(130, -30, 20, 130, -30, 60); // 制动钳
+  add(130, -30, 60, 70, -30, 60); add(70, -30, 60, 70, -30, 20);
+  return pts;
+}
+const DL = { 1: buildDiscLocal() };
+DL[-1] = DL[1].map(([a, b]) => [V(a.x, -a.y, a.z), V(b.x, -b.y, b.z)]);
+const DSEG = DL[1].length;
+
+// ---------------- 每侧悬挂对象 ----------------
+const GSN = 21; // 主销路径扫描采样数
+function buildSide(side){
+  const o = { side, pv: { phi: 0, psi: 0 }, pvGhost: { phi: 0, psi: 0 } };
+  o.lca     = makeSegs(4, C.link);
+  o.uca     = makeSegs(3, C.link);
+  o.knuckle = makeSegs(5, C.knuckle);
+  o.tie     = makeSegs(2, C.tie);
+  o.coil    = makeLine(121, C.spring);
+  o.damper  = makeSegs(16, C.damper);
+  o.king    = (() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+    const l = new THREE.Line(g, new THREE.LineDashedMaterial({ color: C.king, dashSize: 28, gapSize: 16 }));
+    l.frustumCulled = false; return l;
+  })();
+  o.wheel = makeSegs(WSEG, C.wheel);
+  o.disc  = makeSegs(DSEG, C.disc);
+  o.nodes = makePts(6, C.node, 7);
+  o.patch = makeSegs(2, C.patch);
+  o.dim   = makeSegs(3, C.dim);
+  o.ghost = makeSegs(GSN, C.ghost, 0.32);
+  o.gpath = makeLine(GSN, C.king);
+  o.gpts  = makePts(GSN, C.king, 4);
+  for (const key of ['lca','uca','knuckle','tie','coil','damper','king','wheel','disc','nodes','patch','dim','ghost','gpath','gpts'])
+    scene.add(o[key]);
+  return o;
+}
+const sideL = buildSide(1), sideR = buildSide(-1);
+
+// ---------------- 运动轨迹记录 ----------------
+const TR_N = 1600;
+function makeTrace(color){
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TR_N * 3), 3));
+  const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.85 }));
+  l.frustumCulled = false;
+  l.userData.n = 0;
+  g.setDrawRange(0, 0);
+  scene.add(l);
+  return l;
+}
+function pushTrace(l, p){
+  const a = l.geometry.attributes.position;
+  let n = l.userData.n;
+  if (n >= TR_N){ a.array.copyWithin(0, 3); n = TR_N - 1; }
+  a.setXYZ(n, p.x, p.y, p.z);
+  l.userData.n = n + 1;
+  l.geometry.setDrawRange(0, l.userData.n);
+  a.needsUpdate = true;
+}
+const traces = [];
+for (const s of [1, -1]){
+  traces.push({ o: s === 1 ? sideL : sideR, kind: 'W',  l: makeTrace(0x4fc3f7) });
+  traces.push({ o: s === 1 ? sideL : sideR, kind: 'G',  l: makeTrace(C.king) });
+  traces.push({ o: s === 1 ? sideL : sideR, kind: 'T',  l: makeTrace(C.tie) });
+  traces.push({ o: s === 1 ? sideL : sideR, kind: 'U',  l: makeTrace(0xff8a65) });
+  traces.push({ o: s === 1 ? sideL : sideR, kind: 'LB', l: makeTrace(0xa5d6a7) });
+}
+function clearTraces(){
+  for (const t of traces){ t.l.userData.n = 0; t.l.geometry.setDrawRange(0, 0); }
+}
+
+// ---------------- 节点标签 ----------------
+function makeLabel(txt){
+  const cv = document.createElement('canvas');
+  const fs = 26;
+  cv.width = Math.max(96, txt.length * 30 + 24); cv.height = 44;
+  const ctx = cv.getContext('2d');
+  ctx.font = fs + 'px Consolas, monospace';
+  ctx.fillStyle = '#9fb2c8';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(txt, 10, 24);
+  const tex = new THREE.CanvasTexture(cv);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  sp.scale.set(cv.width * 1.7, cv.height * 1.7, 1);
+  sp.renderOrder = 10;
+  scene.add(sp);
+  return sp;
+}
+const labels = [
+  { sp: makeLabel('上横臂'),   get: r => mid(DES[1].ucaPivot, r.ubj, 0, 0, 70) },
+  { sp: makeLabel('下横臂'),   get: r => mid(DES[1].lcaPivot, r.lbj, 0, 0, -80) },
+  { sp: makeLabel('转向节'),   get: r => off(r.W, 0, 170, 150) },
+  { sp: makeLabel('横拉杆'),   get: r => mid(r.T, r.rackPos, 0, 0, 55) },
+  { sp: makeLabel('弹簧·减振器'), get: r => mid(r.seat, DES[1].springTop, 0, 0, 50) },
+  { sp: makeLabel('主销轴线'), get: r => off(r.ubj.clone().addScaledVector(r.k, 200), 0, 0, 40) },
+  { sp: makeLabel('转向齿条'), get: r => off(r.rackPos, 0, -240, 70) },
+];
+function mid(a, b, dx, dy, dz){ return V((a.x+b.x)/2+dx, (a.y+b.y)/2+dy, (a.z+b.z)/2+dz); }
+function off(a, dx, dy, dz){ return V(a.x+dx, a.y+dy, a.z+dz); }
+
+// 行程尺寸标注
+function makeDimLabel(){
+  const cv = document.createElement('canvas'); cv.width = 168; cv.height = 56;
+  const tex = new THREE.CanvasTexture(cv);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  sp.scale.set(168 * 1.6, 56 * 1.6, 1);
+  sp.renderOrder = 10;
+  sp.userData = { cv, tex, last: null };
+  scene.add(sp);
+  return sp;
+}
+const dimL = makeDimLabel(), dimR = makeDimLabel();
+function setDimLabel(sp, val){
+  const iv = Math.round(val);
+  if (sp.userData.last === iv) return;
+  sp.userData.last = iv;
+  const { cv, tex } = sp.userData;
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.font = '30px Consolas, monospace';
+  ctx.fillStyle = '#8fd8f7';
+  ctx.textBaseline = 'middle';
+  ctx.fillText((iv >= 0 ? '+' : '') + iv + ' mm', 8, 30);
+  tex.needsUpdate = true;
+}
+
+// ============================================================
+// 4. 每帧场景更新
+// ============================================================
+const COIL_N = 120, COILS = 6;
+const _tv = new THREE.Vector3(), _tv2 = new THREE.Vector3();
+function updateCoil(line, A, B, L0){
+  const p = line.geometry.attributes.position;
+  const axis = _tv.copy(B).sub(A);
+  const L = axis.length(); axis.normalize();
+  const ref = Math.abs(axis.z) < 0.92 ? _tv2.set(0, 0, 1) : _tv2.set(1, 0, 0);
+  const u = new THREE.Vector3().crossVectors(axis, ref).normalize();
+  const v = new THREE.Vector3().crossVectors(axis, u);
+  const rad = 46 * Math.pow(L0 / L, 0.25);   // 压缩时外径微胀
+  for (let i = 0; i <= COIL_N; i++){
+    const t = i / COIL_N, ang = 2 * Math.PI * COILS * t;
+    const taper = Math.min(1, Math.min(t, 1 - t) / 0.07);
+    const r = rad * (0.3 + 0.7 * taper);
+    p.setXYZ(i,
+      A.x + axis.x * t * L + u.x * Math.cos(ang) * r + v.x * Math.sin(ang) * r,
+      A.y + axis.y * t * L + u.y * Math.cos(ang) * r + v.y * Math.sin(ang) * r,
+      A.z + axis.z * t * L + u.z * Math.cos(ang) * r + v.z * Math.sin(ang) * r);
+  }
+  upd(line);
+}
+function updateDamper(o, A, B){
+  const axis = _tv.copy(B).sub(A);
+  const L = axis.length(); axis.normalize();
+  const ref = Math.abs(axis.z) < 0.92 ? _tv2.set(0, 0, 1) : _tv2.set(1, 0, 0);
+  const u = new THREE.Vector3().crossVectors(axis, ref).normalize();
+  const v = new THREE.Vector3().crossVectors(axis, u);
+  const M = A.clone().addScaledVector(axis, 0.62 * L);
+  const quad = (idx, P, r) => {
+    const c = [
+      P.clone().addScaledVector(u,  r).addScaledVector(v,  r),
+      P.clone().addScaledVector(u, -r).addScaledVector(v,  r),
+      P.clone().addScaledVector(u, -r).addScaledVector(v, -r),
+      P.clone().addScaledVector(u,  r).addScaledVector(v, -r)];
+    for (let j = 0; j < 4; j++) setSeg(o, idx + j, c[j], c[(j + 1) % 4]);
+    return c;
+  };
+  quad(0, A, 20); quad(4, M, 16); const cb = quad(8, B, 14);
+  const ca = [A.clone().addScaledVector(u, 18).addScaledVector(v, 18),
+              A.clone().addScaledVector(u, -18).addScaledVector(v, 18),
+              A.clone().addScaledVector(u, -18).addScaledVector(v, -18),
+              A.clone().addScaledVector(u, 18).addScaledVector(v, -18)];
+  for (let j = 0; j < 4; j++) setSeg(o, 12 + j, ca[j], cb[j]);
+  upd(o);
+}
+
+function updateSide(o, r, beta){
+  const d = DES[o.side];
+  // 下横臂 (刚性 A 形臂)
+  setSeg(o.lca, 0, d.lcaInA, r.lbj); setSeg(o.lca, 1, d.lcaInB, r.lbj);
+  setSeg(o.lca, 2, d.lcaInA, d.lcaInB); setSeg(o.lca, 3, r.lbj, r.seat);
+  upd(o.lca);
+  // 上横臂
+  setSeg(o.uca, 0, d.ucaInA, r.ubj); setSeg(o.uca, 1, d.ucaInB, r.ubj);
+  setSeg(o.uca, 2, d.ucaInA, d.ucaInB); upd(o.uca);
+  // 转向节
+  setSeg(o.knuckle, 0, r.lbj, r.ubj); setSeg(o.knuckle, 1, r.ubj, r.W);
+  setSeg(o.knuckle, 2, r.lbj, r.W);   setSeg(o.knuckle, 3, r.lbj, r.T);
+  setSeg(o.knuckle, 4, r.ubj, r.T);   upd(o.knuckle);
+  // 横拉杆
+  setSeg(o.tie, 0, r.rackPos, r.T);
+  setSeg(o.tie, 1, _tv.copy(r.rackPos).add(_tv2.set(0, 0, -26)), _tv2.copy(r.rackPos).setZ(r.rackPos.z + 26));
+  upd(o.tie);
+  // 弹簧 / 减振器 (可形变)
+  updateCoil(o.coil, r.seat, d.springTop, d.springL0);
+  updateDamper(o.damper, r.seat, d.springTop);
+  // 主销轴线 (虚线, 上延 + 下至地面)
+  const top = _tv.copy(r.ubj).addScaledVector(r.k, 170).clone();
+  const bot = _tv2.copy(r.G).addScaledVector(r.k, -40).clone();
+  setSeg(o.king, 0, top, bot); upd(o.king); o.king.computeLineDistances();
+  // 车轮 (含滚动自转)
+  const qs = new THREE.Quaternion().setFromAxisAngle(r.axle, beta).multiply(r.q);
+  const wp = o.wheel.geometry.attributes.position, wl = WL[o.side];
+  for (let i = 0; i < wl.length; i++){
+    _tv.copy(wl[i][0]).applyQuaternion(qs).add(r.W);
+    wp.setXYZ(i * 2, _tv.x, _tv.y, _tv.z);
+    _tv.copy(wl[i][1]).applyQuaternion(qs).add(r.W);
+    wp.setXYZ(i * 2 + 1, _tv.x, _tv.y, _tv.z);
+  }
+  upd(o.wheel);
+  // 制动盘 (随转向节, 不自转)
+  const dp = o.disc.geometry.attributes.position, dl = DL[o.side];
+  for (let i = 0; i < dl.length; i++){
+    _tv.copy(dl[i][0]).applyQuaternion(r.q).add(r.W);
+    dp.setXYZ(i * 2, _tv.x, _tv.y, _tv.z);
+    _tv.copy(dl[i][1]).applyQuaternion(r.q).add(r.W);
+    dp.setXYZ(i * 2 + 1, _tv.x, _tv.y, _tv.z);
+  }
+  upd(o.disc);
+  // 节点
+  const np = o.nodes.geometry.attributes.position;
+  [r.lbj, r.ubj, r.W, r.T, r.rackPos, r.seat].forEach((p, i) => np.setXYZ(i, p.x, p.y, p.z));
+  upd(o.nodes);
+  // 接地点十字
+  setSeg(o.patch, 0, _tv.set(r.W.x - 70, r.W.y, GROUND_Z), _tv2.set(r.W.x + 70, r.W.y, GROUND_Z).clone());
+  setSeg(o.patch, 1, _tv.set(r.W.x, r.W.y - 70, GROUND_Z), _tv2.set(r.W.x, r.W.y + 70, GROUND_Z).clone());
+  upd(o.patch);
+  // 行程标注
+  setSeg(o.dim, 0, r.W, _tv.set(r.W.x, r.W.y, GROUND_Z));
+  setSeg(o.dim, 1, _tv.set(r.W.x - 40, r.W.y, r.W.z), _tv2.set(r.W.x + 40, r.W.y, r.W.z).clone());
+  setSeg(o.dim, 2, _tv.set(r.W.x - 40, r.W.y, GROUND_Z), _tv2.set(r.W.x + 40, r.W.y, GROUND_Z).clone());
+  upd(o.dim);
+}
+
+// 主销路径扫描 (跳动全行程内主销轴线位置的包络)
+function updateGhosts(o){
+  for (let i = 0; i < GSN; i++){
+    const u = -90 + 180 * i / (GSN - 1);
+    const r = solveTheta(o.side, thetaForTravel(o.side, u, o.pvGhost), 0, o.pvGhost);
+    setSeg(o.ghost, i, r.ubj, r.G);
+    const gp = o.gpath.geometry.attributes.position;
+    gp.setXYZ(i, r.G.x, r.G.y, r.G.z);
+    const gq = o.gpts.geometry.attributes.position;
+    gq.setXYZ(i, r.G.x, r.G.y, r.G.z);
+  }
+  upd(o.ghost); upd(o.gpath); upd(o.gpts);
+}
+
+// ============================================================
+// 5. 特性曲线 (左轮, 齿条中位, 行程扫描)
+// ============================================================
+const SW_N = 61, SW_X = [];
+for (let i = 0; i < SW_N; i++) SW_X.push(-90 + 180 * i / (SW_N - 1));
+const pvSweep = { phi: 0, psi: 0 };
+function computeSweep(){
+  const cam = [], toe = [], scr = [];
+  for (const u of SW_X){
+    const r = solveTheta(1, thetaForTravel(1, u, pvSweep), 0, pvSweep);
+    cam.push(r.camber); toe.push(r.toeIn); scr.push(r.scrub);
+  }
+  return { cam, toe, scr };
+}
+function drawPlot(cv, title, unit, ys, curX, curY, color){
+  const ctx = cv.getContext('2d'), w = cv.width, h = cv.height;
+  ctx.fillStyle = '#101315'; ctx.fillRect(0, 0, w, h);
+  let mn = Math.min(...ys, curY), mx = Math.max(...ys, curY);
+  const pad = (mx - mn) * 0.18 + 1e-6; mn -= pad; mx += pad;
+  const X = x => 20 + (x + 90) / 180 * (w - 30);
+  const Y = y => h - 14 - (y - mn) / (mx - mn) * (h - 30);
+  ctx.strokeStyle = '#1e2226'; ctx.lineWidth = 1; ctx.beginPath();
+  for (let i = 0; i <= 4; i++){
+    const gx = 20 + i / 4 * (w - 30); ctx.moveTo(gx, 8); ctx.lineTo(gx, h - 14);
+    const gy = 8 + i / 4 * (h - 22); ctx.moveTo(20, gy); ctx.lineTo(w - 10, gy);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = '#33383e'; ctx.beginPath();
+  if (mn < 0 && mx > 0){ ctx.moveTo(20, Y(0)); ctx.lineTo(w - 10, Y(0)); }
+  ctx.moveTo(X(0), 8); ctx.lineTo(X(0), h - 14); ctx.stroke();
+  ctx.strokeStyle = color; ctx.beginPath();
+  ys.forEach((y, i) => { const px = X(SW_X[i]), py = Y(y); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+  ctx.stroke();
+  ctx.fillStyle = color; ctx.fillRect(X(curX) - 3, Y(curY) - 3, 6, 6);
+  ctx.font = '9px Consolas, monospace';
+  ctx.fillStyle = '#7f8894'; ctx.fillText(title, 22, 14);
+  ctx.fillText(mn.toFixed(1), 1, h - 15); ctx.fillText(mx.toFixed(1), 1, 12);
+  ctx.fillText('-90', 20, h - 3); ctx.fillText('+90', w - 32, h - 3);
+  ctx.fillStyle = '#8fd8f7'; ctx.fillText((curY >= 0 ? '+' : '') + curY.toFixed(2) + unit, w - 62, 14);
+}
+const pCam = document.getElementById('pCam'), pToe = document.getElementById('pToe'), pScr = document.getElementById('pScr');
+
+// ============================================================
+// 6. 状态 / UI 交互
+// ============================================================
+const S = { mode: 'manual', travel: 0, rack: 0, amp: 70, freq: 0.8, sAmp: 35,
+            phase: 'in', beta: 0, spinVel: 0, t: 0,
+            show: { labels: true, king: true, trail: false, sweep: true } };
+const PV = { L: { phi: 0, psi: 0 }, R: { phi: 0, psi: 0 } };
+const pvScr = { phi: 0, psi: 0 };
+const $ = id => document.getElementById(id);
+
+function bindSlider(id, vid, key, fmt){
+  $(id).addEventListener('input', e => {
+    S[key] = parseFloat(e.target.value);
+    $(vid).textContent = fmt(S[key]);
+  });
+}
+bindSlider('sTravel', 'vTravel', 'travel', v => v.toFixed(0));
+bindSlider('sRack',   'vRack',   'rack',   v => v.toFixed(1));
+bindSlider('sAmp',    'vAmp',    'amp',    v => v.toFixed(0));
+bindSlider('sFreq',   'vFreq',   'freq',   v => v.toFixed(1));
+bindSlider('sSAmp',   'vSA',     'sAmp',   v => v.toFixed(0));
+
+function btnGroup(rowId, attr, cb){
+  const btns = [...$(rowId).querySelectorAll('button')];
+  btns.forEach(b => b.addEventListener('click', () => {
+    btns.forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    cb(b.dataset[attr]);
+  }));
+  return btns;
+}
+btnGroup('modeRow', 'm', m => { S.mode = m; $('fSolve').textContent = 'MODE: ' + m.toUpperCase(); });
+btnGroup('phaseRow', 'p', p => { S.phase = p; });
+
+const viewBtns = btnGroup('viewRow', 'v', v => setView(v));
+function setView(v){
+  const t = new THREE.Vector3(0, 0, 150);
+  if (v === 'iso')   camera.position.set(1450, 1650, 1000);
+  if (v === 'front') camera.position.set(2350, 0, 350);
+  if (v === 'side')  camera.position.set(0, 2450, 400);
+  if (v === 'top')   camera.position.set(0, -420, 2650);
+  controls.target.copy(t);
+  controls.update();
+}
+
+function bindChk(id, cb){ $(id).addEventListener('change', e => cb(e.target.checked)); }
+bindChk('cNodes', v => { sideL.nodes.visible = sideR.nodes.visible = v; chassisPts.visible = v; });
+bindChk('cLabels', v => { S.show.labels = v; labels.forEach(l => l.sp.visible = v); dimL.visible = dimR.visible = v; });
+bindChk('cKing', v => { sideL.king.visible = sideR.king.visible = v; });
+bindChk('cTrail', v => { S.show.trail = v; });
+bindChk('cSweep', v => {
+  S.show.sweep = v;
+  for (const o of [sideL, sideR]){ o.ghost.visible = o.gpath.visible = o.gpts.visible = v; }
+});
+bindChk('cChassis', v => { chassis.visible = v; });
+bindChk('cGrid', v => { grid.visible = v; });
+
+$('bClear').addEventListener('click', clearTraces);
+$('bReset').addEventListener('click', () => {
+  S.travel = 0; S.rack = 0; S.amp = 70; S.freq = 0.8; S.sAmp = 35;
+  $('sTravel').value = 0; $('vTravel').textContent = '0';
+  $('sRack').value = 0;   $('vRack').textContent = '0.0';
+  $('sAmp').value = 70;   $('vAmp').textContent = '70';
+  $('sFreq').value = 0.8; $('vFreq').textContent = '0.8';
+  $('sSAmp').value = 35;  $('vSA').textContent = '35';
+  clearTraces();
+});
+
+// ============================================================
+// 7. HUD / 主循环
+// ============================================================
+const fmt = (x, d = 2) => (x >= 0 ? '+' : '') + x.toFixed(d);
+function setT(id, txt){ $(id).textContent = txt; }
+const deltaOf = r => -Math.asin(clamp1(r.fwd.y)) * DEG;   // 右转为正
+
+function updateHUD(rL, rR, rack, ms){
+  setT('rCamL', fmt(rL.camber)); setT('rCamR', fmt(rR.camber));
+  const dL = deltaOf(rL), dR = deltaOf(rR);
+  setT('rDlL', fmt(dL)); setT('rDlR', fmt(dR));
+  setT('rCaster', fmt(rL.caster)); setT('rKpi', fmt(rL.kpi));
+  setT('rScrub', fmt(rL.scrub, 1));
+  setT('rTrvL', fmt(rL.u, 1)); setT('rTrvR', fmt(rR.u, 1));
+  setT('rSprCmp', fmt(DES[1].springL0 - rL.springL, 1));
+  setT('rSprLen', rL.springL.toFixed(1));
+  setT('rMR', rL.mr.toFixed(3));
+  setT('rToeSum', fmt(rL.toeIn + rR.toeIn));
+  setT('rAck', fmt(dL - dR));
+  setT('rRack', fmt(rack, 1));
+  setT('hMs', ms.toFixed(2));
+}
+
+function computeInputs(){
+  const w = 2 * Math.PI * S.freq;
+  let uL, uR, rack;
+  if (S.mode === 'manual'){ uL = uR = S.travel; rack = S.rack; }
+  else if (S.mode === 'bounce'){ uL = uR = S.amp * Math.sin(w * S.t); rack = S.rack; }
+  else if (S.mode === 'steer'){ uL = uR = S.travel; rack = S.sAmp * Math.sin(0.6 * w * S.t); }
+  else {
+    uL = S.amp * Math.sin(w * S.t);
+    if (S.phase === 'in') uR = uL;
+    else if (S.phase === 'anti') uR = -uL;
+    else uR = S.amp * (0.55 * Math.sin(w * S.t + 2.1) + 0.45 * Math.sin(1.7 * w * S.t + 0.6));
+    rack = S.sAmp * Math.sin(0.35 * w * S.t);
+  }
+  S.spinVel += ((S.mode === 'combo' ? 4.0 : 0) - S.spinVel) * 0.04;
+  S.beta += S.spinVel * S.dt;
+  return { uL, uR, rack };
+}
+
+const clock = new THREE.Clock();
+function tick(){
+  requestAnimationFrame(tick);
+  S.dt = Math.min(clock.getDelta(), 0.05); S.t += S.dt;
+  const inp = computeInputs();
+
+  const t0 = performance.now();
+  const rL = solveSide(1, inp.uL, inp.rack, PV.L);
+  const rR = solveSide(-1, inp.uR, inp.rack, PV.R);
+  const r0 = solveTheta(1, thetaForTravel(1, rL.u, pvScr), 0, pvScr); // 齿条中位参考 (曲线当前点)
+  const sw = computeSweep();
+  updateSide(sideL, rL, S.beta);
+  updateSide(sideR, rR, S.beta);
+  setSeg(rackBar, 0, rL.rackPos, rR.rackPos);
+  setSeg(rackBar, 1, _tv.copy(rL.rackPos).add(_tv2.set(30, 0, 0)).clone(), _tv2.copy(rL.rackPos).add(_tv.set(-30, 0, 0)).clone());
+  setSeg(rackBar, 2, _tv.copy(rR.rackPos).add(_tv2.set(30, 0, 0)).clone(), _tv2.copy(rR.rackPos).add(_tv.set(-30, 0, 0)).clone());
+  upd(rackBar);
+  if (S.show.sweep){ updateGhosts(sideL); updateGhosts(sideR); }
+  if (S.show.trail){
+    for (const t of traces){
+      const r = t.o === sideL ? rL : rR;
+      const p = t.kind === 'W' ? r.W : t.kind === 'G' ? r.G : t.kind === 'T' ? r.T : t.kind === 'U' ? r.ubj : r.lbj;
+      pushTrace(t.l, p);
+    }
+  }
+  const ms = performance.now() - t0;
+
+  // 标签 / 标注
+  if (S.show.labels){
+    labels.forEach(l => l.sp.position.copy(l.get(rL)));
+    setDimLabel(dimL, rL.u); setDimLabel(dimR, rR.u);
+    dimL.position.set(rL.W.x, rL.W.y + 200, (rL.W.z + GROUND_Z) / 2);
+    dimR.position.set(rR.W.x, rR.W.y - 200, (rR.W.z + GROUND_Z) / 2);
+  }
+
+  // 特性曲线
+  drawPlot(pCam, '外倾角-行程 CAMBER [°]', '°', sw.cam, inp.uL, r0.camber, '#4fc3f7');
+  drawPlot(pToe, '前束角-行程 TOE [°] (跳动转向)', '°', sw.toe, inp.uL, r0.toeIn, '#66bb6a');
+  drawPlot(pScr, '主销偏距-行程 SCRUB [mm]', '', sw.scr, inp.uL, r0.scrub, '#ffd54f');
+
+  updateHUD(rL, rR, inp.rack, ms);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function onResize(){
+  const w = container.clientWidth, h = container.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(onResize).observe(container);
+onResize();
+setView('iso');
+tick();
+</script>
+</body>
+</html>
