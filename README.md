@@ -26,7 +26,7 @@
 | DeepSeek | [已归档](answers/01-2048-roguelike/deepseek/) | [已归档](answers/02-fpv-drone-simulator/deepseek/) | [已归档](answers/03-racing-telemetry-analyzer/deepseek/) | [已归档](answers/04-balatro-web/deepseek/) | [已归档](answers/05-double-wishbone-suspension/deepseek/) |
 | Kimi K3 | [已归档](answers/01-2048-roguelike/kimi-k3/) | [已归档](answers/02-fpv-drone-simulator/kimi-k3/) | [已归档](answers/03-racing-telemetry-analyzer/kimi-k3/) | [已归档](answers/04-balatro-web/kimi-k3/) | 待补充 |
 | GLM 5.2 | [已归档](answers/01-2048-roguelike/glm-5.2/) | [已归档](answers/02-fpv-drone-simulator/glm-5.2/) | [已归档](answers/03-racing-telemetry-analyzer/glm-5.2/) | [已归档](answers/04-balatro-web/glm-5.2/) | 待补充 |
-| Qwen 3.8 Max Preview | [已归档](answers/01-2048-roguelike/qwen-3.8-max-preview/) | [已归档](answers/02-fpv-drone-simulator/qwen-3.8-max-preview/) | [已归档](answers/03-racing-telemetry-analyzer/qwen-3.8-max-preview/) | 待补充 | [已归档](answers/05-double-wishbone-suspension/qwen-3.8-max-preview/) |
+| Qwen 3.8 Max Preview | [已归档](answers/01-2048-roguelike/qwen-3.8-max-preview/) | [已归档](answers/02-fpv-drone-simulator/qwen-3.8-max-preview/) | [已归档](answers/03-racing-telemetry-analyzer/qwen-3.8-max-preview/) | [已归档](answers/04-balatro-web/qwen-3.8-max-preview/) | [已归档](answers/05-double-wishbone-suspension/qwen-3.8-max-preview/) |
 | GPT 5.6 Sol | 待补充 | 待补充 | 待补充 | 待补充 | 待补充 |
 | Opus 4.8 | 待补充 | 待补充 | 待补充 | 待补充 | 待补充 |
 

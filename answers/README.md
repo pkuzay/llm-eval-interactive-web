@@ -22,7 +22,8 @@ answers/
 ├── 04-balatro-web/
 │   ├── deepseek/
 │   ├── kimi-k3/
-│   └── glm-5.2/
+│   ├── glm-5.2/
+│   └── qwen-3.8-max-preview/
 └── 05-double-wishbone-suspension/
     ├── deepseek/
     └── qwen-3.8-max-preview/
