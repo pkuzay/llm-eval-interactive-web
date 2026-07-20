@@ -1,0 +1,1757 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BALATRO · 小丑牌网页版</title>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep: #07070f;
+  --bg-mid: #15152a;
+  --bg-light: #25254a;
+  --bg-card: #f5efe1;
+  --accent-red: #fe2929;
+  --accent-gold: #f9bc00;
+  --accent-blue: #0099ff;
+  --accent-green: #2dc4af;
+  --accent-purple: #9d4edd;
+  --chips-blue: #2b7fff;
+  --mult-red: #fe2929;
+  --text-light: #f5f5fa;
+  --text-dim: #8a8ab0;
+  --border: #3a3a6a;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-deep);
+  color: var(--text-light);
+  font-family: 'Outfit', sans-serif;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 动态背景层 */
+.bg-effects {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+}
+
+.bg-effects::before {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  background: 
+    radial-gradient(circle at 20% 30%, rgba(254, 41, 41, 0.15), transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(249, 188, 0, 0.12), transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(45, 196, 175, 0.06), transparent 60%);
+  animation: bgRotate 40s linear infinite;
+}
+
+@keyframes bgRotate {
+  from { transform: rotate(0deg) scale(1.3); }
+  to { transform: rotate(360deg) scale(1.3); }
+}
+
+.bg-effects::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+}
+
+/* 浮动粒子 */
+.particle {
+  position: fixed;
+  width: 3px;
+  height: 3px;
+  background: rgba(249, 188, 0, 0.5);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: -1;
+  box-shadow: 0 0 6px rgba(249, 188, 0, 0.8);
+  animation: floatUpParticle 20s linear infinite;
+}
+
+@keyframes floatUpParticle {
+  0% { transform: translateY(100vh) translateX(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(-10vh) translateX(40px); opacity: 0; }
+}
+
+/* 主布局 */
+.game-container {
+  display: grid;
+  grid-template-columns: 280px 1fr 260px;
+  grid-template-rows: 70px 1fr;
+  gap: 14px;
+  height: 100vh;
+  padding: 14px;
+}
+
+/* 顶部栏 */
+.top-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(180deg, rgba(30,30,60,0.95), rgba(20,20,40,0.85));
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 0 24px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+.logo {
+  font-family: 'Bungee', sans-serif;
+  font-size: 28px;
+  letter-spacing: 4px;
+  color: var(--accent-red);
+  text-shadow: 
+    0 0 24px rgba(254, 41, 41, 0.6),
+    3px 3px 0 #000,
+    -1px -1px 0 rgba(255,255,255,0.2);
+}
+
+.round-info {
+  display: flex;
+  gap: 28px;
+  align-items: center;
+}
+
+.round-info > div {
+  text-align: center;
+}
+
+.round-info .label {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 10px;
+  margin-bottom: 2px;
+}
+
+.round-info .value {
+  font-weight: 800;
+  font-size: 18px;
+}
+
+.round-info .value.accent {
+  color: var(--accent-gold);
+  text-shadow: 0 0 8px rgba(249, 188, 0, 0.4);
+}
+
+.money-display {
+  background: linear-gradient(180deg, var(--accent-gold), #d49d00);
+  color: #000;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 900;
+  font-size: 20px;
+  border: 2px solid #000;
+  box-shadow: 0 4px 0 #8a6800, 0 6px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.4);
+  font-family: 'Outfit', sans-serif;
+}
+
+/* 左侧 */
+.left-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.jokers-area {
+  background: rgba(20,20,40,0.7);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  min-height: 160px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  align-content: flex-start;
+  overflow-y: auto;
+}
+
+.jokers-area:empty::before {
+  content: 'No Jokers — visit shop after each round';
+  color: var(--text-dim);
+  font-style: italic;
+  margin: auto;
+  font-size: 12px;
+  text-align: center;
+}
+
+.joker-card {
+  width: 80px;
+  height: 120px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--bg-light), var(--bg-mid));
+  border: 3px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 4px;
+  position: relative;
+  cursor: default;
+  transition: transform 0.3s;
+  animation: jokerIdle 3s ease-in-out infinite;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+}
+
+@keyframes jokerIdle {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-3px) rotate(1deg); }
+}
+
+.joker-card.triggering {
+  animation: jokerTrigger 0.6s ease-out;
+  z-index: 10;
+}
+
+@keyframes jokerTrigger {
+  0% { transform: translateY(0) scale(1) rotate(0); }
+  30% { transform: translateY(-18px) scale(1.2) rotate(5deg); filter: brightness(1.6) drop-shadow(0 0 16px currentColor); }
+  60% { transform: translateY(-10px) scale(1.1) rotate(-3deg); }
+  100% { transform: translateY(0) scale(1) rotate(0); }
+}
+
+.joker-emoji {
+  font-size: 36px;
+  margin-top: 8px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+}
+
+.joker-name {
+  font-size: 9px;
+  font-weight: 800;
+  text-align: center;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.joker-desc {
+  font-size: 8px;
+  color: var(--text-dim);
+  text-align: center;
+  margin-top: 2px;
+  line-height: 1.2;
+}
+
+/* 计分信息 */
+.score-info {
+  background: rgba(20,20,40,0.7);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.hand-type-display {
+  text-align: center;
+  font-family: 'Bungee', sans-serif;
+  font-size: 20px;
+  color: var(--accent-gold);
+  text-shadow: 0 0 16px rgba(249, 188, 0, 0.7), 2px 2px 0 #000;
+  min-height: 24px;
+  letter-spacing: 2px;
+}
+
+.hand-type-display.active {
+  animation: handTypePop 0.6s ease-out;
+}
+
+@keyframes handTypePop {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.chips-mult {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+}
+
+.chips-box, .mult-box {
+  width: 90px;
+  height: 90px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Bungee', sans-serif;
+  font-size: 32px;
+  color: #fff;
+  border: 3px solid #000;
+  position: relative;
+  transition: transform 0.2s;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.chips-box {
+  background: linear-gradient(180deg, var(--chips-blue), #1a5fd0);
+  box-shadow: 0 6px 0 #0d3a80, 0 8px 16px rgba(0,0,0,0.4), inset 0 2px 0 rgba(255,255,255,0.3);
+}
+
+.mult-box {
+  background: linear-gradient(180deg, var(--mult-red), #c41818);
+  box-shadow: 0 6px 0 #800c0c, 0 8px 16px rgba(0,0,0,0.4), inset 0 2px 0 rgba(255,255,255,0.3);
+}
+
+.chips-box::before, .mult-box::before {
+  content: attr(data-label);
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #000;
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 10px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+}
+
+.chips-box.bump, .mult-box.bump {
+  animation: numberBump 0.4s ease-out;
+}
+
+@keyframes numberBump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.3); filter: brightness(1.6); }
+  100% { transform: scale(1); }
+}
+
+.mult-sign {
+  font-family: 'Bungee', sans-serif;
+  font-size: 36px;
+  color: var(--text-light);
+  text-shadow: 0 0 12px rgba(255,255,255,0.5), 2px 2px 0 #000;
+}
+
+.score-display {
+  text-align: center;
+  background: rgba(0,0,0,0.4);
+  border-radius: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+}
+
+.score-display .label {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.score-display .value {
+  font-family: 'Bungee', sans-serif;
+  font-size: 28px;
+  color: var(--accent-gold);
+  text-shadow: 0 0 12px rgba(249,188,0,0.6), 2px 2px 0 #000;
+}
+
+.score-target {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.score-bar {
+  height: 8px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+}
+
+.score-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--chips-blue), var(--accent-gold), var(--accent-red));
+  border-radius: 4px;
+  transition: width 0.5s ease-out;
+  box-shadow: 0 0 8px rgba(249,188,0,0.5);
+}
+
+/* 中间区域 */
+.center-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.played-cards-area {
+  flex: 0 0 170px;
+  background: 
+    linear-gradient(180deg, rgba(40,20,40,0.5), rgba(20,20,40,0.5));
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  position: relative;
+  overflow: visible;
+  box-shadow: inset 0 0 30px rgba(0,0,0,0.5);
+}
+
+.played-cards-area:empty::before {
+  content: 'PLAY CARDS HERE';
+  color: var(--text-dim);
+  font-size: 14px;
+  letter-spacing: 3px;
+  font-weight: 700;
+}
+
+.played-cards-area .card {
+  pointer-events: none;
+  animation: cardEnterPlayed 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes cardEnterPlayed {
+  0% { transform: translateY(-100px) scale(0.7); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.hand-area {
+  flex: 1;
+  background: linear-gradient(180deg, rgba(20,30,50,0.5), rgba(20,20,40,0.6));
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 30px 16px 16px;
+  position: relative;
+  overflow: visible;
+  box-shadow: inset 0 0 30px rgba(0,0,0,0.4);
+}
+
+.action-buttons {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  align-items: center;
+}
+
+.btn {
+  padding: 14px 36px;
+  font-family: 'Bungee', sans-serif;
+  font-size: 15px;
+  letter-spacing: 2px;
+  border: 3px solid #000;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  text-transform: uppercase;
+}
+
+.btn-play {
+  background: linear-gradient(180deg, var(--accent-blue), #0070cc);
+  color: #fff;
+  box-shadow: 0 5px 0 #003d66, 0 7px 14px rgba(0,0,0,0.4), inset 0 2px 0 rgba(255,255,255,0.3);
+  text-shadow: 0 2px 0 rgba(0,0,0,0.4);
+}
+
+.btn-play:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 7px 0 #003d66, 0 9px 18px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.3);
+  filter: brightness(1.1);
+}
+
+.btn-play:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #003d66, 0 3px 8px rgba(0,0,0,0.3);
+}
+
+.btn-discard {
+  background: linear-gradient(180deg, #888, #555);
+  color: #fff;
+  box-shadow: 0 5px 0 #222, 0 7px 14px rgba(0,0,0,0.4), inset 0 2px 0 rgba(255,255,255,0.2);
+  text-shadow: 0 2px 0 rgba(0,0,0,0.4);
+}
+
+.btn-discard:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 7px 0 #222, 0 9px 18px rgba(0,0,0,0.5);
+  filter: brightness(1.1);
+}
+
+.btn-discard:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #222;
+}
+
+.btn:disabled {
+  filter: grayscale(0.7) brightness(0.5);
+  cursor: not-allowed;
+}
+
+.btn-info {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.btn-info span {
+  color: var(--accent-gold);
+  font-weight: 800;
+}
+
+/* 卡牌 */
+.card {
+  width: 80px;
+  height: 116px;
+  background: linear-gradient(135deg, #fefaf0 0%, #f5efe1 50%, #ebe5d4 100%);
+  border-radius: 8px;
+  border: 2px solid #000;
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s, filter 0.2s;
+  box-shadow: 
+    0 4px 8px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.6),
+    inset 0 -2px 4px rgba(0,0,0,0.1);
+  flex-shrink: 0;
+  font-family: 'Outfit', sans-serif;
+}
+
+.card:hover {
+  transform: translateY(-14px);
+  box-shadow: 
+    0 12px 20px rgba(0,0,0,0.7),
+    inset 0 1px 0 rgba(255,255,255,0.6);
+  z-index: 5;
+}
+
+.card.selected {
+  transform: translateY(-32px);
+  box-shadow: 
+    0 0 0 3px var(--accent-gold),
+    0 14px 24px rgba(249,188,0,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.6);
+  z-index: 6;
+}
+
+.card.selected::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 12px;
+  background: radial-gradient(circle, rgba(249,188,0,0.4) 0%, transparent 70%);
+  z-index: -1;
+  animation: selectedPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes selectedPulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.card.scoring {
+  animation: cardScore 0.6s ease-out;
+  z-index: 10;
+  pointer-events: none;
+}
+
+@keyframes cardScore {
+  0% { transform: translateY(0) scale(1) rotate(0); }
+  30% { transform: translateY(-30px) scale(1.3) rotate(5deg); filter: brightness(1.5) drop-shadow(0 0 20px var(--accent-gold)); }
+  60% { transform: translateY(-15px) scale(1.1) rotate(-3deg); }
+  100% { transform: translateY(0) scale(1) rotate(0); }
+}
+
+.card-corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.card-corner.top {
+  top: 6px;
+  left: 6px;
+}
+
+.card-corner.bottom {
+  bottom: 6px;
+  right: 6px;
+  transform: rotate(180deg);
+}
+
+.card-corner .rank {
+  font-size: 18px;
+  font-weight: 900;
+  font-family: 'Bungee', sans-serif;
+}
+
+.card-corner .suit {
+  font-size: 14px;
+  margin-top: 1px;
+}
+
+.card-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 44px;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
+}
+
+.card.red { color: #d4321a; }
+.card.black { color: #1a1a2e; }
+
+.card.deal-animation {
+  animation: cardDeal 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+@keyframes cardDeal {
+  0% {
+    transform: translate(0, -200px) rotate(180deg) scale(0.5);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(0, 0) rotate(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* 右侧 */
+.right-section {
+  background: rgba(20,20,40,0.7);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.info-block {
+  background: rgba(0,0,0,0.3);
+  border-radius: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+}
+
+.info-block .title {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.info-block .stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.info-block .stat-row:last-child { margin-bottom: 0; }
+
+.info-block .stat-row .v {
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+.hand-preview .type {
+  font-family: 'Bungee', sans-serif;
+  font-size: 16px;
+  color: var(--accent-gold);
+  text-shadow: 0 0 8px rgba(249,188,0,0.5), 1px 1px 0 #000;
+  margin-bottom: 4px;
+  min-height: 20px;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+.hand-preview .level {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.poker-hands {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+
+.poker-hands .row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.poker-hands .row .name {
+  color: var(--text-light);
+}
+
+.poker-hands .row .val {
+  color: var(--accent-gold);
+}
+
+/* 浮动数字 */
+.float-text {
+  position: fixed;
+  font-family: 'Bungee', sans-serif;
+  font-size: 22px;
+  pointer-events: none;
+  animation: floatUp 1.2s ease-out forwards;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 12px currentColor;
+  z-index: 100;
+  transform: translateX(-50%);
+}
+
+.float-text.chips { color: var(--chips-blue); }
+.float-text.mult { color: var(--mult-red); }
+
+@keyframes floatUp {
+  0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; }
+  20% { transform: translate(-50%, -10px) scale(1.4); opacity: 1; }
+  100% { transform: translate(-50%, -80px) scale(1); opacity: 0; }
+}
+
+/* 模态框 */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.88);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal {
+  background: linear-gradient(180deg, var(--bg-mid), var(--bg-deep));
+  border: 3px solid var(--accent-gold);
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 760px;
+  width: 90%;
+  box-shadow: 0 0 50px rgba(249,188,0,0.3), 0 20px 60px rgba(0,0,0,0.8);
+  transform: scale(0.85) rotate(-2deg);
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.modal-overlay.active .modal {
+  transform: scale(1) rotate(0);
+}
+
+.modal-title {
+  font-family: 'Bungee', sans-serif;
+  font-size: 32px;
+  color: var(--accent-gold);
+  text-align: center;
+  margin-bottom: 8px;
+  text-shadow: 0 0 20px rgba(249,188,0,0.6), 3px 3px 0 #000;
+  letter-spacing: 3px;
+}
+
+.modal-subtitle {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 14px;
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.modal-subtitle span {
+  color: var(--accent-gold);
+  font-weight: 700;
+}
+
+.shop-items {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.shop-item {
+  background: linear-gradient(180deg, var(--bg-light), var(--bg-mid));
+  border: 3px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 12px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+}
+
+.shop-item:hover:not(.owned) {
+  transform: translateY(-6px);
+  border-color: var(--accent-gold);
+  box-shadow: 0 12px 24px rgba(249,188,0,0.3);
+  filter: brightness(1.15);
+}
+
+.shop-item.owned {
+  opacity: 0.35;
+  pointer-events: none;
+  filter: grayscale(0.6);
+}
+
+.shop-item .price {
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, var(--accent-gold), #d49d00);
+  color: #000;
+  padding: 4px 14px;
+  border-radius: 6px;
+  font-weight: 900;
+  font-size: 14px;
+  border: 2px solid #000;
+  box-shadow: 0 3px 0 #8a6800;
+}
+
+.shop-item .emoji {
+  font-size: 52px;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
+}
+
+.shop-item .name {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.shop-item .desc {
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.btn-modal {
+  padding: 14px 32px;
+  font-family: 'Bungee', sans-serif;
+  font-size: 14px;
+  letter-spacing: 2px;
+  border: 3px solid #000;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: linear-gradient(180deg, var(--accent-green), #1a8a7a);
+  color: #fff;
+  box-shadow: 0 5px 0 #0d4a40, 0 7px 14px rgba(0,0,0,0.4);
+  text-shadow: 0 2px 0 rgba(0,0,0,0.4);
+}
+
+.btn-modal:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 7px 0 #0d4a40, 0 9px 18px rgba(0,0,0,0.5);
+  filter: brightness(1.1);
+}
+
+.btn-modal:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #0d4a40;
+}
+
+.btn-modal.skip {
+  background: linear-gradient(180deg, #888, #555);
+  box-shadow: 0 5px 0 #222;
+}
+
+.btn-modal.skip:hover {
+  box-shadow: 0 7px 0 #222;
+}
+
+.end-modal .modal-title.win {
+  color: var(--accent-green);
+  text-shadow: 0 0 20px rgba(45,196,175,0.6), 3px 3px 0 #000;
+}
+
+.end-modal .modal-title.lose {
+  color: var(--accent-red);
+  text-shadow: 0 0 20px rgba(254,41,41,0.6), 3px 3px 0 #000;
+}
+
+.end-modal .modal-title.final {
+  color: var(--accent-gold);
+  text-shadow: 0 0 24px rgba(249,188,0,0.8), 3px 3px 0 #000;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(120px);
+  background: var(--bg-mid);
+  border: 2px solid var(--accent-gold);
+  border-radius: 8px;
+  padding: 12px 24px;
+  color: var(--text-light);
+  font-weight: 600;
+  z-index: 2000;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+}
+
+.toast.show {
+  transform: translateX(-50%) translateY(0);
+}
+
+/* 屏幕震动 */
+.shake {
+  animation: shake 0.4s;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-5px, 2px); }
+  40% { transform: translate(4px, -3px); }
+  60% { transform: translate(-3px, 4px); }
+  80% { transform: translate(2px, -2px); }
+}
+
+/* 全屏闪光 */
+.flash {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle, rgba(249,188,0,0.3) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 500;
+  opacity: 0;
+  animation: flashAnim 0.4s ease-out;
+}
+
+@keyframes flashAnim {
+  0% { opacity: 0; }
+  30% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* 响应式 */
+@media (max-width: 1200px) {
+  .game-container {
+    grid-template-columns: 240px 1fr 220px;
+  }
+  .card {
+    width: 70px;
+    height: 102px;
+  }
+  .card-corner .rank { font-size: 15px; }
+  .card-center { font-size: 36px; }
+}
+
+@media (max-width: 900px) {
+  .game-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr auto;
+    height: auto;
+    min-height: 100vh;
+  }
+  .left-section, .right-section {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .round-info {
+    gap: 12px;
+  }
+  .round-info .value { font-size: 14px; }
+}
+</style>
+</head>
+<body>
+  <div class="bg-effects"></div>
+  
+  <div class="game-container" id="gameContainer">
+    <header class="top-bar">
+      <div class="logo">BALATRO</div>
+      <div class="round-info">
+        <div>
+          <div class="label">Round</div>
+          <div class="value" id="roundDisplay">1 / 3</div>
+        </div>
+        <div>
+          <div class="label">Blind</div>
+          <div class="value accent" id="blindDisplay">Small</div>
+        </div>
+        <div>
+          <div class="label">Plays</div>
+          <div class="value" id="playsDisplay">4</div>
+        </div>
+        <div>
+          <div class="label">Discards</div>
+          <div class="value" id="discardsDisplay">3</div>
+        </div>
+      </div>
+      <div class="money-display" id="moneyDisplay">$4</div>
+    </header>
+    
+    <aside class="left-section">
+      <div class="jokers-area" id="jokersArea"></div>
+      <div class="score-info">
+        <div class="hand-type-display" id="handTypeDisplay">- - -</div>
+        <div class="chips-mult">
+          <div class="chips-box" id="chipsBox" data-label="CHIPS">0</div>
+          <div class="mult-sign">×</div>
+          <div class="mult-box" id="multBox" data-label="MULT">1</div>
+        </div>
+        <div class="score-display">
+          <div class="label">Round Score</div>
+          <div class="value" id="roundScoreDisplay">0</div>
+          <div class="score-target">Target: <span id="targetDisplay">300</span></div>
+          <div class="score-bar"><div class="score-bar-fill" id="scoreBarFill" style="width: 0%"></div></div>
+        </div>
+      </div>
+    </aside>
+    
+    <main class="center-section">
+      <div class="played-cards-area" id="playedCardsArea"></div>
+      <div class="hand-area" id="handArea"></div>
+      <div class="action-buttons">
+        <div class="btn-info">Selected: <span id="selectedCount">0</span> / 5</div>
+        <button class="btn btn-play" id="playBtn">Play Hand</button>
+        <button class="btn btn-discard" id="discardBtn">Discard</button>
+      </div>
+    </main>
+    
+    <aside class="right-section">
+      <div class="info-block hand-preview">
+        <div class="title">Current Hand</div>
+        <div class="type" id="previewType">- - -</div>
+        <div class="level" id="previewLevel">Select cards</div>
+      </div>
+      <div class="info-block">
+        <div class="title">Deck</div>
+        <div class="stat-row"><span>Cards Left</span><span class="v" id="deckCount">44</span></div>
+        <div class="stat-row"><span>Hand Size</span><span class="v">8</span></div>
+      </div>
+      <div class="info-block">
+        <div class="title">Run Stats</div>
+        <div class="stat-row"><span>Total Score</span><span class="v" id="totalScore">0</span></div>
+        <div class="stat-row"><span>Hands Played</span><span class="v" id="handsPlayed">0</span></div>
+      </div>
+      <div class="info-block">
+        <div class="title">Poker Hands</div>
+        <div class="poker-hands">
+          <div class="row"><span class="name">同花顺</span><span class="val">100×8</span></div>
+          <div class="row"><span class="name">四条</span><span class="val">60×7</span></div>
+          <div class="row"><span class="name">葫芦</span><span class="val">40×4</span></div>
+          <div class="row"><span class="name">同花</span><span class="val">35×4</span></div>
+          <div class="row"><span class="name">顺子</span><span class="val">30×4</span></div>
+          <div class="row"><span class="name">三条</span><span class="val">30×3</span></div>
+          <div class="row"><span class="name">两对</span><span class="val">20×2</span></div>
+          <div class="row"><span class="name">对子</span><span class="val">10×2</span></div>
+          <div class="row"><span class="name">高牌</span><span class="val">5×1</span></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+  
+  <div class="modal-overlay" id="shopModal">
+    <div class="modal">
+      <div class="modal-title">SHOP</div>
+      <div class="modal-subtitle">Choose a Joker to enhance your run · Money: $<span id="shopMoney">4</span></div>
+      <div class="shop-items" id="shopItems"></div>
+      <div class="modal-actions">
+        <button class="btn-modal skip" id="skipBtn">Skip</button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="modal-overlay" id="endModal">
+    <div class="modal end-modal">
+      <div class="modal-title" id="endTitle">VICTORY</div>
+      <div class="modal-subtitle" id="endSubtitle"></div>
+      <div class="modal-actions">
+        <button class="btn-modal" id="continueBtn">Continue</button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="toast" id="toast"></div>
+  
+  <script>
+    // 游戏状态
+    const state = {
+      deck: [],
+      hand: [],
+      selected: new Set(),
+      jokers: [],
+      round: 1,
+      maxRound: 3,
+      money: 4,
+      playsLeft: 4,
+      discardsLeft: 3,
+      handSize: 8,
+      score: 0,
+      targetScore: 300,
+      currentChips: 0,
+      currentMult: 1,
+      isPlaying: false,
+      handsPlayed: 0,
+      totalScore: 0,
+      ownedJokers: new Set(),
+    };
+
+    const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
+    
+    // 小丑牌库 — 还原 Balatro 经典小丑
+    const JOKER_POOL = [
+      { id: 'joker', name: 'Joker', cost: 4, color: '#fe2929', emoji: '🃏', desc: '+4 Mult', effect: (ctx) => { ctx.mult += 4; } },
+      { id: 'greedy', name: 'Greedy', cost: 5, color: '#d4321a', emoji: '♦', desc: '方块 +3 Mult', effect: (ctx) => { ctx.mult += ctx.scoringCards.filter(c => c.suit === 'diamonds').length * 3; } },
+      { id: 'lusty', name: 'Lusty', cost: 5, color: '#d4321a', emoji: '♥', desc: '红心 +3 Mult', effect: (ctx) => { ctx.mult += ctx.scoringCards.filter(c => c.suit === 'hearts').length * 3; } },
+      { id: 'wrathful', name: 'Wrathful', cost: 5, color: '#666', emoji: '♠', desc: '黑桃 +3 Mult', effect: (ctx) => { ctx.mult += ctx.scoringCards.filter(c => c.suit === 'spades').length * 3; } },
+      { id: 'gluttonous', name: 'Gluttonous', cost: 5, color: '#666', emoji: '♣', desc: '梅花 +3 Mult', effect: (ctx) => { ctx.mult += ctx.scoringCards.filter(c => c.suit === 'clubs').length * 3; } },
+      { id: 'jolly', name: 'Jolly', cost: 3, color: '#0099ff', emoji: '😊', desc: '有对子 +8 Mult', effect: (ctx) => { if (ctx.hasPair) ctx.mult += 8; } },
+      { id: 'sly', name: 'Sly', cost: 3, color: '#2dc4af', emoji: '😏', desc: '有对子 +50 Chips', effect: (ctx) => { if (ctx.hasPair) ctx.chips += 50; } },
+      { id: 'half', name: 'Half', cost: 5, color: '#9d4edd', emoji: '😐', desc: '≤3张牌 +20 Mult', effect: (ctx) => { if (ctx.playedCount <= 3) ctx.mult += 20; } },
+      { id: 'fibonacci', name: 'Fibonacci', cost: 8, color: '#f9bc00', emoji: '🌀', desc: 'A/2/3/5/8 +8 Mult', effect: (ctx) => { ctx.mult += ctx.scoringCards.filter(c => [1,2,3,5,8].includes(c.rank)).length * 8; } },
+      { id: 'even_steven', name: 'Even Steven', cost: 4, color: '#0099ff', emoji: '⚖️', desc: '偶数牌 +4 Mult', effect: (ctx) => { ctx.mult += ctx.scoringCards.filter(c => c.rank <= 10 && c.rank % 2 === 0).length * 4; } },
+      { id: 'odd_todd', name: 'Odd Todd', cost: 4, color: '#f9bc00', emoji: '🎲', desc: '奇数牌 +31 Chips', effect: (ctx) => { ctx.chips += ctx.scoringCards.filter(c => c.rank % 2 === 1 && c.rank <= 10).length * 31; } },
+      { id: 'scholar', name: 'Scholar', cost: 4, color: '#9d4edd', emoji: '📚', desc: 'A +20 Chips +4 Mult', effect: (ctx) => { const a = ctx.scoringCards.filter(c => c.rank === 1); ctx.chips += a.length * 20; ctx.mult += a.length * 4; } },
+      { id: 'red_card', name: 'Red Card', cost: 6, color: '#fe2929', emoji: '🟥', desc: '+3 Mult 永久', effect: (ctx) => { ctx.mult += 3; } },
+      { id: 'blueprint', name: 'Blueprint', cost: 10, color: '#0099ff', emoji: '📐', desc: '+10 Mult 永久', effect: (ctx) => { ctx.mult += 10; } },
+    ];
+
+    function createDeck() {
+      const deck = [];
+      for (const suit of SUITS) {
+        for (let rank = 1; rank <= 13; rank++) {
+          deck.push({ suit, rank, id: `${suit}-${rank}-${Math.random().toString(36).slice(2,7)}` });
+        }
+      }
+      return shuffle(deck);
+    }
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function rankText(rank) {
+      if (rank === 1) return 'A';
+      if (rank === 11) return 'J';
+      if (rank === 12) return 'Q';
+      if (rank === 13) return 'K';
+      return rank.toString();
+    }
+
+    function suitSymbol(suit) {
+      return { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' }[suit];
+    }
+
+    function isRedSuit(suit) {
+      return suit === 'hearts' || suit === 'diamonds';
+    }
+
+    function cardChips(rank) {
+      if (rank === 1) return 11;
+      if (rank >= 10) return 10;
+      return rank;
+    }
+
+    // 评估牌型
+    function evaluateHand(cards) {
+      if (cards.length === 0) return null;
+      const ranks = cards.map(c => c.rank).sort((a,b) => a-b);
+      const suits = cards.map(c => c.suit);
+      
+      const rankCounts = {};
+      ranks.forEach(r => rankCounts[r] = (rankCounts[r]||0) + 1);
+      const counts = Object.values(rankCounts).sort((a,b) => b-a);
+      
+      const isFlush = suits.every(s => s === suits[0]);
+      
+      let isStraight = false;
+      const uniqueRanks = [...new Set(ranks)].sort((a,b) => a-b);
+      if (uniqueRanks.length === 5) {
+        if (uniqueRanks[4] - uniqueRanks[0] === 4) isStraight = true;
+        if (uniqueRanks.join(',') === '1,10,11,12,13') isStraight = true;
+      }
+      
+      let result;
+      if (isStraight && isFlush) {
+        result = { type: '同花顺', chips: 100, mult: 8, scoringCards: cards };
+      } else if (counts[0] === 4) {
+        const fourRank = parseInt(Object.keys(rankCounts).find(k => rankCounts[k] === 4));
+        result = { type: '四条', chips: 60, mult: 7, scoringCards: cards.filter(c => c.rank === fourRank) };
+      } else if (counts[0] === 3 && counts[1] === 2) {
+        const threeRank = parseInt(Object.keys(rankCounts).find(k => rankCounts[k] === 3));
+        result = { type: '葫芦', chips: 40, mult: 4, scoringCards: cards.filter(c => c.rank === threeRank) };
+      } else if (isFlush) {
+        result = { type: '同花', chips: 35, mult: 4, scoringCards: cards };
+      } else if (isStraight) {
+        result = { type: '顺子', chips: 30, mult: 4, scoringCards: cards };
+      } else if (counts[0] === 3) {
+        const threeRank = parseInt(Object.keys(rankCounts).find(k => rankCounts[k] === 3));
+        result = { type: '三条', chips: 30, mult: 3, scoringCards: cards.filter(c => c.rank === threeRank) };
+      } else if (counts[0] === 2 && counts[1] === 2) {
+        const pairs = Object.keys(rankCounts).filter(k => rankCounts[k] === 2).map(Number);
+        result = { type: '两对', chips: 20, mult: 2, scoringCards: cards.filter(c => pairs.includes(c.rank)) };
+      } else if (counts[0] === 2) {
+        const pairRank = parseInt(Object.keys(rankCounts).find(k => rankCounts[k] === 2));
+        result = { type: '对子', chips: 10, mult: 2, scoringCards: cards.filter(c => c.rank === pairRank) };
+      } else {
+        const maxRank = Math.max(...ranks);
+        result = { type: '高牌', chips: 5, mult: 1, scoringCards: cards.filter(c => c.rank === maxRank) };
+      }
+      
+      result.hasPair = counts[0] >= 2;
+      result.playedCount = cards.length;
+      return result;
+    }
+
+    // 渲染卡牌
+    function renderCard(card, isSelected = false, withDealAnim = false) {
+      const sym = suitSymbol(card.suit);
+      const txt = rankText(card.rank);
+      const colorClass = isRedSuit(card.suit) ? 'red' : 'black';
+      const selClass = isSelected ? 'selected' : '';
+      const dealClass = withDealAnim ? 'deal-animation' : '';
+      return `
+        <div class="card ${colorClass} ${selClass} ${dealClass}" data-id="${card.id}">
+          <div class="card-corner top">
+            <div class="rank">${txt}</div>
+            <div class="suit">${sym}</div>
+          </div>
+          <div class="card-center">${sym}</div>
+          <div class="card-corner bottom">
+            <div class="rank">${txt}</div>
+            <div class="suit">${sym}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderJoker(joker) {
+      return `
+        <div class="joker-card" style="border-color: ${joker.color}; color: ${joker.color};" data-id="${joker.id}">
+          <div class="joker-emoji">${joker.emoji}</div>
+          <div class="joker-name">${joker.name}</div>
+          <div class="joker-desc">${joker.desc}</div>
+        </div>
+      `;
+    }
+
+    function renderHand(withDealAnim = false) {
+      const handArea = document.getElementById('handArea');
+      handArea.innerHTML = state.hand.map(c => renderCard(c, state.selected.has(c.id), withDealAnim)).join('');
+      
+      handArea.querySelectorAll('.card').forEach(el => {
+        el.addEventListener('click', () => {
+          if (state.isPlaying) return;
+          const id = el.dataset.id;
+          if (state.selected.has(id)) {
+            state.selected.delete(id);
+            el.classList.remove('selected');
+          } else {
+            if (state.selected.size >= 5) {
+              showToast('最多选 5 张');
+              return;
+            }
+            state.selected.add(id);
+            el.classList.add('selected');
+          }
+          updateUI();
+        });
+      });
+    }
+
+    function renderJokers() {
+      const area = document.getElementById('jokersArea');
+      area.innerHTML = state.jokers.map(renderJoker).join('');
+    }
+
+    function updateUI() {
+      document.getElementById('roundDisplay').textContent = `${state.round} / ${state.maxRound}`;
+      document.getElementById('blindDisplay').textContent = state.round === 1 ? 'Small' : state.round === 2 ? 'Big' : 'Boss';
+      document.getElementById('playsDisplay').textContent = state.playsLeft;
+      document.getElementById('discardsDisplay').textContent = state.discardsLeft;
+      document.getElementById('moneyDisplay').textContent = `$${state.money}`;
+      document.getElementById('roundScoreDisplay').textContent = state.score;
+      document.getElementById('targetDisplay').textContent = state.targetScore;
+      document.getElementById('deckCount').textContent = state.deck.length;
+      document.getElementById('totalScore').textContent = state.totalScore;
+      document.getElementById('handsPlayed').textContent = state.handsPlayed;
+      document.getElementById('selectedCount').textContent = state.selected.size;
+      
+      const pct = Math.min(100, (state.score / state.targetScore) * 100);
+      document.getElementById('scoreBarFill').style.width = `${pct}%`;
+      
+      document.getElementById('playBtn').disabled = state.isPlaying || state.selected.size === 0 || state.playsLeft === 0;
+      document.getElementById('discardBtn').disabled = state.isPlaying || state.selected.size === 0 || state.discardsLeft === 0;
+      
+      const selectedCards = state.hand.filter(c => state.selected.has(c.id));
+      if (selectedCards.length > 0) {
+        const ev = evaluateHand(selectedCards);
+        document.getElementById('previewType').textContent = ev.type;
+        document.getElementById('previewLevel').textContent = `${ev.chips} Chips × ${ev.mult} Mult`;
+      } else {
+        document.getElementById('previewType').textContent = '- - -';
+        document.getElementById('previewLevel').textContent = 'Select cards';
+      }
+    }
+
+    function wait(ms) {
+      return new Promise(r => setTimeout(r, ms));
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(t._timer);
+      t._timer = setTimeout(() => t.classList.remove('show'), 2000);
+    }
+
+    function floatText(element, text, type) {
+      const rect = element.getBoundingClientRect();
+      const ft = document.createElement('div');
+      ft.className = `float-text ${type}`;
+      ft.textContent = text;
+      ft.style.left = `${rect.left + rect.width / 2}px`;
+      ft.style.top = `${rect.top}px`;
+      document.body.appendChild(ft);
+      setTimeout(() => ft.remove(), 1200);
+    }
+
+    function animateNumber(element, from, to, duration = 400) {
+      const start = performance.now();
+      const update = (now) => {
+        const elapsed = now - start;
+        const t = Math.min(1, elapsed / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const val = Math.round(from + (to - from) * eased);
+        element.textContent = val;
+        if (t < 1) requestAnimationFrame(update);
+      };
+      requestAnimationFrame(update);
+    }
+
+    function flashScreen() {
+      const flash = document.createElement('div');
+      flash.className = 'flash';
+      document.body.appendChild(flash);
+      setTimeout(() => flash.remove(), 400);
+    }
+
+    function drawCards(n) {
+      const cards = [];
+      for (let i = 0; i < n; i++) {
+        if (state.deck.length > 0) cards.push(state.deck.pop());
+      }
+      return cards;
+    }
+
+    function refillHand() {
+      const needed = state.handSize - state.hand.length;
+      if (needed > 0) {
+        const newCards = drawCards(needed);
+        state.hand.push(...newCards);
+        renderHand(true);
+      }
+    }
+
+    // 出牌流程 — 还原 Balatro 的"打击感"动画序列
+    async function playHand() {
+      if (state.isPlaying || state.selected.size === 0) return;
+      state.isPlaying = true;
+      updateUI();
+      
+      const selectedIds = Array.from(state.selected);
+      const playedCards = selectedIds.map(id => state.hand.find(c => c.id === id));
+      const evaluation = evaluateHand(playedCards);
+      
+      // 1. 卡牌飞到出牌区
+      const playedArea = document.getElementById('playedCardsArea');
+      playedArea.innerHTML = playedCards.map(c => renderCard(c, false)).join('');
+      
+      // 从手牌移除
+      state.hand = state.hand.filter(c => !state.selected.has(c.id));
+      state.selected.clear();
+      renderHand();
+      
+      await wait(500);
+      
+      // 2. 显示牌型
+      const handTypeDisplay = document.getElementById('handTypeDisplay');
+      handTypeDisplay.textContent = evaluation.type;
+      handTypeDisplay.classList.remove('active');
+      void handTypeDisplay.offsetWidth;
+      handTypeDisplay.classList.add('active');
+      
+      await wait(600);
+      
+      // 3. 初始化 chips 和 mult
+      state.currentChips = evaluation.chips;
+      state.currentMult = evaluation.mult;
+      document.getElementById('chipsBox').textContent = state.currentChips;
+      document.getElementById('multBox').textContent = state.currentMult;
+      
+      const chipsBox = document.getElementById('chipsBox');
+      const multBox = document.getElementById('multBox');
+      chipsBox.classList.add('bump');
+      multBox.classList.add('bump');
+      setTimeout(() => { chipsBox.classList.remove('bump'); multBox.classList.remove('bump'); }, 400);
+      
+      await wait(700);
+      
+      // 4. 逐张打分
+      for (const card of evaluation.scoringCards) {
+        const el = playedArea.querySelector(`.card[data-id="${card.id}"]`);
+        if (el) {
+          el.classList.add('scoring');
+          setTimeout(() => el.classList.remove('scoring'), 600);
+        }
+        
+        const chipsAdded = cardChips(card.rank);
+        const oldChips = state.currentChips;
+        state.currentChips += chipsAdded;
+        animateNumber(chipsBox, oldChips, state.currentChips, 300);
+        chipsBox.classList.add('bump');
+        setTimeout(() => chipsBox.classList.remove('bump'), 400);
+        
+        if (el) floatText(el, `+${chipsAdded}`, 'chips');
+        
+        await wait(380);
+      }
+      
+      await wait(200);
+      
+      // 5. 小丑牌依次触发
+      for (const joker of state.jokers) {
+        const ctx = {
+          scoringCards: evaluation.scoringCards,
+          handType: evaluation.type,
+          hasPair: evaluation.hasPair,
+          playedCount: evaluation.playedCount,
+          chips: state.currentChips,
+          mult: state.currentMult,
+        };
+        
+        const oldChips = state.currentChips;
+        const oldMult = state.currentMult;
+        joker.effect(ctx);
+        const chipDelta = ctx.chips - oldChips;
+        const multDelta = ctx.mult - oldMult;
+        
+        const jokerEl = document.querySelector(`.joker-card[data-id="${joker.id}"]`);
+        if (jokerEl) {
+          jokerEl.classList.add('triggering');
+          setTimeout(() => jokerEl.classList.remove('triggering'), 600);
+          
+          if (chipDelta > 0) {
+            floatText(jokerEl, `+${chipDelta}`, 'chips');
+            animateNumber(chipsBox, oldChips, ctx.chips, 300);
+            chipsBox.classList.add('bump');
+            setTimeout(() => chipsBox.classList.remove('bump'), 400);
+          }
+          if (multDelta > 0) {
+            floatText(jokerEl, `+${multDelta}`, 'mult');
+            animateNumber(multBox, oldMult, ctx.mult, 300);
+            multBox.classList.add('bump');
+            setTimeout(() => multBox.classList.remove('bump'), 400);
+          }
+        }
+        
+        state.currentChips = ctx.chips;
+        state.currentMult = ctx.mult;
+        
+        await wait(550);
+      }
+      
+      // 6. 计算最终分数
+      const finalScore = state.currentChips * state.currentMult;
+      
+      // 屏幕震动 + 闪光
+      const container = document.getElementById('gameContainer');
+      container.classList.add('shake');
+      setTimeout(() => container.classList.remove('shake'), 400);
+      
+      if (finalScore >= 100) flashScreen();
+      
+      await wait(500);
+      
+      // 7. 加到总分
+      const oldScore = state.score;
+      animateNumber(document.getElementById('roundScoreDisplay'), oldScore, oldScore + finalScore, 700);
+      state.score += finalScore;
+      state.totalScore += finalScore;
+      state.handsPlayed++;
+      state.playsLeft--;
+      
+      updateUI();
+      
+      await wait(900);
+      
+      // 8. 清理出牌区
+      playedArea.innerHTML = '';
+      handTypeDisplay.textContent = '- - -';
+      handTypeDisplay.classList.remove('active');
+      chipsBox.textContent = '0';
+      multBox.textContent = '1';
+      state.currentChips = 0;
+      state.currentMult = 1;
+      
+      refillHand();
+      updateUI();
+      
+      // 9. 检查回合结束
+      if (state.score >= state.targetScore) {
+        await wait(400);
+        endRound(true);
+      } else if (state.playsLeft === 0) {
+        await wait(400);
+        endRound(false);
+      }
+      
+      state.isPlaying = false;
+      updateUI();
+    }
+
+    async function discardHand() {
+      if (state.isPlaying || state.selected.size === 0 || state.discardsLeft === 0) return;
+      state.isPlaying = true;
+      updateUI();
+      
+      state.hand = state.hand.filter(c => !state.selected.has(c.id));
+      state.selected.clear();
+      state.discardsLeft--;
+      
+      renderHand();
+      refillHand();
+      updateUI();
+      
+      state.isPlaying = false;
+      updateUI();
+    }
+
+    async function endRound(won) {
+      const modal = document.getElementById('endModal');
+      const title = document.getElementById('endTitle');
+      const subtitle = document.getElementById('endSubtitle');
+      const continueBtn = document.getElementById('continueBtn');
+      
+      if (won) {
+        const isFinal = state.round >= state.maxRound;
+        if (isFinal) {
+          title.textContent = 'FINAL VICTORY';
+          title.className = 'modal-title final';
+          subtitle.innerHTML = `恭喜通关！你击败了所有盲注<br>最终总分: <span>${state.totalScore}</span><br>使用手数: <span>${state.handsPlayed}</span>`;
+          continueBtn.textContent = 'Play Again';
+        } else {
+          const reward = 3 + state.round * 2;
+          state.money += reward;
+          title.textContent = 'ROUND CLEARED';
+          title.className = 'modal-title win';
+          subtitle.innerHTML = `目标达成！获得 <span>$${reward}</span> 奖励<br>当前分数: <span>${state.score}</span> / ${state.targetScore}<br>前往商店购买小丑牌`;
+          continueBtn.textContent = 'Go to Shop';
+        }
+      } else {
+        title.textContent = 'GAME OVER';
+        title.className = 'modal-title lose';
+        subtitle.innerHTML = `未达到目标分数<br>最终分数: <span>${state.score}</span> / ${state.targetScore}<br>坚持到第 ${state.round} 回合`;
+        continueBtn.textContent = 'Restart';
+      }
+      
+      modal.classList.add('active');
+      
+      continueBtn.onclick = () => {
+        modal.classList.remove('active');
+        if (won && state.round < state.maxRound) {
+          showShop();
+        } else {
+          resetGame();
+        }
+      };
+    }
+
+    function showShop() {
+      const modal = document.getElementById('shopModal');
+      const items = document.getElementById('shopItems');
+      document.getElementById('shopMoney').textContent = state.money;
+      
+      const available = JOKER_POOL.filter(j => !state.ownedJokers.has(j.id));
+      const pool = available.length >= 3 ? available : JOKER_POOL;
+      const shopItems = shuffle(pool).slice(0, 3);
+      
+      items.innerHTML = shopItems.map(j => `
+        <div class="shop-item ${state.ownedJokers.has(j.id) ? 'owned' : ''}" data-id="${j.id}" style="border-color: ${j.color};">
+          <div class="emoji">${j.emoji}</div>
+          <div class="name">${j.name}</div>
+          <div class="desc">${j.desc}</div>
+          <div class="price">$${j.cost}</div>
+        </div>
+      `).join('');
+      
+      items.querySelectorAll('.shop-item').forEach(el => {
+        el.addEventListener('click', () => {
+          if (el.classList.contains('owned')) return;
+          const id = el.dataset.id;
+          const joker = JOKER_POOL.find(j => j.id === id);
+          if (state.money >= joker.cost) {
+            state.money -= joker.cost;
+            state.jokers.push(joker);
+            state.ownedJokers.add(id);
+            renderJokers();
+            document.getElementById('shopMoney').textContent = state.money;
+            el.classList.add('owned');
+            showToast(`购买了 ${joker.name}！`);
+          } else {
+            showToast('金币不足');
+          }
+        });
+      });
+      
+      document.getElementById('skipBtn').onclick = () => {
+        modal.classList.remove('active');
+        nextRound();
+      };
+      
+      modal.classList.add('active');
+    }
+
+    function nextRound() {
+      state.round++;
+      state.score = 0;
+      state.playsLeft = 4;
+      state.discardsLeft = 3;
+      state.targetScore = state.round === 2 ? 500 : 800;
+      state.deck = createDeck();
+      state.hand = [];
+      state.selected.clear();
+      
+      state.hand = drawCards(state.handSize);
+      renderHand(true);
+      renderJokers();
+      updateUI();
+      
+      showToast(`Round ${state.round} · 目标 ${state.targetScore}`);
+    }
+
+    function resetGame() {
+      state.round = 1;
+      state.score = 0;
+      state.totalScore = 0;
+      state.money = 4;
+      state.playsLeft = 4;
+      state.discardsLeft = 3;
+      state.targetScore = 300;
+      state.jokers = [];
+      state.ownedJokers = new Set();
+      state.handsPlayed = 0;
+      state.deck = createDeck();
+      state.hand = drawCards(state.handSize);
+      state.selected.clear();
+      state.isPlaying = false;
+      state.currentChips = 0;
+      state.currentMult = 1;
+      
+      document.getElementById('chipsBox').textContent = '0';
+      document.getElementById('multBox').textContent = '1';
+      document.getElementById('handTypeDisplay').textContent = '- - -';
+      document.getElementById('playedCardsArea').innerHTML = '';
+      
+      renderHand(true);
+      renderJokers();
+      updateUI();
+      
+      showToast('新游戏开始！');
+    }
+
+    function createParticles() {
+      for (let i = 0; i < 15; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        p.style.left = `${Math.random() * 100}vw`;
+        p.style.animationDelay = `${Math.random() * 20}s`;
+        p.style.animationDuration = `${15 + Math.random() * 10}s`;
+        if (Math.random() > 0.5) {
+          p.style.background = 'rgba(254, 41, 41, 0.5)';
+          p.style.boxShadow = '0 0 6px rgba(254, 41, 41, 0.8)';
+        }
+        document.body.appendChild(p);
+      }
+    }
+
+    function init() {
+      state.deck = createDeck();
+      state.hand = drawCards(state.handSize);
+      renderHand(true);
+      renderJokers();
+      updateUI();
+      createParticles();
+      
+      document.getElementById('playBtn').addEventListener('click', playHand);
+      document.getElementById('discardBtn').addEventListener('click', discardHand);
+      
+      // 键盘快捷键
+      document.addEventListener('keydown', (e) => {
+        if (state.isPlaying) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (state.selected.size > 0) playHand();
+        } else if (e.key === 'd' || e.key === 'D') {
+          if (state.selected.size > 0) discardHand();
+        }
+      });
+      
+      showToast('欢迎来到 BALATRO！选 5 张牌出牌');
+    }
+
+    init();
+  </script>
+</body>
+</html>
