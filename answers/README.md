@@ -18,7 +18,8 @@ answers/
 │   ├── deepseek/
 │   ├── kimi-k3/
 │   ├── glm-5.2/
-│   └── qwen-3.8-max-preview/
+│   ├── qwen-3.8-max-preview/
+│   └── gpt-5.6-sol/
 ├── 04-balatro-web/
 │   ├── deepseek/
 │   ├── kimi-k3/
