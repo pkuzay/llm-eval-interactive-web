@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DWKS-01 · 双叉臂悬架运动学仿真</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0e1114; --panel:#161a1e; --panel2:#12161a; --line:#2a3138; --line2:#39424b;
+  --txt:#c9d4dd; --dim:#77848f; --acc:#ff7a1e; --ok:#3ddc84; --err:#ff5d5d;
+  --fd:'Chakra Petch','Microsoft YaHei','PingFang SC',sans-serif;
+  --fm:'IBM Plex Mono','Microsoft YaHei','PingFang SC',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;border-radius:0;}
+html,body{height:100%;}
+body{
+  background:var(--bg); color:var(--txt); font-family:var(--fd);
+  display:grid; grid-template-rows:52px 1fr 28px; overflow:hidden;
+  border-top:2px solid var(--acc); user-select:none;
+}
+/* ---------- header ---------- */
+header{display:flex;align-items:center;justify-content:space-between;
+  padding:0 14px; background:linear-gradient(#181d22,#14181c); border-bottom:1px solid var(--line);}
+.h-left{display:flex;align-items:center;gap:12px;}
+.logo{width:26px;height:26px;border:1px solid var(--acc);display:flex;align-items:center;justify-content:center;}
+.h-title{font:700 14px/1 var(--fd); letter-spacing:.08em;}
+.h-title em{font-style:normal;color:var(--acc);}
+.h-sub{font:500 9px/1 var(--fm); color:var(--dim); letter-spacing:.14em; margin-top:4px;}
+.h-right{display:flex;align-items:center;gap:18px; font-family:var(--fm);}
+.hs{display:flex;align-items:center;gap:6px;font-size:10px;}
+.hs i{font-style:normal;color:var(--dim);letter-spacing:.1em;}
+.hs b{font-weight:600;color:var(--txt);}
+.hs b.ok{color:var(--ok);} .hs b.err{color:var(--err);}
+.dot{width:7px;height:7px;background:var(--ok);display:inline-block;animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+/* ---------- main ---------- */
+main{display:grid;grid-template-columns:1fr 348px;min-height:0;}
+#viewport{position:relative;background:#0b0e11;overflow:hidden;}
+#cv{position:absolute;inset:0;display:block;cursor:crosshair;}
+.ov{position:absolute;background:rgba(12,15,18,.88);border:1px solid var(--line);}
+#ov-view{top:10px;left:10px;display:flex;align-items:stretch;}
+.vbtn{border:none;border-right:1px solid var(--line);}
+.vbtn:last-of-type{border-right:none;}
+.orb{margin:0;padding:5px 8px;border-left:1px solid var(--line);}
+#ov-hud{top:10px;right:10px;padding:8px 12px;min-width:196px;}
+.hud-r{display:flex;align-items:baseline;gap:8px;padding:2px 0;}
+.hud-r span{font:500 9px var(--fm);color:var(--dim);letter-spacing:.08em;flex:1;}
+.hud-r b{font:600 21px var(--fm);color:#eef4f9;letter-spacing:-.02em;}
+.hud-r i{font-style:normal;font:500 9px var(--fm);color:var(--dim);}
+.hud-s{display:flex;gap:6px;align-items:baseline;border-top:1px solid var(--line);margin-top:5px;padding-top:5px;
+  font:500 9px var(--fm);color:var(--dim);}
+.hud-s b{font:600 11px var(--fm);color:var(--txt);}
+#ov-legend{bottom:10px;left:10px;padding:7px 10px;width:196px;}
+.lg-t{font:600 9px var(--fd);letter-spacing:.18em;color:var(--dim);margin-bottom:6px;}
+.lg-i{display:flex;align-items:center;gap:8px;font:500 10px var(--fd);color:var(--txt);
+  padding:2.5px 4px;cursor:default;transition:background .12s;}
+.lg-i:hover{background:#232a31;color:#fff;}
+.lg-i em{font-style:normal;font:500 8px var(--fm);color:var(--dim);margin-left:auto;letter-spacing:.05em;}
+.chip{width:16px;height:3px;flex:none;}
+.chip.dash{background:repeating-linear-gradient(90deg,var(--c) 0 4px,transparent 4px 7px);}
+.lg-n{display:flex;align-items:center;gap:6px;font:500 9px var(--fm);color:var(--dim);
+  border-top:1px solid var(--line);margin-top:5px;padding-top:6px;}
+.nsq{width:7px;height:7px;background:#c9d4dd;border:1px solid #0b0e11;outline:1px solid #556069;margin-left:8px;}
+.nsq:first-child{margin-left:0;}
+.nsq.fx{background:transparent;border:1px solid #8b98a5;outline:none;position:relative;}
+.nsq.fx::after{content:'';position:absolute;inset:2px;background:#8b98a5;}
+/* ---------- buttons / controls ---------- */
+.btn{background:#101418;border:1px solid var(--line2);color:var(--dim);
+  font:600 10px var(--fd);letter-spacing:.12em;padding:6px 10px;cursor:pointer;
+  transition:color .12s,border-color .12s,background .12s;}
+.btn:hover{color:var(--txt);border-color:var(--acc);}
+.btn.on{background:var(--acc);color:#161006;border-color:var(--acc);}
+.btn:focus-visible{outline:1px solid var(--acc);}
+.btn.wide{width:100%;}
+.seg{display:flex;border:1px solid var(--line2);margin:6px 0 10px;}
+.seg button{flex:1;background:none;border:none;border-right:1px solid var(--line2);color:var(--dim);
+  font:600 10px var(--fd);letter-spacing:.14em;padding:6px 0;cursor:pointer;transition:all .12s;}
+.seg button:last-child{border-right:none;}
+.seg button:hover{color:var(--txt);}
+.seg button.on{background:var(--acc);color:#161006;}
+.sld{margin:8px 0;}
+.sld-h{display:flex;align-items:baseline;gap:6px;margin-bottom:2px;}
+.sld-h span{font:500 10px var(--fd);color:var(--txt);letter-spacing:.06em;flex:1;}
+.sld-h b{font:600 12px var(--fm);color:var(--acc);}
+.sld-h i{font-style:normal;font:500 9px var(--fm);color:var(--dim);}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:18px;background:transparent;cursor:pointer;}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--line2);}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;margin-top:-5px;
+  background:#0e1114;border:1px solid var(--acc);transition:background .12s;}
+input[type=range]:hover::-webkit-slider-thumb{background:var(--acc);}
+input[type=range]::-moz-range-track{height:2px;background:var(--line2);}
+input[type=range]::-moz-range-thumb{width:10px;height:10px;background:#0e1114;border:1px solid var(--acc);border-radius:0;}
+input[type=range]:hover::-moz-range-thumb{background:var(--acc);}
+.chk{display:flex;align-items:center;gap:7px;font:500 10.5px var(--fd);color:var(--txt);cursor:pointer;padding:3px 0;}
+.chk input{appearance:none;-webkit-appearance:none;width:12px;height:12px;border:1px solid var(--line2);
+  background:#0d1013;cursor:pointer;position:relative;flex:none;transition:all .12s;}
+.chk input:hover{border-color:var(--acc);}
+.chk input:checked{border-color:var(--acc);background:var(--acc);}
+.chk input:checked::after{content:'';position:absolute;inset:3px;background:#161006;}
+.hint{font:400 9px var(--fm);color:var(--dim);margin-top:6px;letter-spacing:.03em;}
+/* ---------- panel ---------- */
+#panel{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;min-height:0;}
+#panel::-webkit-scrollbar{width:8px;}
+#panel::-webkit-scrollbar-track{background:var(--panel2);}
+#panel::-webkit-scrollbar-thumb{background:var(--line2);border:2px solid var(--panel2);}
+.sec{border-bottom:1px solid var(--line);}
+.sec-h{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--panel2);
+  border-bottom:1px solid var(--line);font:600 11px var(--fd);letter-spacing:.14em;}
+.sec-h em{font-style:normal;font:500 8.5px var(--fm);color:var(--dim);letter-spacing:.12em;margin-left:auto;}
+.tick{width:8px;height:8px;flex:none;}
+.sec-b{padding:10px 12px 12px;}
+.grp-h{font:600 9px var(--fd);letter-spacing:.16em;color:var(--dim);margin:10px 0 2px;
+  display:flex;align-items:center;gap:8px;}
+.grp-h::after{content:'';flex:1;height:1px;background:var(--line);}
+.grp-h:first-child{margin-top:0;}
+.chkgrid{display:grid;grid-template-columns:1fr 1fr;gap:1px 12px;}
+.drow{display:grid;grid-template-columns:1fr auto 26px;gap:8px;align-items:baseline;
+  padding:3.5px 8px;border-left:2px solid transparent;font:500 10.5px var(--fd);
+  transition:background .1s,border-color .1s;}
+.drow:hover{background:#1d2329;border-left-color:var(--acc);}
+.drow span{color:var(--txt);}
+.drow span em{font-style:normal;font:500 8px var(--fm);color:var(--dim);display:block;letter-spacing:.08em;}
+.dval{font:600 12px var(--fm);color:#eef4f9;text-align:right;min-width:64px;}
+.dunit{font:500 9px var(--fm);color:var(--dim);}
+.drow.solv .dval{font-size:10.5px;}
+#ch{width:100%;height:150px;display:block;background:#101418;border:1px solid var(--line);}
+.ch-leg{display:flex;gap:12px;margin-top:6px;font:500 9px var(--fm);color:var(--dim);}
+.ch-leg i{font-style:normal;display:flex;align-items:center;gap:5px;}
+.ch-leg b{width:12px;height:3px;display:inline-block;}
+table.hp{width:100%;border-collapse:collapse;font:500 9.5px var(--fm);}
+table.hp th{color:var(--dim);font-weight:500;text-align:right;padding:2px 4px;
+  border-bottom:1px solid var(--line);letter-spacing:.08em;}
+table.hp th:first-child{text-align:left;}
+table.hp td{padding:2.5px 4px;text-align:right;color:var(--txt);border-bottom:1px solid #1d2329;}
+table.hp td:first-child{text-align:left;color:#9fb0bd;}
+table.hp tr:hover td{background:#1d2329;color:#fff;}
+.pnote{font:400 9px var(--fm);color:var(--dim);margin-top:8px;line-height:1.6;}
+/* ---------- footer ---------- */
+footer{display:flex;align-items:center;justify-content:space-between;padding:0 14px;
+  background:var(--panel2);border-top:1px solid var(--line);
+  font:500 9.5px var(--fm);color:var(--dim);letter-spacing:.05em;}
+footer .ok{color:var(--ok);} footer .err{color:var(--err);}
+@media (max-width:1080px){
+  main{grid-template-columns:1fr;grid-template-rows:58vh 1fr;}
+  #panel{border-left:none;border-top:1px solid var(--line);}
+  #ov-legend{display:none;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="h-left">
+    <div class="logo">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M2 13 L8 3 L14 13 M4.5 13 L8 7 L11.5 13" stroke="#ff7a1e" stroke-width="1.4"/>
+      </svg>
+    </div>
+    <div>
+      <div class="h-title">DWKS-01 · 双叉臂悬架运动学仿真 <em>DOUBLE WISHBONE</em></div>
+      <div class="h-sub">RIGID LINKS · NODE JOINTS · REALTIME KINEMATIC SOLVER</div>
+    </div>
+  </div>
+  <div class="h-right">
+    <span class="hs"><i>SOLVER</i><span class="dot"></span><b class="ok" id="h-solver">收敛</b></span>
+    <span class="hs"><i>T+</i><b id="h-time">00:00.0</b></span>
+    <span class="hs"><i>UNIT</i><b>mm · deg</b></span>
+    <span class="hs"><i>CSYS</i><b>SAE J670</b></span>
+  </div>
+</header>
+
+<main>
+  <div id="viewport">
+    <canvas id="cv"></canvas>
+
+    <div class="ov" id="ov-view">
+      <button class="btn vbtn on" data-v="iso">等轴测</button>
+      <button class="btn vbtn" data-v="front">正视</button>
+      <button class="btn vbtn" data-v="side">侧视</button>
+      <button class="btn vbtn" data-v="top">俯视</button>
+      <label class="chk orb"><input type="checkbox" id="c-orbit"><span></span>环绕</label>
+    </div>
+
+    <div class="ov" id="ov-hud">
+      <div class="hud-r"><span>悬架行程 TRAVEL</span><b id="hud-tr">+0.0</b><i>mm</i></div>
+      <div class="hud-r"><span>车轮转角 STEER</span><b id="hud-st">+0.0</b><i>deg</i></div>
+      <div class="hud-s"><span>CAMBER</span><b id="hud-cb">+0.00</b>°<span style="margin-left:8px">RC</span><b id="hud-rc">--</b>mm</div>
+    </div>
+
+    <div class="ov" id="ov-legend">
+      <div class="lg-t">图例 LEGEND</div>
+      <div class="lg-i" data-g="lower"><span class="chip" style="background:#3fd0e0"></span>下控制臂<em>刚性杆</em></div>
+      <div class="lg-i" data-g="upper"><span class="chip" style="background:#ffb02e"></span>上控制臂<em>刚性杆</em></div>
+      <div class="lg-i" data-g="knuckle"><span class="chip" style="background:#d7e1ea"></span>转向节 · 主轴<em>刚性杆</em></div>
+      <div class="lg-i" data-g="tierod"><span class="chip" style="background:#6fdc6f"></span>横拉杆<em>刚性杆</em></div>
+      <div class="lg-i" data-g="spring"><span class="chip" style="background:#ffd94a"></span>螺旋弹簧<em>可形变</em></div>
+      <div class="lg-i" data-g="kingpin"><span class="chip dash" style="--c:#ff5d5d"></span>主销轴线<em>几何轴</em></div>
+      <div class="lg-i" data-g="wheel"><span class="chip" style="background:#e8eef4"></span>车轮 · 轮胎<em>刚性</em></div>
+      <div class="lg-i" data-g="trace"><span class="chip" style="background:#77848f"></span>运动轨迹<em>节点路径</em></div>
+      <div class="lg-i" data-g="constr"><span class="chip dash" style="--c:#b78bff"></span>侧倾中心作图<em>瞬心法</em></div>
+      <div class="lg-n"><span class="nsq"></span>球铰节点<span class="nsq fx"></span>固定铰点</div>
+    </div>
+  </div>
+
+  <aside id="panel">
+
+    <section class="sec">
+      <div class="sec-h"><span class="tick" style="background:var(--acc)"></span>运动输入<em>MOTION INPUT</em></div>
+      <div class="sec-b">
+        <div class="grp-h">悬架跳动 BUMP / REBOUND</div>
+        <div class="seg" data-g="bump">
+          <button data-v="manual">手动</button><button data-v="auto" class="on">自动</button><button data-v="impulse">冲击</button>
+        </div>
+        <div id="bm-manual" style="display:none">
+          <div class="sld"><div class="sld-h"><span>行程设定 TRAVEL SET</span><b id="v-tr">0</b><i>mm</i></div>
+          <input id="r-tr" type="range" min="-120" max="95" step="1" value="0"></div>
+        </div>
+        <div id="bm-auto">
+          <div class="sld"><div class="sld-h"><span>激励振幅 AMPLITUDE</span><b id="v-amp">45</b><i>mm</i></div>
+          <input id="r-amp" type="range" min="10" max="90" step="1" value="45"></div>
+          <div class="sld"><div class="sld-h"><span>激励频率 FREQUENCY</span><b id="v-freq">0.35</b><i>Hz</i></div>
+          <input id="r-freq" type="range" min="0.1" max="1.2" step="0.01" value="0.35"></div>
+        </div>
+        <div id="bm-impulse" style="display:none">
+          <button class="btn wide" id="b-imp">触发冲击测试 TRIGGER IMPACT</button>
+          <div class="hint">施加 85mm 单侧脉冲激励，观察悬架衰减响应与主销轨迹</div>
+        </div>
+
+        <div class="grp-h">前轮转向 STEERING</div>
+        <div class="seg" data-g="steer">
+          <button data-v="manual">手动</button><button data-v="auto" class="on">自动</button>
+        </div>
+        <div id="sm-manual" style="display:none">
+          <div class="sld"><div class="sld-h"><span>方向盘转角 WHEEL ANGLE</span><b id="v-str">0</b><i>deg</i></div>
+          <input id="r-str" type="range" min="-540" max="540" step="5" value="0"></div>
+          <div class="hint">正值 = 左转向 · 齿条传动比 0.165 mm/deg</div>
+        </div>
+        <div id="sm-auto">
+          <div class="sld"><div class="sld-h"><span>摆动频率 SWEEP FREQ</span><b id="v-sfreq">0.22</b><i>Hz</i></div>
+          <input id="r-sfreq" type="range" min="0.05" max="0.6" step="0.01" value="0.22"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec">
+      <div class="sec-h"><span class="tick" style="background:#3fd0e0"></span>显示选项<em>DISPLAY</em></div>
+      <div class="sec-b chkgrid">
+        <label class="chk"><input type="checkbox" data-k="kingpin" checked>主销轴线</label>
+        <label class="chk"><input type="checkbox" data-k="trace" checked>运动轨迹</label>
+        <label class="chk"><input type="checkbox" data-k="roll" checked>侧倾中心作图</label>
+        <label class="chk"><input type="checkbox" data-k="labels" checked>尺寸标注</label>
+        <label class="chk"><input type="checkbox" data-k="grid" checked>地面网格</label>
+        <label class="chk"><input type="checkbox" data-k="body" checked>车身轮廓</label>
+        <label class="chk"><input type="checkbox" data-k="wheelDetail" checked>胎面细节</label>
+        <label class="chk"><input type="checkbox" data-k="constr2" checked>接地点标记</label>
+      </div>
+    </section>
+
+    <section class="sec">
+      <div class="sec-h"><span class="tick" style="background:#3ddc84"></span>实时数据<em>LIVE DATA</em></div>
+      <div class="sec-b" style="padding:6px 4px 8px;">
+        <div class="drow"><span>车轮跳动行程<em>TRAVEL</em></span><b class="dval" id="d-tr">+0.0</b><i class="dunit">mm</i></div>
+        <div class="drow"><span>车轮外倾角<em>CAMBER</em></span><b class="dval" id="d-cb">+0.00</b><i class="dunit">deg</i></div>
+        <div class="drow"><span>主销内倾角<em>SAI / KPI</em></span><b class="dval" id="d-sai">+0.00</b><i class="dunit">deg</i></div>
+        <div class="drow"><span>主销后倾角<em>CASTER</em></span><b class="dval" id="d-ca">+0.00</b><i class="dunit">deg</i></div>
+        <div class="drow"><span>前束角<em>TOE</em></span><b class="dval" id="d-toe">+0.00</b><i class="dunit">deg</i></div>
+        <div class="drow"><span>转向轮转角<em>STEER</em></span><b class="dval" id="d-st">+0.0</b><i class="dunit">deg</i></div>
+        <div class="drow"><span>侧倾中心高度<em>ROLL CENTER</em></span><b class="dval" id="d-rc">--</b><i class="dunit">mm</i></div>
+        <div class="drow"><span>磨胎半径<em>SCRUB RADIUS</em></span><b class="dval" id="d-scr">+0.0</b><i class="dunit">mm</i></div>
+        <div class="drow"><span>轮心横向位移<em>WHEEL DY</em></span><b class="dval" id="d-dy">+0.0</b><i class="dunit">mm</i></div>
+        <div class="drow"><span>主销接地点 Y<em>KINGPIN GND</em></span><b class="dval" id="d-gy">+0.0</b><i class="dunit">mm</i></div>
+        <div class="drow"><span>弹簧长度<em>SPRING LEN</em></span><b class="dval" id="d-spr">+0.0</b><i class="dunit">mm</i></div>
+        <div class="drow"><span>减振器形变量<em>DAMPER DL</em></span><b class="dval" id="d-dmp">+0.0</b><i class="dunit">mm</i></div>
+        <div class="drow solv"><span>求解器状态<em>SOLVER</em></span><b class="dval" id="d-solv" style="color:var(--ok)">收敛 CONVERGED</b><i class="dunit"></i></div>
+      </div>
+    </section>
+
+    <section class="sec">
+      <div class="sec-h"><span class="tick" style="background:#b78bff"></span>特性曲线<em>CURVES vs TRAVEL</em></div>
+      <div class="sec-b">
+        <canvas id="ch"></canvas>
+        <div class="ch-leg">
+          <i><b style="background:#ffb02e"></b>外倾角 °(左轴)</i>
+          <i><b style="background:#6fdc6f"></b>前束 °(左轴)</i>
+          <i><b style="background:#b78bff"></b>侧倾中心 mm(右轴)</i>
+        </div>
+        <div class="hint">齿条中位工况 · 竖线为当前工作点 · 前束含主销几何引起的跳动转向分量</div>
+      </div>
+    </section>
+
+    <section class="sec">
+      <div class="sec-h"><span class="tick" style="background:#77848f"></span>硬点坐标<em>HARDPOINTS (mm)</em></div>
+      <div class="sec-b">
+        <table class="hp">
+          <thead><tr><th>点名</th><th>X</th><th>Y</th><th>Z</th></tr></thead>
+          <tbody id="hp-tb"></tbody>
+        </table>
+        <div class="pnote">轮胎半径 330 · 轮胎半宽 105 · 主销初始内倾 12.5° · 后倾 7.4° · 静态前束 0<br>
+        模型：四连杆位置求解（5 约束 / 2 自由度）+ 主销轴转向约束 + 拉杆定长约束</div>
+      </div>
+    </section>
+
+  </aside>
+</main>
+
+<footer>
+  <div>拖拽 旋转视角 · 滚轮 缩放 · SHIFT+拖拽 平移 · 图例悬停 高亮部件</div>
+  <div>硬点 10 · 球铰节点 5 · 固定铰点 8 · 刚性杆 16 · 弹性元件 1 · 约束 5 · 自由度 2 · 求解器 <span id="sb-solver" class="ok">收敛</span></div>
+  <div id="sb-fps">FPS --</div>
+</footer>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const TAU=Math.PI*2, DEG=180/Math.PI;
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+const V={
+  add:(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],
+  sub:(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],
+  mul:(a,s)=>[a[0]*s,a[1]*s,a[2]*s],
+  dot:(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],
+  cross:(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],
+  len:a=>Math.hypot(a[0],a[1],a[2]),
+  norm(a){const l=Math.hypot(a[0],a[1],a[2])||1;return [a[0]/l,a[1]/l,a[2]/l];}
+};
+function rotAxis(v,k,ang){
+  const c=Math.cos(ang),s=Math.sin(ang),kxv=V.cross(k,v);
+  return V.add(V.add(V.mul(v,c),V.mul(kxv,s)),V.mul(k,V.dot(k,v)*(1-c)));
+}
+
+/* ================= 硬点定义 (mm) ================= */
+const HP={
+  Lf:[150,200,230], Lr:[-150,200,230],      // 下摆臂前/后铰点
+  Uf:[110,250,430], Ur:[-110,250,430],      // 上摆臂前/后铰点
+  Bl:[20,620,200],  Bu:[-15,560,470],       // 下/上球铰
+  W:[0,770,330],    Si:[10,700,330],        // 轮心 / 主轴内端
+  S:[-140,630,255], PArm:[-10,655,230],     // 拉杆外铰 / 转向臂根
+  R:[-110,330,245], T:[40,390,560]          // 齿条内铰 / 弹簧上支座
+};
+const CL=[20,200,230], RL=Math.hypot(420,30);          // 下球铰圆周
+const CU=[-15,250,430], RU=Math.hypot(310,40);         // 上球铰圆周
+const PHI0=Math.atan2(420,-30), PSI0=Math.atan2(310,40);
+const LK=V.len(V.sub(HP.Bu,HP.Bl));                    // 主销长度(约束)
+const LT=V.len(V.sub(HP.S,HP.R));                      // 拉杆长度(约束)
+const K0=V.norm(V.sub(HP.Bu,HP.Bl));                   // 静态主销方向
+const Pa0=[CL[0]+0.8*(HP.Bl[0]-CL[0]),CL[1]+0.8*(HP.Bl[1]-CL[1]),CL[2]+0.8*(HP.Bl[2]-CL[2])];
+const SPR0=V.len(V.sub(HP.T,Pa0));
+const PHI_MIN=PHI0-0.36, PHI_MAX=PHI0+0.42;
+const TR_MIN=-120, TR_MAX=95;
+
+const blOf=phi=>[CL[0],CL[1]+RL*Math.sin(phi),CL[2]+RL*Math.cos(phi)];
+const buOf=psi=>[CU[0],CU[1]+RU*Math.sin(psi),CU[2]+RU*Math.cos(psi)];
+
+/* ================= 求解器 ================= */
+function solvePsi(Bl,hint){
+  const f=p=>{const Bu=buOf(p),d=V.sub(Bu,Bl);return V.dot(d,d)-LK*LK;};
+  let best=null, pv=f(0.3);
+  for(let p=0.32;p<=2.7;p+=0.02){
+    const v=f(p);
+    if((pv<0)!==(v<0)){
+      let a=p-0.02,b=p,fa=pv;
+      for(let i=0;i<36;i++){const m=(a+b)/2,fm=f(m);if((fa<0)!==(fm<0))b=m;else{a=m;fa=fm;}}
+      const r=(a+b)/2,d=Math.abs(r-hint);
+      if(!best||d<best.d)best={p:r,d};
+    }
+    pv=v;
+  }
+  return best?best.p:null;
+}
+function baseRot(v,k){
+  const ax=V.cross(K0,k),s=V.len(ax),d=V.dot(K0,k);
+  if(s<1e-9)return d>0?[v[0],v[1],v[2]]:[-v[0],-v[1],-v[2]];
+  return rotAxis(v,[ax[0]/s,ax[1]/s,ax[2]/s],Math.atan2(s,d));
+}
+function solveDelta(k,Bu,Rpt,hint){
+  const f=d=>{
+    const S=V.add(Bu,rotAxis(baseRot(V.sub(HP.S,HP.Bu),k),k,d));
+    const e=V.sub(S,Rpt);return V.dot(e,e)-LT*LT;
+  };
+  let best=null,pv=f(-0.78);
+  for(let d=-0.76;d<=0.78;d+=0.02){
+    const v=f(d);
+    if((pv<0)!==(v<0)){
+      let a=d-0.02,b=d,fa=pv;
+      for(let i=0;i<36;i++){const m=(a+b)/2,fm=f(m);if((fa<0)!==(fm<0))b=m;else{a=m;fa=fm;}}
+      const r=(a+b)/2,dd=Math.abs(r-hint);
+      if(!best||dd<best.d)best={d:r,d:dd};
+    }
+    pv=v;
+  }
+  return best?best.d:hint;
+}
+function lineInt2(p1,p2,p3,p4){
+  const a1=p2[0]-p1[0],b1=p2[1]-p1[1],a2=p4[0]-p3[0],b2=p4[1]-p3[1];
+  const det=a1*b2-a2*b1; if(Math.abs(det)<1e-6)return null;
+  const rx=p3[0]-p1[0],ry=p3[1]-p1[1],s=(rx*b2-ry*a2)/det;
+  return [p1[0]+s*a1,p1[1]+s*b1];
+}
+function solvePose(travel,rack,hint){
+  hint=hint||{phi:PHI0,psi:PSI0,delta:0};
+  // 1) 由目标行程反解下摆臂角 phi
+  const g=phi=>{
+    const Bl=blOf(phi),psi=solvePsi(Bl,hint.psi); if(psi==null)return null;
+    const Bu=buOf(psi),k=V.norm(V.sub(Bu,Bl));
+    const W=V.add(Bu,baseRot(V.sub(HP.W,HP.Bu),k));
+    return (HP.W[2]-W[2])-travel;
+  };
+  let a=PHI_MIN,b=PHI_MAX,ga=g(a),gb=g(b),phi=hint.phi;
+  if(ga!=null&&gb!=null){
+    if(ga>gb){const t=a;a=b;b=t;const t2=ga;ga=gb;gb=t2;}
+    if(ga>=0)phi=a; else if(gb<=0)phi=b;
+    else{
+      let fa=ga;
+      for(let i=0;i<36;i++){const m=(a+b)/2,gm=g(m);if(gm==null)break;if((fa<0)===(gm<0)){a=m;fa=gm;}else b=m;}
+      phi=(a+b)/2;
+    }
+  }
+  // 2) 四连杆位置求解
+  const Bl=blOf(phi),psi=solvePsi(Bl,hint.psi); if(psi==null)return null;
+  const Bu=buOf(psi),k=V.norm(V.sub(Bu,Bl));
+  // 3) 拉杆定长约束反解转向角 delta (绕主销轴)
+  const Rpt=[HP.R[0],HP.R[1]+rack,HP.R[2]];
+  const delta=solveDelta(k,Bu,Rpt,hint.delta);
+  const kp=p=>V.add(Bu,rotAxis(baseRot(V.sub(p,HP.Bu),k),k,delta));
+  const kd=d=>rotAxis(baseRot(d,k),k,delta);
+  const W=kp(HP.W),S=kp(HP.S),Si=kp(HP.Si),PArm=kp(HP.PArm),Kn=kp([0,640,360]);
+  const Pa=[CL[0]+0.8*(Bl[0]-CL[0]),CL[1]+0.8*(Bl[1]-CL[1]),CL[2]+0.8*(Bl[2]-CL[2])];
+  const fwd=kd([1,0,0]),up=kd([0,0,1]),lat=kd([0,1,0]);
+  // 4) 工程参数
+  const camber=-Math.atan2(lat[2],lat[1])*DEG;
+  const sai=Math.atan2(-k[1],k[2])*DEG;
+  const caster=Math.atan2(-k[0],k[2])*DEG;
+  const toe=Math.atan2(-fwd[1],fwd[0])*DEG;
+  const tg=-Bl[2]/(Bu[2]-Bl[2]);
+  const G=[Bl[0]+(Bu[0]-Bl[0])*tg,Bl[1]+(Bu[1]-Bl[1])*tg,0];
+  const scrub=W[1]-G[1];
+  const ic=lineInt2([CL[1],CL[2]],[Bl[1],Bl[2]],[CU[1],CU[2]],[Bu[1],Bu[2]]);
+  let RC=null;
+  if(ic&&Math.abs(ic[0]-W[1])>1e-3){const t=-W[1]/(ic[0]-W[1]);RC=[0,0,t*ic[1]];}
+  const springLen=V.len(V.sub(HP.T,Pa));
+  return {phi,psi,delta,Bl,Bu,k,W,S,Si,PArm,Kn,Rpt,fwd,up,lat,G,ic,RC,
+    camber,sai,caster,toe,steer:delta*DEG,scrub,springLen,damper:springLen-SPR0,
+    travel:HP.W[2]-W[2],dyW:W[1]-HP.W[1]};
+}
+
+/* ================= 状态 ================= */
+const st={
+  t:0,phi:PHI0,psi:PSI0,delta:0,F:null,ok:true,
+  bumpMode:'auto',steerMode:'auto',
+  travelSet:0,amp:45,freq:0.35,impT:-10,
+  steerDeg:0,steerFreq:0.22,
+  show:{kingpin:true,trace:true,roll:true,labels:true,grid:true,body:true,wheelDetail:true,constr2:true},
+  highlight:null,orbit:false
+};
+st.F=solvePose(0,0,{phi:PHI0,psi:PSI0,delta:0});
+
+/* ================= 轨迹与曲线预计算 ================= */
+const TRACES={Bl:[],Bu:[],W:[],G:[]},CURVES={tr:[],camber:[],toe:[],rc:[]};
+(function(){
+  let h={phi:PHI0,psi:PSI0,delta:0};
+  const N=64;
+  for(let i=0;i<=N;i++){
+    const tr=TR_MIN+(TR_MAX-TR_MIN)*i/N;
+    const p=solvePose(tr,0,h); if(!p)continue;
+    h={phi:p.phi,psi:p.psi,delta:p.delta};
+    TRACES.Bl.push(p.Bl);TRACES.Bu.push(p.Bu);TRACES.W.push(p.W);TRACES.G.push(p.G);
+    CURVES.tr.push(tr);CURVES.camber.push(p.camber);CURVES.toe.push(p.toe);
+    CURVES.rc.push(p.RC?p.RC[2]:null);
+  }
+})();
+let chDegMin=1e9,chDegMax=-1e9,chRcMin=1e9,chRcMax=-1e9;
+CURVES.camber.concat(CURVES.toe).forEach(v=>{chDegMin=Math.min(chDegMin,v);chDegMax=Math.max(chDegMax,v);});
+CURVES.rc.forEach(v=>{if(v!=null){chRcMin=Math.min(chRcMin,v);chRcMax=Math.max(chRcMax,v);}});
+chDegMin-=0.6;chDegMax+=0.6;chRcMin-=15;chRcMax+=15;
+
+/* ================= 画布 ================= */
+const cv=$('cv'),ctx=cv.getContext('2d');
+let dpr=1,vw=100,vh=100;
+function resize(){
+  const r=cv.parentElement.getBoundingClientRect();dpr=window.devicePixelRatio||1;
+  vw=r.width;vh=r.height;cv.width=vw*dpr;cv.height=vh*dpr;
+}
+window.addEventListener('resize',()=>{resize();sizeChart();});
+resize();
+
+const cam={yaw:0.82,pitch:0.33,dist:2500,tg:[0,470,300]};
+let camA=null;
+const VIEWS={
+  iso:{yaw:0.82,pitch:0.33,dist:2500,tg:[0,470,300]},
+  front:{yaw:Math.PI/2,pitch:0.02,dist:2300,tg:[0,470,310]},
+  side:{yaw:0.001,pitch:0.02,dist:2300,tg:[0,470,310]},
+  top:{yaw:0.001,pitch:1.44,dist:2400,tg:[0,520,0]}
+};
+function setView(v){camA={t0:performance.now(),dur:480,f:{yaw:cam.yaw,pitch:cam.pitch,dist:cam.dist,tg:cam.tg.slice()},t:VIEWS[v]};}
+
+const C_LOW='#3fd0e0',C_UP='#ffb02e',C_KNU='#d7e1ea',C_TIE='#6fdc6f',
+      C_KP='#ff5d5d',C_SPR='#ffd94a',C_WHL='#e8eef4',C_CON='#b78bff';
+const segs=[],nodes=[],labels=[];
+
+function circlePts(c,r,a,b,n){
+  const p=[];
+  for(let i=0;i<=n;i++){const t=i/n*TAU,co=Math.cos(t),si=Math.sin(t);
+    p.push([c[0]+r*(co*a[0]+si*b[0]),c[1]+r*(co*a[1]+si*b[1]),c[2]+r*(co*a[2]+si*b[2])]);}
+  return p;
+}
+
+function drawScene(){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const bg=ctx.createLinearGradient(0,0,0,vh);
+  bg.addColorStop(0,'#13171c');bg.addColorStop(1,'#0a0d10');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,vw,vh);
+
+  if(camA){
+    let u=(performance.now()-camA.t0)/camA.dur;
+    if(u>=1){cam.yaw=camA.t.yaw;cam.pitch=camA.t.pitch;cam.dist=camA.t.dist;cam.tg=camA.t.tg.slice();camA=null;}
+    else{u=u<0.5?2*u*u:1-Math.pow(-2*u+2,2)/2;
+      cam.yaw=camA.f.yaw+(camA.t.yaw-camA.f.yaw)*u;
+      cam.pitch=camA.f.pitch+(camA.t.pitch-camA.f.pitch)*u;
+      cam.dist=camA.f.dist+(camA.t.dist-camA.f.dist)*u;
+      cam.tg=[0,1,2].map(i=>camA.f.tg[i]+(camA.t.tg[i]-camA.f.tg[i])*u);}
+  }
+  const F=st.F; if(!F)return;
+
+  const sp=Math.sin(cam.pitch),cp=Math.cos(cam.pitch),sy=Math.sin(cam.yaw),cy=Math.cos(cam.yaw);
+  const eye=[cam.tg[0]+cam.dist*cp*sy,cam.tg[1]+cam.dist*cp*cy,cam.tg[2]+cam.dist*sp];
+  const fwd=V.norm(V.sub(cam.tg,eye));
+  let right=V.cross(fwd,[0,0,1]); if(V.len(right)<1e-6)right=[1,0,0]; right=V.norm(right);
+  const upv=V.cross(right,fwd);
+  const FL=1.25*vh,cx=vw/2,cyc=vh/2;
+  const proj=p=>{const d=V.sub(p,eye),z=V.dot(d,fwd);if(z<60)return null;
+    return {x:cx+V.dot(d,right)*FL/z,y:cyc-V.dot(d,upv)*FL/z,z};};
+  const SEG=(p1,p2,color,w,group,opt)=>{
+    const a=proj(p1),b=proj(p2);if(!a||!b)return;
+    segs.push({a,b,color,w,group,dash:opt&&opt.dash,alpha:opt&&opt.alpha!=null?opt.alpha:1,z:(a.z+b.z)/2});
+  };
+  const POLY=(pts,color,w,group,opt,close)=>{
+    for(let i=0;i<pts.length-1;i++)SEG(pts[i],pts[i+1],color,w,group,opt);
+    if(close)SEG(pts[pts.length-1],pts[0],color,w,group,opt);
+  };
+  const NODE=(p,type,color,group)=>nodes.push({p,type,color,group});
+  segs.length=0;nodes.length=0;labels.length=0;
+
+  /* --- 地面网格 / 中心线 --- */
+  if(st.show.grid){
+    for(let x=-800;x<=800;x+=100)
+      SEG([x,-200,0],[x,1400,0],x%400===0?'rgba(96,116,132,0.26)':'rgba(96,116,132,0.10)',1,'grid');
+    for(let y=-200;y<=1400;y+=100)
+      SEG([-800,y,0],[800,y,0],y%400===0?'rgba(96,116,132,0.26)':'rgba(96,116,132,0.10)',1,'grid');
+    SEG([-950,0,0],[950,0,0],'rgba(255,122,30,0.4)',1.2,'grid',{dash:[16,6,3,6]});
+  }
+  /* --- 车身轮廓 --- */
+  if(st.show.body){
+    const bx=[-450,450],by=[0,340],bz=[150,620],C=[];
+    for(const x of bx)for(const y of by)for(const z of bz)C.push([x,y,z]);
+    [[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]]
+      .forEach(e=>SEG(C[e[0]],C[e[1]],'rgba(122,138,152,0.28)',1,'body'));
+  }
+  /* --- 运动轨迹 --- */
+  if(st.show.trace){
+    POLY(TRACES.Bl,'rgba(63,208,224,0.45)',1,'trace');
+    POLY(TRACES.Bu,'rgba(255,176,46,0.45)',1,'trace');
+    POLY(TRACES.W,'rgba(232,238,244,0.32)',1,'trace');
+    POLY(TRACES.G,'rgba(255,93,93,0.5)',1,'trace');
+  }
+  /* --- 侧倾中心作图 (瞬心法) --- */
+  if(st.show.roll&&F.ic){
+    const ic3=[0,F.ic[0],F.ic[1]],cp0=[0,F.W[1],0];
+    SEG([0,CL[1],CL[2]],ic3,C_CON,1,'constr',{dash:[6,5],alpha:0.8});
+    SEG([0,CU[1],CU[2]],ic3,C_CON,1,'constr',{dash:[6,5],alpha:0.8});
+    SEG(cp0,ic3,C_CON,1,'constr',{alpha:0.9});
+    if(F.RC){
+      SEG([0,-70,F.RC[2]],[0,70,F.RC[2]],C_CON,1.4,'constr');
+      NODE([0,0,F.RC[2]],'rc',C_CON,'constr');
+      if(st.show.labels)labels.push({p:[0,0,F.RC[2]],t:'侧倾中心 ROLL CENTER',dx:-128,dy:14,c:C_CON});
+    }
+    NODE(ic3,'cross',C_CON,'constr');
+  }
+  /* --- 控制臂 (刚性 A 臂) --- */
+  SEG(HP.Lf,F.Bl,C_LOW,2.2,'lower');SEG(HP.Lr,F.Bl,C_LOW,2.2,'lower');SEG(HP.Lf,HP.Lr,C_LOW,1.6,'lower');
+  SEG(HP.Uf,F.Bu,C_UP,2.2,'upper');SEG(HP.Ur,F.Bu,C_UP,2.2,'upper');SEG(HP.Uf,HP.Ur,C_UP,1.6,'upper');
+  NODE(HP.Lf,'fixed',C_LOW,'lower');NODE(HP.Lr,'fixed',C_LOW,'lower');
+  NODE(HP.Uf,'fixed',C_UP,'upper');NODE(HP.Ur,'fixed',C_UP,'upper');
+  NODE(F.Bl,'ball',C_LOW,'lower');NODE(F.Bu,'ball',C_UP,'upper');
+  /* --- 转向节 / 主轴 / 转向臂 --- */
+  SEG(F.Bl,F.Si,C_KNU,2,'knuckle');SEG(F.Si,F.Bu,C_KNU,2,'knuckle');SEG(F.Bu,F.Bl,C_KNU,1.4,'knuckle');
+  SEG(F.Si,F.W,C_KNU,3,'knuckle');
+  SEG(F.Bl,F.PArm,C_KNU,1.8,'knuckle');SEG(F.PArm,F.S,C_KNU,1.8,'knuckle');SEG(F.S,F.Bl,C_KNU,1.4,'knuckle');
+  SEG(V.sub(F.Bl,V.mul(F.k,28)),V.add(F.Bu,V.mul(F.k,42)),'#b9c6d2',3,'knuckle');
+  if(st.show.wheelDetail)
+    POLY(circlePts(V.sub(F.W,V.mul(F.lat,90)),178,F.fwd,F.up,24),'#67727d',1,'knuckle',{alpha:0.8});
+  /* --- 主销轴线 --- */
+  if(st.show.kingpin){
+    const ext=V.add(F.Bu,V.mul(F.k,170));
+    const gext=V.add(F.Bl,V.mul(F.k,(-50-F.Bl[2])/F.k[2]));
+    SEG(ext,gext,C_KP,1.3,'kingpin',{dash:[10,6]});
+    if(st.show.constr2){
+      SEG([F.G[0]-22,F.G[1],0],[F.G[0]+22,F.G[1],0],C_KP,1.4,'kingpin');
+      SEG([F.G[0],F.G[1]-22,0],[F.G[0],F.G[1]+22,0],C_KP,1.4,'kingpin');
+      const cpA=[F.W[0],F.W[1],0];
+      SEG(F.G,cpA,'rgba(232,238,244,0.6)',1,'kingpin',{dash:[3,4]});
+      NODE(cpA,'cp','#e8eef4','kingpin');
+    }
+    if(st.show.labels)labels.push({p:ext,t:'主销轴线 KINGPIN AXIS',dx:16,dy:-14,c:C_KP});
+  }
+  /* --- 齿条 + 横拉杆 --- */
+  SEG([HP.R[0],150,HP.R[2]],[HP.R[0],470,HP.R[2]],'#5a6570',4,'rack');
+  NODE([HP.R[0],180,HP.R[2]],'fixed','#5a6570','rack');NODE([HP.R[0],440,HP.R[2]],'fixed','#5a6570','rack');
+  const mid=V.add(F.Rpt,V.mul(V.sub(F.S,F.Rpt),0.45));
+  SEG(F.Rpt,mid,C_TIE,3.4,'tierod');SEG(mid,F.S,C_TIE,1.8,'tierod');
+  NODE(F.Rpt,'ball',C_TIE,'tierod');NODE(F.S,'ball',C_TIE,'tierod');
+  /* --- 弹簧(可形变) + 减振器 --- */
+  const ax=V.sub(HP.T,F.Pa),L=V.len(ax),au=V.mul(ax,1/L);
+  SEG(V.add(F.Pa,V.mul(ax,0.5)),V.add(F.Pa,V.mul(ax,0.97)),'#59636d',6,'spring');
+  SEG(F.Pa,V.add(F.Pa,V.mul(ax,0.55)),'#93a1ad',2,'spring');
+  let n=V.cross(au,[1,0,0]); if(V.len(n)<0.35)n=V.cross(au,[0,1,0]); n=V.norm(n);
+  const m=V.cross(au,n),coil=[[F.Pa[0],F.Pa[1],F.Pa[2]]];
+  for(let i=0;i<=70;i++){
+    const t=0.05+0.90*i/70,ang=i/70*7*TAU;
+    coil.push(V.add(V.add(F.Pa,V.mul(ax,t)),V.add(V.mul(n,Math.cos(ang)*30),V.mul(m,Math.sin(ang)*30))));
+  }
+  coil.push([HP.T[0],HP.T[1],HP.T[2]]);
+  POLY(coil,C_SPR,1.4,'spring');
+  NODE(HP.T,'fixed',C_SPR,'spring');NODE(F.Pa,'ball',C_SPR,'spring');
+  SEG(V.add(HP.T,[-16,0,0]),V.add(HP.T,[16,0,0]),C_SPR,1.4,'spring');
+  /* --- 车轮 --- */
+  const Wo=V.add(F.W,V.mul(F.lat,105)),Wi=V.sub(F.W,V.mul(F.lat,105));
+  POLY(circlePts(Wo,330,F.fwd,F.up,36),C_WHL,1.7,'wheel');
+  if(st.show.wheelDetail){
+    POLY(circlePts(Wi,330,F.fwd,F.up,36),C_WHL,1.1,'wheel',{alpha:0.5});
+    for(let i=0;i<24;i++){
+      const a=i/24*TAU,dir=V.add(V.mul(F.fwd,Math.cos(a)),V.mul(F.up,Math.sin(a)));
+      SEG(V.add(Wo,V.mul(dir,330)),V.add(Wi,V.mul(dir,330)),C_WHL,1,'wheel',{alpha:0.5});
+    }
+    POLY(circlePts(Wo,212,F.fwd,F.up,28),'#aeb9c4',1.2,'wheel');
+    POLY(circlePts(Wo,54,F.fwd,F.up,14),'#aeb9c4',1.2,'wheel');
+    for(let i=0;i<5;i++){
+      const a=i/5*TAU+0.35,dir=V.add(V.mul(F.fwd,Math.cos(a)),V.mul(F.up,Math.sin(a)));
+      SEG(V.add(Wo,V.mul(dir,54)),V.add(Wo,V.mul(dir,212)),'#aeb9c4',2,'wheel');
+    }
+  }
+  const g0=[F.W[0],F.W[1],0],fp=[];
+  for(const sx of[-1,1])for(const sy2 of[-1,1])
+    fp.push(V.add(V.add(g0,V.mul(F.fwd,115*sx)),V.mul(F.lat,100*sy2)));
+  POLY([fp[0],fp[2],fp[3],fp[1]],'rgba(232,238,244,0.45)',1,'wheel',{dash:[5,4]},true);
+  /* --- 标注 --- */
+  if(st.show.labels){
+    const L=(p,t,dx,dy,c)=>labels.push({p,t,dx,dy,c:c||'#aebac5'});
+    L(V.mul(V.add([0,250,430],F.Bu),0.5),'上控制臂 UPPER ARM',-100,-20,C_UP);
+    L(V.mul(V.add([0,200,230],F.Bl),0.5),'下控制臂 LOWER ARM',-100,26,C_LOW);
+    L(F.Kn,'转向节 KNUCKLE',26,-4);
+    L(V.add(F.Rpt,V.mul(V.sub(F.S,F.Rpt),0.5)),'横拉杆 TIE ROD',-44,30,C_TIE);
+    L(V.add(F.Pa,V.mul(V.sub(HP.T,F.Pa),0.55)),'螺旋弹簧 SPRING',30,-6,C_SPR);
+    L(V.add(F.Pa,V.mul(V.sub(HP.T,F.Pa),0.22)),'减振器 DAMPER',34,16,'#93a1ad');
+    L([HP.R[0],150,HP.R[2]],'转向齿条 RACK',-88,18);
+    L(V.add(F.W,V.mul(F.up,338)),'车轮 WHEEL',14,-16,C_WHL);
+  }
+
+  /* --- 绘制线段 (画家算法) --- */
+  segs.sort((A,B)=>B.z-A.z);
+  for(const s of segs){
+    let w=s.w,al=s.alpha;
+    if(st.highlight){if(s.group===st.highlight)w+=1.4;else al*=0.28;}
+    ctx.globalAlpha=al;ctx.strokeStyle=s.color;ctx.lineWidth=w;
+    ctx.setLineDash(s.dash||[]);
+    ctx.beginPath();ctx.moveTo(s.a.x,s.a.y);ctx.lineTo(s.b.x,s.b.y);ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  /* --- 节点 --- */
+  for(const nd of nodes){
+    const a=proj(nd.p);if(!a)continue;
+    ctx.globalAlpha=(st.highlight&&nd.group!==st.highlight)?0.3:1;
+    const x=a.x,y=a.y;
+    if(nd.type==='ball'){
+      ctx.fillStyle=nd.color;ctx.fillRect(x-3,y-3,6,6);
+      ctx.strokeStyle='#0b0e11';ctx.lineWidth=1;ctx.strokeRect(x-3.5,y-3.5,7,7);
+    }else if(nd.type==='fixed'){
+      ctx.strokeStyle=nd.color;ctx.lineWidth=1.4;ctx.strokeRect(x-4,y-4,8,8);
+      ctx.strokeRect(x-1.5,y-1.5,3,3);
+      ctx.lineWidth=1;ctx.beginPath();
+      for(let i=-1;i<=1;i++){ctx.moveTo(x-5+i*4,y+5);ctx.lineTo(x-9+i*4,y+9);}
+      ctx.stroke();
+    }else if(nd.type==='cross'){
+      ctx.strokeStyle=nd.color;ctx.lineWidth=1.6;ctx.beginPath();
+      ctx.moveTo(x-6,y-6);ctx.lineTo(x+6,y+6);ctx.moveTo(x+6,y-6);ctx.lineTo(x-6,y+6);ctx.stroke();
+    }else if(nd.type==='rc'){
+      ctx.fillStyle=nd.color;ctx.fillRect(x-4,y-4,8,8);
+      ctx.strokeStyle='#0b0e11';ctx.lineWidth=1;ctx.strokeRect(x-4.5,y-4.5,9,9);
+    }else if(nd.type==='cp'){
+      ctx.strokeStyle=nd.color;ctx.lineWidth=1.4;ctx.strokeRect(x-3.5,y-3.5,7,7);
+    }
+  }
+  ctx.globalAlpha=1;
+  /* --- 标注文字 --- */
+  ctx.font='9px "IBM Plex Mono","Microsoft YaHei",monospace';
+  for(const lb of labels){
+    const a=proj(lb.p);if(!a)continue;
+    const x2=a.x+lb.dx,y2=a.y+lb.dy;
+    ctx.strokeStyle='rgba(70,82,92,0.9)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(x2,y2);ctx.stroke();
+    const w=ctx.measureText(lb.t).width;
+    ctx.fillStyle='rgba(10,13,16,0.88)';ctx.fillRect(x2-2,y2-9,w+6,12);
+    ctx.fillStyle=lb.c;ctx.fillText(lb.t,x2+1,y2);
+    ctx.fillRect(a.x-1.5,a.y-1.5,3,3);
+  }
+  /* --- 坐标三轴 --- */
+  const ox=vw-64,oy=vh-64;
+  [[[1,0,0],'#ff5d5d','X前'],[[0,1,0],'#3ddc84','Y左'],[[0,0,1],'#4da3ff','Z上']].forEach(ax2=>{
+    const v=ax2[0],c=ax2[1],t=ax2[2];
+    const sx=V.dot(v,right)*30,sy2=-V.dot(v,upv)*30;
+    ctx.strokeStyle=c;ctx.lineWidth=1.6;
+    ctx.beginPath();ctx.moveTo(ox,oy);ctx.lineTo(ox+sx,oy+sy2);ctx.stroke();
+    ctx.fillStyle=c;ctx.font='8px "IBM Plex Mono"';
+    ctx.fillText(t,ox+sx+(sx>=0?4:-18),oy+sy2+(sy2>=0?10:-4));
+  });
+  ctx.fillStyle='#556069';ctx.font='8px "IBM Plex Mono"';
+  ctx.fillText('GRID 400mm',vw-158,vh-10);
+}
+
+/* ================= 特性曲线 ================= */
+const chCv=$('ch'),chCtx=chCv.getContext('2d');
+let chW=300,chH=150;
+function sizeChart(){
+  chW=chCv.clientWidth;chH=150;
+  chCv.width=chW*dpr;chCv.height=chH*dpr;chCtx.setTransform(dpr,0,0,dpr,0,0);
+}
+sizeChart();
+function drawChart(){
+  const c=chCtx,w=chW,h=chH;if(!w)return;
+  c.clearRect(0,0,w,h);
+  const L=30,R=w-36,T=10,B=h-18;
+  const xOf=tr=>L+(tr+130)/235*(R-L);
+  const yDeg=v=>T+(chDegMax-v)/(chDegMax-chDegMin)*(B-T);
+  const yRc=v=>T+(chRcMax-v)/(chRcMax-chRcMin)*(B-T);
+  c.strokeStyle='rgba(96,116,132,0.16)';c.lineWidth=1;c.beginPath();
+  for(let i=0;i<=4;i++){const y=T+(B-T)*i/4;c.moveTo(L,y);c.lineTo(R,y);}
+  for(let tr=-120;tr<=80;tr+=40){const x=xOf(tr);c.moveTo(x,T);c.lineTo(x,B);}
+  c.stroke();
+  if(chDegMin<0&&chDegMax>0){
+    c.strokeStyle='rgba(232,238,244,0.28)';c.beginPath();
+    c.moveTo(L,yDeg(0));c.lineTo(R,yDeg(0));c.stroke();
+  }
+  const plot=(arr,yf,color)=>{
+    c.strokeStyle=color;c.lineWidth=1.4;c.beginPath();let s0=false;
+    for(let i=0;i<CURVES.tr.length;i++){
+      const v=arr[i];if(v==null){s0=false;continue;}
+      const x=xOf(CURVES.tr[i]),y=yf(v);
+      if(!s0){c.moveTo(x,y);s0=true;}else c.lineTo(x,y);
+    }
+    c.stroke();
+  };
+  plot(CURVES.camber,yDeg,C_UP);plot(CURVES.toe,yDeg,C_TIE);plot(CURVES.rc,yRc,C_CON);
+  const F=st.F;
+  if(F){
+    const x=xOf(clamp(F.travel,-130,105));
+    c.strokeStyle='rgba(255,122,30,0.75)';c.lineWidth=1;
+    c.beginPath();c.moveTo(x,T);c.lineTo(x,B);c.stroke();
+    const idx=clamp(Math.round((F.travel-TR_MIN)/(TR_MAX-TR_MIN)*(CURVES.tr.length-1)),0,CURVES.tr.length-1);
+    const dot=(v,yf,col)=>{if(v==null)return;c.fillStyle=col;c.fillRect(xOf(CURVES.tr[idx])-2.5,yf(v)-2.5,5,5);};
+    dot(CURVES.camber[idx],yDeg,C_UP);dot(CURVES.toe[idx],yDeg,C_TIE);dot(CURVES.rc[idx],yRc,C_CON);
+  }
+  c.fillStyle='#77848f';c.font='8px "IBM Plex Mono"';
+  c.fillText(chDegMax.toFixed(1),2,T+6);c.fillText(chDegMin.toFixed(1),2,B-2);
+  c.fillText(chRcMax.toFixed(0),R+4,T+6);c.fillText(chRcMin.toFixed(0),R+4,B-2);
+  c.fillText('-120',L-6,B+11);c.fillText('+95',R-14,B+11);
+  c.fillText('行程 mm',(L+R)/2-16,B+11);
+}
+
+/* ================= 交互 ================= */
+let drag=null;
+cv.addEventListener('pointerdown',e=>{
+  drag={x:e.clientX,y:e.clientY,pan:e.shiftKey||e.button===1||e.button===2};
+  cv.setPointerCapture(e.pointerId);cv.style.cursor='grabbing';
+});
+cv.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;
+  camA=null;
+  if(drag.pan){
+    const sp=Math.sin(cam.pitch),cp=Math.cos(cam.pitch),sy=Math.sin(cam.yaw),cy=Math.cos(cam.yaw);
+    const eye=[cam.tg[0]+cam.dist*cp*sy,cam.tg[1]+cam.dist*cp*cy,cam.tg[2]+cam.dist*sp];
+    const fwd=V.norm(V.sub(cam.tg,eye));
+    let right=V.cross(fwd,[0,0,1]);if(V.len(right)<1e-6)right=[1,0,0];right=V.norm(right);
+    const upv=V.cross(right,fwd),k=cam.dist*0.0011;
+    cam.tg=V.sub(cam.tg,V.mul(right,dx*k));cam.tg=V.add(cam.tg,V.mul(upv,dy*k));
+  }else{
+    cam.yaw-=dx*0.005;cam.pitch=clamp(cam.pitch+dy*0.005,-1.45,1.45);
+  }
+});
+cv.addEventListener('pointerup',()=>{drag=null;cv.style.cursor='crosshair';});
+cv.addEventListener('wheel',e=>{
+  e.preventDefault();camA=null;
+  cam.dist=clamp(cam.dist*Math.exp(e.deltaY*0.0012),800,6500);
+},{passive:false});
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+
+document.querySelectorAll('.vbtn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.vbtn').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');setView(b.dataset.v);
+}));
+$('c-orbit').addEventListener('change',e=>st.orbit=e.target.checked);
+document.querySelectorAll('#panel .chk input').forEach(c=>
+  c.addEventListener('change',()=>st.show[c.dataset.k]=c.checked));
+document.querySelectorAll('.lg-i').forEach(el=>{
+  el.addEventListener('mouseenter',()=>st.highlight=el.dataset.g);
+  el.addEventListener('mouseleave',()=>st.highlight=null);
+});
+
+function setSeg(g,v){
+  document.querySelector('.seg[data-g="'+g+'"]').querySelectorAll('button')
+    .forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+}
+function showDivs(){
+  $('bm-manual').style.display=st.bumpMode==='manual'?'block':'none';
+  $('bm-auto').style.display=st.bumpMode==='auto'?'block':'none';
+  $('bm-impulse').style.display=st.bumpMode==='impulse'?'block':'none';
+  $('sm-manual').style.display=st.steerMode==='manual'?'block':'none';
+  $('sm-auto').style.display=st.steerMode==='auto'?'block':'none';
+}
+document.querySelectorAll('.seg').forEach(sg=>sg.querySelectorAll('button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    const g=sg.dataset.g,v=b.dataset.v;
+    if(g==='bump'){st.bumpMode=v;if(v==='impulse')st.impT=st.t;}
+    else st.steerMode=v;
+    setSeg(g,v);showDivs();
+  });
+}));
+function bindRange(id,fn,vid,fmt){
+  const el=$(id),vv=$(vid);
+  const h=()=>{fn(el.value);vv.textContent=fmt(el.value);};
+  el.addEventListener('input',h);h();
+}
+bindRange('r-tr',v=>{st.travelSet=+v;if(st.bumpMode!=='manual'){st.bumpMode='manual';setSeg('bump','manual');showDivs();}},'v-tr',v=>(+v).toFixed(0));
+bindRange('r-amp',v=>st.amp=+v,'v-amp',v=>(+v).toFixed(0));
+bindRange('r-freq',v=>st.freq=+v,'v-freq',v=>(+v).toFixed(2));
+bindRange('r-str',v=>{st.steerDeg=+v;if(st.steerMode!=='manual'){st.steerMode='manual';setSeg('steer','manual');showDivs();}},'v-str',v=>(+v).toFixed(0));
+bindRange('r-sfreq',v=>st.steerFreq=+v,'v-sfreq',v=>(+v).toFixed(2));
+$('b-imp').addEventListener('click',()=>{st.bumpMode='impulse';setSeg('bump','impulse');showDivs();st.impT=st.t;});
+
+/* 硬点表 */
+(function(){
+  const rows=[['下摆臂前铰点','Lf'],['下摆臂后铰点','Lr'],['上摆臂前铰点','Uf'],['上摆臂后铰点','Ur'],
+    ['下球铰点','Bl'],['上球铰点','Bu'],['车轮中心','W'],['拉杆外铰点','S'],['齿条内铰点','R'],['弹簧上支座','T']];
+  $('hp-tb').innerHTML=rows.map(r=>{
+    const p=HP[r[1]];
+    return '<tr><td>'+r[0]+' '+r[1]+'</td><td>'+p[0].toFixed(0)+'</td><td>'+p[1].toFixed(0)+'</td><td>'+p[2].toFixed(0)+'</td></tr>';
+  }).join('');
+})();
+
+/* ================= 主循环 ================= */
+const fmtS=(v,n)=>(v<0?'-':'+')+Math.abs(v).toFixed(n);
+const DMAP=[['d-tr',F=>fmtS(F.travel,1)],['d-cb',F=>fmtS(F.camber,2)],['d-sai',F=>fmtS(F.sai,2)],
+  ['d-ca',F=>fmtS(F.caster,2)],['d-toe',F=>fmtS(F.toe,2)],['d-st',F=>fmtS(F.steer,1)],
+  ['d-rc',F=>F.RC?fmtS(F.RC[2],1):'--'],['d-scr',F=>fmtS(F.scrub,1)],['d-dy',F=>fmtS(F.dyW,1)],
+  ['d-gy',F=>fmtS(F.G[1],1)],['d-spr',F=>fmtS(F.springLen,1)],['d-dmp',F=>fmtS(F.damper,1)]];
+let last=performance.now(),frames=0,fpsT=performance.now();
+
+function loop(now){
+  const dt=Math.min(0.05,(now-last)/1000);last=now;st.t+=dt;
+  if(st.orbit&&!drag&&!camA)cam.yaw+=dt*0.12;
+
+  let travelT,rackT;
+  if(st.bumpMode==='manual')travelT=st.travelSet;
+  else if(st.bumpMode==='auto')travelT=st.amp*Math.sin(TAU*st.freq*st.t);
+  else{const tau=st.t-st.impT;travelT=tau>0?85*Math.exp(-1.8*tau)*Math.sin(TAU*2.0*tau):0;}
+  if(st.steerMode==='manual')rackT=-st.steerDeg*0.165;
+  else rackT=80*Math.sin(TAU*st.steerFreq*st.t+1.1);
+
+  const p=solvePose(travelT,rackT,{phi:st.phi,psi:st.psi,delta:st.delta});
+  if(p){st.F=p;st.phi=p.phi;st.psi=p.psi;st.delta=p.delta;st.ok=true;}else st.ok=false;
+  const F=st.F;
+
+  /* HUD / 数据 */
+  $('hud-tr').textContent=fmtS(F.travel,1);
+  $('hud-st').textContent=fmtS(F.steer,1);
+  $('hud-cb').textContent=fmtS(F.camber,2);
+  $('hud-rc').textContent=F.RC?fmtS(F.RC[2],0):'--';
+  DMAP.forEach(d=>$(d[0]).textContent=d[1](F));
+  const sv=st.ok?'收敛 CONVERGED':'发散 DIVERGED';
+  $('d-solv').textContent=sv;$('d-solv').style.color=st.ok?'var(--ok)':'var(--err)';
+  $('sb-solver').textContent=st.ok?'收敛':'发散';
+  $('sb-solver').className=st.ok?'ok':'err';
+  $('h-solver').textContent=st.ok?'收敛':'发散';
+  $('h-solver').className=st.ok?'ok':'err';
+
+  /* 从动滑杆实时回显 */
+  if(st.bumpMode!=='manual')$('r-tr').value=clamp(travelT,TR_MIN,TR_MAX);
+  $('v-tr').textContent=fmtS(F.travel,0);
+  if(st.steerMode!=='manual')$('r-str').value=clamp(rackT/-0.165,-540,540);
+  $('v-str').textContent=fmtS(F.steer,0);
+
+  const mm=Math.floor(st.t/60),ss=(st.t%60);
+  $('h-time').textContent=String(mm).padStart(2,'0')+':'+(ss<10?'0':'')+ss.toFixed(1);
+
+  drawScene();
+  drawChart();
+  frames++;
+  if(now-fpsT>500){$('sb-fps').textContent='FPS '+Math.round(frames*1000/(now-fpsT));frames=0;fpsT=now;}
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

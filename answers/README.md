@@ -21,7 +21,8 @@ answers/
 │   ├── kimi-k3/
 │   └── glm-5.2/
 └── 05-double-wishbone-suspension/
-    └── deepseek/
+    ├── deepseek/
+    └── qwen-3.8-max-preview/
 ```
 
 最终对比模型及目录名：
