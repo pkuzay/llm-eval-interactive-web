@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DWS-01 双叉臂悬挂运动学分析</title>
+  <style>
+    :root {
+      --bg: #080d11;
+      --panel: #0d141a;
+      --panel-2: #101a21;
+      --line: #26343d;
+      --line-strong: #3b4e59;
+      --text: #d5e0e5;
+      --muted: #73838c;
+      --cyan: #27c6d9;
+      --orange: #f39a3c;
+      --green: #69c585;
+      --red: #e05b58;
+      --yellow: #e6ca5a;
+      --blue: #4b87d8;
+      --mono: "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+      --sans: Inter, "DIN Alternate", "Segoe UI", Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--sans); }
+    body { min-width: 1040px; min-height: 650px; }
+    button, input { font: inherit; }
+    button { color: inherit; }
+
+    .app {
+      height: 100%;
+      display: grid;
+      grid-template-rows: 44px 1fr 28px;
+      background:
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
+        var(--bg);
+      background-size: 32px 32px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 300px 1fr auto;
+      align-items: center;
+      border-bottom: 1px solid var(--line-strong);
+      background: #0b1217;
+      user-select: none;
+    }
+    .brand { height: 100%; display: flex; align-items: center; gap: 11px; padding: 0 14px; border-right: 1px solid var(--line); }
+    .brand-mark { width: 18px; height: 18px; border: 2px solid var(--cyan); position: relative; }
+    .brand-mark::before, .brand-mark::after { content: ""; position: absolute; background: var(--cyan); }
+    .brand-mark::before { width: 8px; height: 2px; left: 3px; top: 6px; }
+    .brand-mark::after { width: 2px; height: 8px; left: 6px; top: 3px; }
+    .brand-title { font: 600 12px/1 var(--mono); letter-spacing: .16em; }
+    .brand-sub { margin-top: 4px; color: var(--muted); font: 9px/1 var(--mono); letter-spacing: .08em; }
+    .project { padding-left: 16px; font: 10px var(--mono); color: #91a2aa; letter-spacing: .07em; }
+    .project b { color: var(--text); font-weight: 500; }
+    .top-actions { height: 100%; display: flex; align-items: center; }
+    .status-pill { height: 100%; padding: 0 14px; border-left: 1px solid var(--line); display: flex; align-items: center; gap: 8px; font: 9px var(--mono); color: #8ea0a9; }
+    .status-dot { width: 6px; height: 6px; background: var(--green); }
+    .top-btn { height: 27px; border: 1px solid var(--line-strong); background: #121c22; padding: 0 12px; margin-right: 10px; font: 9px var(--mono); letter-spacing: .05em; cursor: pointer; }
+    .top-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+    .workspace { min-height: 0; display: grid; grid-template-columns: 274px minmax(500px, 1fr) 294px; }
+    .panel { min-height: 0; background: rgba(11,18,23,.96); overflow: auto; scrollbar-width: thin; scrollbar-color: #34464f #0b1217; }
+    .left-panel { border-right: 1px solid var(--line-strong); }
+    .right-panel { border-left: 1px solid var(--line-strong); }
+    .panel-head { height: 33px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid var(--line); background: #10191f; font: 9px var(--mono); letter-spacing: .12em; color: #a8b6bc; position: sticky; top: 0; z-index: 3; }
+    .panel-head span:last-child { color: var(--muted); letter-spacing: 0; }
+    .section { padding: 12px; border-bottom: 1px solid var(--line); }
+    .section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 11px; font: 9px var(--mono); color: #94a5ad; letter-spacing: .1em; }
+    .section-title::before { content: ""; width: 3px; height: 10px; background: var(--cyan); margin-right: 7px; }
+    .section-title span:first-child { margin-right: auto; }
+    .section-title em { color: #586872; font-style: normal; letter-spacing: 0; }
+
+    .control { margin-bottom: 15px; }
+    .control:last-child { margin-bottom: 0; }
+    .control-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; }
+    .control-label { font-size: 10px; color: #9cabb2; }
+    .control-value { color: var(--cyan); font: 10px var(--mono); }
+    input[type="range"] { width: 100%; height: 14px; appearance: none; background: transparent; cursor: pointer; }
+    input[type="range"]::-webkit-slider-runnable-track { height: 2px; background: #32434c; }
+    input[type="range"]::-webkit-slider-thumb { appearance: none; width: 8px; height: 14px; margin-top: -6px; background: var(--cyan); border: 0; border-radius: 0; }
+    input[type="range"]::-moz-range-track { height: 2px; background: #32434c; }
+    input[type="range"]::-moz-range-thumb { width: 8px; height: 14px; background: var(--cyan); border: 0; border-radius: 0; }
+    .scale { display: flex; justify-content: space-between; color: #53646d; font: 8px var(--mono); margin-top: 2px; }
+
+    .segmented { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line-strong); }
+    .segmented button { height: 29px; border: 0; border-right: 1px solid var(--line-strong); background: #0e171c; font: 8px var(--mono); cursor: pointer; color: #788992; }
+    .segmented button:last-child { border-right: 0; }
+    .segmented button.active { background: #173039; color: var(--cyan); box-shadow: inset 0 -2px 0 var(--cyan); }
+
+    .check-list { display: grid; gap: 9px; }
+    .check { display: flex; align-items: center; justify-content: space-between; font-size: 10px; color: #8d9da5; cursor: pointer; }
+    .switch { width: 27px; height: 13px; border: 1px solid #3a4b54; position: relative; background: #0a1014; }
+    .switch::after { content: ""; position: absolute; width: 7px; height: 7px; left: 2px; top: 2px; background: #4a5c65; transition: .16s; }
+    .check input { display: none; }
+    .check input:checked + .switch { border-color: #287f8b; background: #10262c; }
+    .check input:checked + .switch::after { left: 16px; background: var(--cyan); }
+
+    .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+    .preset { height: 29px; border: 1px solid #34454e; background: #10191f; color: #84959d; font: 8px var(--mono); cursor: pointer; }
+    .preset:hover, .preset.active { border-color: var(--cyan); color: var(--cyan); background: #13262c; }
+
+    .viewport { min-width: 0; min-height: 0; position: relative; overflow: hidden; background: #080e12; }
+    #scene { position: absolute; inset: 0; }
+    #scene canvas { display: block; }
+    .viewport-top { position: absolute; left: 12px; right: 12px; top: 10px; z-index: 2; pointer-events: none; display: flex; justify-content: space-between; align-items: flex-start; }
+    .view-label { border-left: 2px solid var(--cyan); padding: 4px 0 4px 9px; background: linear-gradient(90deg, rgba(8,14,18,.85), transparent); }
+    .view-label strong { display: block; font: 10px var(--mono); letter-spacing: .1em; }
+    .view-label span { display: block; margin-top: 5px; color: #6e8089; font: 8px var(--mono); }
+    .axis-legend { display: flex; gap: 10px; padding: 6px 8px; background: rgba(8,14,18,.82); border: 1px solid rgba(66,87,98,.6); font: 8px var(--mono); }
+    .axis-legend i { width: 7px; height: 7px; display: inline-block; margin-right: 4px; }
+    .axis-x { background: var(--red); } .axis-y { background: var(--green); } .axis-z { background: var(--blue); }
+
+    .view-toolbar { position: absolute; z-index: 4; right: 12px; bottom: 74px; display: grid; border: 1px solid var(--line-strong); }
+    .view-toolbar button { width: 32px; height: 29px; border: 0; border-bottom: 1px solid var(--line-strong); background: rgba(13,21,26,.94); color: #75868e; font: 8px var(--mono); cursor: pointer; }
+    .view-toolbar button:last-child { border-bottom: 0; }
+    .view-toolbar button:hover, .view-toolbar button.active { color: var(--cyan); background: #152a31; }
+
+    .timeline { position: absolute; z-index: 3; left: 12px; right: 54px; bottom: 10px; height: 53px; border: 1px solid rgba(57,75,84,.9); background: rgba(10,16,20,.92); display: grid; grid-template-columns: 76px 1fr 92px; align-items: center; }
+    .play { height: 100%; border: 0; border-right: 1px solid var(--line); background: #10191e; color: var(--cyan); font: 9px var(--mono); cursor: pointer; }
+    .play:hover { background: #14262c; }
+    .timeline-mid { padding: 0 12px; }
+    .timeline-info { display: flex; justify-content: space-between; margin-bottom: 7px; font: 8px var(--mono); color: #657780; }
+    .timeline input { height: 9px; }
+    .timeline-readout { border-left: 1px solid var(--line); height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; font: 8px var(--mono); color: #64767e; }
+    .timeline-readout b { color: #b5c4ca; font-size: 13px; font-weight: 500; margin-bottom: 3px; }
+
+    .metric-grid { display: grid; grid-template-columns: 1fr 1fr; border-left: 1px solid var(--line); border-top: 1px solid var(--line); }
+    .metric { min-height: 58px; padding: 9px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #0c1419; }
+    .metric-label { font: 8px var(--mono); color: #63747d; letter-spacing: .04em; white-space: nowrap; }
+    .metric-value { margin-top: 6px; font: 16px var(--mono); color: #cbd8dd; }
+    .metric-value small { color: #6c7c84; font-size: 8px; }
+    .metric-delta { margin-top: 4px; font: 8px var(--mono); color: var(--green); }
+    .metric-delta.negative { color: var(--orange); }
+
+    .diagram { border: 1px solid var(--line); background: #091014; height: 148px; position: relative; }
+    #graph { width: 100%; height: 100%; display: block; }
+    .graph-legend { position: absolute; top: 7px; right: 8px; display: flex; gap: 8px; font: 7px var(--mono); color: #71828a; }
+    .graph-legend i { display: inline-block; width: 10px; height: 2px; margin-right: 3px; vertical-align: middle; }
+    .legend-camber { background: var(--cyan); } .legend-toe { background: var(--orange); }
+
+    .hardpoints { width: 100%; border-collapse: collapse; font: 8px var(--mono); }
+    .hardpoints th { text-align: left; color: #5f7079; font-weight: 400; padding: 0 3px 7px; border-bottom: 1px solid var(--line); }
+    .hardpoints td { padding: 7px 3px; border-bottom: 1px solid #1b282f; color: #91a1a9; }
+    .hardpoints td:nth-child(n+2) { text-align: right; color: #bac7cc; }
+    .point-tag { display: inline-flex; width: 20px; height: 14px; align-items: center; justify-content: center; background: #183038; color: var(--cyan); }
+
+    .note { padding: 9px; border-left: 2px solid var(--yellow); background: #171811; color: #929179; font-size: 9px; line-height: 1.55; }
+    .statusbar { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 18px; padding: 0 10px; border-top: 1px solid var(--line-strong); background: #0a1115; color: #5f717a; font: 8px var(--mono); }
+    .statusbar b { color: #94a6ad; font-weight: 400; }
+    .statusbar .ok { color: var(--green); }
+    .statusbar .coord { color: #7d8f97; }
+
+    .loading { position: absolute; inset: 0; z-index: 20; background: #080d11; display: flex; align-items: center; justify-content: center; font: 10px var(--mono); color: #65767f; letter-spacing: .1em; }
+    .loading::before { content: ""; width: 7px; height: 7px; background: var(--cyan); margin-right: 10px; animation: pulse 1s steps(2) infinite; }
+    @keyframes pulse { 50% { opacity: .2; } }
+
+    @media (max-width: 1180px) {
+      .workspace { grid-template-columns: 250px minmax(450px, 1fr) 270px; }
+      .brand { width: 250px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div><div class="brand-title">KINEMATICS LAB</div><div class="brand-sub">VEHICLE DYNAMICS / DWS-01</div></div>
+      </div>
+      <div class="project"><b>PROJECT:</b> FRONT DOUBLE WISHBONE — KINEMATIC MODEL</div>
+      <div class="top-actions">
+        <div class="status-pill"><i class="status-dot"></i> SOLVER ACTIVE · 60 Hz</div>
+        <button class="top-btn" id="resetBtn">RESET MODEL</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="panel left-panel">
+        <div class="panel-head"><span>INPUT PARAMETERS</span><span>MODEL A</span></div>
+        <section class="section">
+          <div class="section-title"><span>SUSPENSION TRAVEL</span><em>01</em></div>
+          <div class="control">
+            <div class="control-row"><span class="control-label">Wheel vertical travel</span><span class="control-value" id="travelValue">0 mm</span></div>
+            <input id="travel" type="range" min="-90" max="90" value="0" step="1">
+            <div class="scale"><span>−90 REBOUND</span><span>0</span><span>+90 BUMP</span></div>
+          </div>
+          <div class="control">
+            <div class="control-row"><span class="control-label">Body roll</span><span class="control-value" id="rollValue">0.0°</span></div>
+            <input id="roll" type="range" min="-4" max="4" value="0" step="0.1">
+            <div class="scale"><span>LEFT</span><span>LEVEL</span><span>RIGHT</span></div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title"><span>STEERING SYSTEM</span><em>02</em></div>
+          <div class="control">
+            <div class="control-row"><span class="control-label">Rack displacement</span><span class="control-value" id="steerValue">0 mm</span></div>
+            <input id="steer" type="range" min="-65" max="65" value="0" step="1">
+            <div class="scale"><span>LEFT LOCK</span><span>CENTER</span><span>RIGHT LOCK</span></div>
+          </div>
+          <div class="control">
+            <div class="control-row"><span class="control-label">Steering ratio</span><span class="control-value">14.2 : 1</span></div>
+          </div>
+          <div class="segmented" id="steerMode"><button class="active" data-mode="ackermann">ACKERMANN</button><button data-mode="parallel">PARALLEL</button><button data-mode="static">LOCKED</button></div>
+        </section>
+
+        <section class="section">
+          <div class="section-title"><span>SIMULATION</span><em>03</em></div>
+          <div class="preset-grid">
+            <button class="preset active" data-preset="bump">BUMP / REBOUND</button>
+            <button class="preset" data-preset="steer">STEERING SWEEP</button>
+            <button class="preset" data-preset="roll">BODY ROLL</button>
+            <button class="preset" data-preset="combined">COMBINED LOAD</button>
+          </div>
+          <div class="control" style="margin-top:14px">
+            <div class="control-row"><span class="control-label">Cycle frequency</span><span class="control-value" id="freqValue">0.40 Hz</span></div>
+            <input id="frequency" type="range" min="10" max="100" value="40" step="5">
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title"><span>OVERLAYS</span><em>04</em></div>
+          <div class="check-list">
+            <label class="check"><span>Hardpoint labels</span><input id="showLabels" type="checkbox" checked><i class="switch"></i></label>
+            <label class="check"><span>Kingpin axis & path</span><input id="showKingpin" type="checkbox" checked><i class="switch"></i></label>
+            <label class="check"><span>Wheel center trajectory</span><input id="showPath" type="checkbox" checked><i class="switch"></i></label>
+            <label class="check"><span>Force vectors</span><input id="showForces" type="checkbox"><i class="switch"></i></label>
+            <label class="check"><span>Reference geometry</span><input id="showReference" type="checkbox" checked><i class="switch"></i></label>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title"><span>VIEW PRESETS</span><em>05</em></div>
+          <div class="preset-grid" id="views">
+            <button class="preset active" data-view="iso">ISOMETRIC</button>
+            <button class="preset" data-view="front">FRONT</button>
+            <button class="preset" data-view="top">TOP</button>
+            <button class="preset" data-view="side">SIDE</button>
+          </div>
+        </section>
+      </aside>
+
+      <section class="viewport">
+        <div id="scene"></div>
+        <div class="loading" id="loading">INITIALIZING KINEMATIC SOLVER</div>
+        <div class="viewport-top">
+          <div class="view-label"><strong>FRONT AXLE ASSEMBLY / LIVE</strong><span>Drag to orbit · Wheel to zoom · Right-drag to pan</span></div>
+          <div class="axis-legend"><span><i class="axis-x"></i>X LATERAL</span><span><i class="axis-y"></i>Y VERTICAL</span><span><i class="axis-z"></i>Z LONGITUDINAL</span></div>
+        </div>
+        <div class="view-toolbar">
+          <button id="wireBtn" title="Wireframe">WIRE</button>
+          <button id="gridBtn" class="active" title="Grid">GRID</button>
+          <button id="focusBtn" title="Focus">FIT</button>
+        </div>
+        <div class="timeline">
+          <button class="play" id="playBtn">Ⅱ&nbsp; PAUSE</button>
+          <div class="timeline-mid">
+            <div class="timeline-info"><span>AUTO-CYCLE PHASE</span><span id="phaseLabel">00.0%</span></div>
+            <input id="phase" type="range" min="0" max="1000" value="0" step="1">
+          </div>
+          <div class="timeline-readout"><b id="timeLabel">0.00 s</b><span>SIM TIME</span></div>
+        </div>
+      </section>
+
+      <aside class="panel right-panel">
+        <div class="panel-head"><span>LIVE ANALYSIS</span><span>SI / DEG</span></div>
+        <section class="section">
+          <div class="section-title"><span>KINEMATIC OUTPUT</span><em>LIVE</em></div>
+          <div class="metric-grid">
+            <div class="metric"><div class="metric-label">CAMBER · L</div><div class="metric-value" id="camberL">−1.20<small>°</small></div><div class="metric-delta" id="camberGain">0.00° gain</div></div>
+            <div class="metric"><div class="metric-label">CAMBER · R</div><div class="metric-value" id="camberR">−1.20<small>°</small></div><div class="metric-delta">cross check</div></div>
+            <div class="metric"><div class="metric-label">TOE · L</div><div class="metric-value" id="toeL">0.00<small>°</small></div><div class="metric-delta" id="toeState">neutral</div></div>
+            <div class="metric"><div class="metric-label">TOE · R</div><div class="metric-value" id="toeR">0.00<small>°</small></div><div class="metric-delta">Ackermann</div></div>
+            <div class="metric"><div class="metric-label">TRACK CHANGE</div><div class="metric-value" id="trackChange">0.0<small> mm</small></div><div class="metric-delta">vs. static</div></div>
+            <div class="metric"><div class="metric-label">SPRING COMP.</div><div class="metric-value" id="springComp">0.0<small> mm</small></div><div class="metric-delta">MR 0.72</div></div>
+            <div class="metric"><div class="metric-label">ROLL CENTER</div><div class="metric-value" id="rollCenter">78<small> mm</small></div><div class="metric-delta">front axle</div></div>
+            <div class="metric"><div class="metric-label">SCRUB RADIUS</div><div class="metric-value" id="scrub">34<small> mm</small></div><div class="metric-delta">positive</div></div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title"><span>GAIN CURVE</span><em>−90 … +90 mm</em></div>
+          <div class="diagram">
+            <canvas id="graph"></canvas>
+            <div class="graph-legend"><span><i class="legend-camber"></i>CAMBER</span><span><i class="legend-toe"></i>BUMP STEER</span></div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title"><span>HARDPOINT COORDINATES</span><em>LEFT / mm</em></div>
+          <table class="hardpoints">
+            <thead><tr><th>ID / POINT</th><th>X</th><th>Y</th><th>Z</th></tr></thead>
+            <tbody>
+              <tr><td><span class="point-tag">U1</span> UCA F</td><td>−548</td><td>282</td><td>−182</td></tr>
+              <tr><td><span class="point-tag">U2</span> UCA R</td><td>−548</td><td>282</td><td>182</td></tr>
+              <tr><td><span class="point-tag">UB</span> UPPER BJ</td><td id="ubX">−852</td><td id="ubY">235</td><td>12</td></tr>
+              <tr><td><span class="point-tag">L1</span> LCA F</td><td>−540</td><td>−100</td><td>−224</td></tr>
+              <tr><td><span class="point-tag">L2</span> LCA R</td><td>−540</td><td>−100</td><td>214</td></tr>
+              <tr><td><span class="point-tag">LB</span> LOWER BJ</td><td id="lbX">−878</td><td id="lbY">−158</td><td>0</td></tr>
+              <tr><td><span class="point-tag">TR</span> TIE ROD</td><td id="trX">−804</td><td id="trY">22</td><td>144</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="section">
+          <div class="note">Quasi-static rigid-link model. Bush compliance, tire deflection and chassis torsion are excluded from this kinematic visualization.</div>
+        </section>
+      </aside>
+    </main>
+
+    <footer class="statusbar">
+      <span class="ok">● MODEL CONVERGED</span>
+      <span>DOF: <b>3 INPUT / 18 CONSTRAINED</b></span>
+      <span>FRAME: <b>SAE VEHICLE</b></span>
+      <span class="coord" id="cursorCoord">X +0000.0&nbsp;&nbsp;Y +0000.0&nbsp;&nbsp;Z +0000.0</span>
+    </footer>
+  </div>
+
+  <script type="importmap">
+  { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.167.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.167.1/examples/jsm/"
+  } }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const $ = (id) => document.getElementById(id);
+    const sceneHost = $('scene');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setClearColor(0x080e12, 1);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    sceneHost.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x080e12, 0.00023);
+    const camera = new THREE.PerspectiveCamera(32, 1, 1, 9000);
+    camera.position.set(1960, 1080, 2150);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 45, 20);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.07;
+    controls.minDistance = 1000;
+    controls.maxDistance = 4900;
+
+    scene.add(new THREE.HemisphereLight(0xa8d5e2, 0x10171b, 1.25));
+    const key = new THREE.DirectionalLight(0xffffff, 3.1);
+    key.position.set(1500, 1800, 1600); key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048); key.shadow.camera.left = -2200; key.shadow.camera.right = 2200; key.shadow.camera.top = 1600; key.shadow.camera.bottom = -1000;
+    scene.add(key);
+    const rim = new THREE.DirectionalLight(0x1b9fb8, 2.0); rim.position.set(-1800, 700, -1300); scene.add(rim);
+
+    const materials = {
+      arm: new THREE.MeshStandardMaterial({ color: 0x6e7b80, metalness: .76, roughness: .28 }),
+      armEdge: new THREE.MeshStandardMaterial({ color: 0xa5b0b4, metalness: .8, roughness: .2 }),
+      upright: new THREE.MeshStandardMaterial({ color: 0xaab2b5, metalness: .88, roughness: .22 }),
+      dark: new THREE.MeshStandardMaterial({ color: 0x222b2f, metalness: .72, roughness: .35 }),
+      rubber: new THREE.MeshStandardMaterial({ color: 0x0c0e0f, metalness: .06, roughness: .84 }),
+      rim: new THREE.MeshStandardMaterial({ color: 0x49565b, metalness: .93, roughness: .18 }),
+      cyan: new THREE.MeshStandardMaterial({ color: 0x24bed0, emissive: 0x063e47, emissiveIntensity: .9, metalness: .45, roughness: .25 }),
+      orange: new THREE.MeshStandardMaterial({ color: 0xe68b35, emissive: 0x3a1703, emissiveIntensity: .55, metalness: .45, roughness: .28 }),
+      red: new THREE.MeshStandardMaterial({ color: 0xc94f4d, emissive: 0x260404, emissiveIntensity: .35, metalness: .45, roughness: .3 }),
+      chassis: new THREE.MeshStandardMaterial({ color: 0x26333a, metalness: .75, roughness: .32 }),
+      transparent: new THREE.MeshStandardMaterial({ color: 0x1a7987, transparent: true, opacity: .12, side: THREE.DoubleSide, depthWrite: false }),
+      reference: new THREE.LineBasicMaterial({ color: 0x31505a, transparent: true, opacity: .65 }),
+      path: new THREE.LineBasicMaterial({ color: 0x2ac5d8, transparent: true, opacity: .85 }),
+      kingpin: new THREE.LineDashedMaterial({ color: 0xe5c953, dashSize: 22, gapSize: 11, transparent: true, opacity: .9 })
+    };
+
+    const V = (x=0,y=0,z=0) => new THREE.Vector3(x,y,z);
+    function rod(a, b, radius, material, radial=12) {
+      const g = new THREE.CylinderGeometry(radius, radius, 1, radial);
+      const m = new THREE.Mesh(g, material); m.castShadow = m.receiveShadow = true;
+      updateRod(m, a, b); scene.add(m); return m;
+    }
+    function updateRod(mesh, a, b) {
+      const d = b.clone().sub(a), len = d.length();
+      mesh.position.copy(a).add(b).multiplyScalar(.5);
+      mesh.scale.set(1, len, 1);
+      mesh.quaternion.setFromUnitVectors(V(0,1,0), d.normalize());
+    }
+    function joint(p, r=24, mat=materials.dark) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 12), mat); m.position.copy(p); m.castShadow = true; scene.add(m); return m;
+    }
+    function line(points, material=materials.reference) {
+      const geo = new THREE.BufferGeometry().setFromPoints(points);
+      const obj = new THREE.Line(geo, material); scene.add(obj); return obj;
+    }
+    function setLine(obj, points) { obj.geometry.setFromPoints(points); obj.computeLineDistances?.(); }
+    function disc(radius, tube, material) {
+      const m = new THREE.Mesh(new THREE.TorusGeometry(radius, tube, 12, 40), material);
+      m.rotation.y = Math.PI/2; m.castShadow = true; return m;
+    }
+
+    const grid = new THREE.GridHelper(3400, 34, 0x29414b, 0x17262d);
+    grid.position.y = -430; scene.add(grid);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(6000, 4200), new THREE.MeshStandardMaterial({ color: 0x080d10, roughness: .95, metalness: .1 }));
+    floor.rotation.x = -Math.PI/2; floor.position.y = -432; floor.receiveShadow = true; scene.add(floor);
+
+    // Chassis crossmembers and central steering rack.
+    rod(V(-650, 290, -230), V(650, 290, -230), 34, materials.chassis, 16);
+    rod(V(-650, 290, 230), V(650, 290, 230), 34, materials.chassis, 16);
+    rod(V(-650, -115, -270), V(650, -115, -270), 46, materials.chassis, 16);
+    rod(V(-650, -115, 255), V(650, -115, 255), 46, materials.chassis, 16);
+    rod(V(-575, -110, -265), V(-575, 295, -225), 31, materials.chassis, 16);
+    rod(V(575, -110, -265), V(575, 295, -225), 31, materials.chassis, 16);
+    const rackHousing = rod(V(-470, 18, 148), V(470, 18, 148), 29, materials.dark, 20);
+    const rackBody = rod(V(-520, 18, 148), V(520, 18, 148), 12, materials.orange, 14);
+
+    // Floor datum and center line.
+    const datum = line([V(-1700,-410,0),V(1700,-410,0)], new THREE.LineDashedMaterial({color:0x46606b,dashSize:35,gapSize:18})); datum.computeLineDistances();
+    const centerline = line([V(0,-420,-900),V(0,680,900)], new THREE.LineDashedMaterial({color:0x304751,dashSize:25,gapSize:18})); centerline.computeLineDistances();
+
+    const labelLayer = new THREE.Group(); scene.add(labelLayer);
+    function makeLabel(text, color='#b9c8cd') {
+      const c = document.createElement('canvas'), ctx = c.getContext('2d'); c.width=256; c.height=64;
+      ctx.fillStyle='rgba(7,13,17,.86)'; ctx.fillRect(0,0,256,64); ctx.strokeStyle='#36515c'; ctx.strokeRect(.5,.5,255,63);
+      ctx.fillStyle=color; ctx.font='21px SFMono-Regular,Consolas,monospace'; ctx.fillText(text,14,39);
+      const tex = new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false})); sp.scale.set(160,40,1); labelLayer.add(sp); return sp;
+    }
+
+    const geometry = {
+      upperInnerY: 282, lowerInnerY: -100, upperRadius: 329, lowerRadius: 343,
+      upperNomY: 235, lowerNomY: -158, upperInnerX: 548, lowerInnerX: 540,
+      upperZ: 12, lowerZ: 0
+    };
+    const sides = [];
+    function solveSide(sign, bump, steerInput, rollDeg) {
+      const rollBump = sign * Math.sin(THREE.MathUtils.degToRad(rollDeg)) * 760;
+      const b = THREE.MathUtils.clamp(bump + rollBump, -110, 110);
+      const uy = geometry.upperNomY + b, ly = geometry.lowerNomY + b;
+      const uxAbs = geometry.upperInnerX + Math.sqrt(Math.max(1, geometry.upperRadius**2 - (uy-geometry.upperInnerY)**2));
+      const lxAbs = geometry.lowerInnerX + Math.sqrt(Math.max(1, geometry.lowerRadius**2 - (ly-geometry.lowerInnerY)**2));
+      const ub = V(sign*uxAbs, uy, geometry.upperZ), lb = V(sign*lxAbs, ly, geometry.lowerZ);
+      const wc = ub.clone().lerp(lb,.53); wc.z = 0;
+      const raw = steerInput / 65;
+      let toe = raw * 28;
+      if (state.steerMode === 'ackermann') toe *= sign === Math.sign(raw || 1) ? 1.12 : .88;
+      if (state.steerMode === 'static') toe = 0;
+      const camber = THREE.MathUtils.radToDeg(Math.atan2(Math.abs(lb.x)-Math.abs(ub.x), ub.y-lb.y)) * -1 - 0.5;
+      const toeRad = THREE.MathUtils.degToRad(toe);
+      const steerArmLocal = V(-sign*72, 25, 142);
+      const c=Math.cos(toeRad), s=Math.sin(toeRad);
+      const tr = wc.clone().add(V(steerArmLocal.x*c + steerArmLocal.z*s, steerArmLocal.y, -steerArmLocal.x*s + steerArmLocal.z*c));
+      const rackEnd = V(sign*500 + steerInput, 18, 148);
+      return { b, ub, lb, wc, camber, toe, tr, rackEnd };
+    }
+
+    function buildCorner(sign) {
+      const staticK = solveSide(sign,0,0,0);
+      const upperFront = V(sign*548,282,-182), upperRear = V(sign*548,282,182);
+      const lowerFront = V(sign*540,-100,-224), lowerRear = V(sign*540,-100,214);
+      const c = {
+        sign, upperFront, upperRear, lowerFront, lowerRear,
+        rods: {
+          uf: rod(upperFront, staticK.ub, 18, materials.arm, 14), ur: rod(upperRear, staticK.ub, 18, materials.arm, 14),
+          lf: rod(lowerFront, staticK.lb, 24, materials.arm, 14), lr: rod(lowerRear, staticK.lb, 24, materials.arm, 14),
+          upright: rod(staticK.lb,staticK.ub,25,materials.upright,16), tie: rod(staticK.rackEnd,staticK.tr,10,materials.orange,12)
+        },
+        joints: [joint(upperFront,23),joint(upperRear,23),joint(lowerFront,28),joint(lowerRear,28),joint(staticK.ub,27,materials.cyan),joint(staticK.lb,30,materials.cyan),joint(staticK.tr,18,materials.orange)],
+        wheelGroup: new THREE.Group(),
+        kingpin: line([staticK.lb, staticK.ub], materials.kingpin),
+        refUpper: line([upperFront,upperRear,staticK.ub,upperFront], materials.reference),
+        refLower: line([lowerFront,lowerRear,staticK.lb,lowerFront], materials.reference),
+        path: null, kingUpperPath: null, kingLowerPath: null, force: null,
+        labels: [makeLabel(sign<0?'L·UBJ':'R·UBJ','#37d0df'),makeLabel(sign<0?'L·LBJ':'R·LBJ','#37d0df'),makeLabel(sign<0?'L·TIE':'R·TIE','#f3a253')]
+      };
+      const tire = new THREE.Mesh(new THREE.TorusGeometry(245,82,24,54), materials.rubber); tire.rotation.y=Math.PI/2; tire.castShadow=true; c.wheelGroup.add(tire);
+      const rimOuter = new THREE.Mesh(new THREE.CylinderGeometry(151,151,66,32), materials.rim); rimOuter.rotation.z=Math.PI/2; c.wheelGroup.add(rimOuter);
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(48,48,95,24), materials.dark); hub.rotation.z=Math.PI/2; c.wheelGroup.add(hub);
+      for(let i=0;i<8;i++){
+        const a=i/8*Math.PI*2, p1=V(0,Math.cos(a)*42,Math.sin(a)*42), p2=V(0,Math.cos(a)*135,Math.sin(a)*135);
+        const spoke=new THREE.Mesh(new THREE.BoxGeometry(25,12,112),materials.upright); spoke.position.set(0,(p1.y+p2.y)/2,(p1.z+p2.z)/2); spoke.rotation.x=-a; c.wheelGroup.add(spoke);
+      }
+      c.wheelGroup.add(disc(178,5,materials.orange));
+      scene.add(c.wheelGroup);
+      // Coilover with telescoping body and visible helical spring.
+      c.damperTop=V(sign*510,510,-45); c.damperBottom=staticK.lb.clone().lerp(lowerFront,.30); c.damperBottom.z=-72;
+      c.damperBody=rod(c.damperTop,c.damperBottom,22,materials.dark,16);
+      c.damperShaft=rod(c.damperTop,c.damperBottom,9,materials.upright,12);
+      const springPts=[]; for(let i=0;i<=96;i++){ const t=i/96, a=t*Math.PI*16, center=c.damperTop.clone().lerp(c.damperBottom,t); springPts.push(center.add(V(Math.cos(a)*34,0,Math.sin(a)*34))); }
+      c.spring=line(springPts,new THREE.LineBasicMaterial({color:0xd25b52}));
+      const pathPts=[]; for(let b=-90;b<=90;b+=3) pathPts.push(solveSide(sign,b,0,0).wc);
+      c.path=line(pathPts,materials.path);
+      const upperPathPts=[], lowerPathPts=[];
+      for(let b=-90;b<=90;b+=3){const kp=solveSide(sign,b,0,0);upperPathPts.push(kp.ub);lowerPathPts.push(kp.lb);}
+      c.kingUpperPath=line(upperPathPts,new THREE.LineDashedMaterial({color:0xe5c953,dashSize:12,gapSize:9,transparent:true,opacity:.58})); c.kingUpperPath.computeLineDistances();
+      c.kingLowerPath=line(lowerPathPts,new THREE.LineDashedMaterial({color:0xe5c953,dashSize:12,gapSize:9,transparent:true,opacity:.58})); c.kingLowerPath.computeLineDistances();
+      const forceEnd=staticK.wc.clone().add(V(0,300,0)); c.force=line([staticK.wc,forceEnd],new THREE.LineBasicMaterial({color:0xe5c953})); c.force.visible=false;
+      sides.push(c);
+    }
+    buildCorner(-1); buildCorner(1);
+
+    function updateWheelBasis(group, k, sign) {
+      const king = k.ub.clone().sub(k.lb).normalize();
+      const toe = THREE.MathUtils.degToRad(k.toe);
+      let axle = V(sign,0,0).applyAxisAngle(V(0,1,0),-toe);
+      axle.sub(king.clone().multiplyScalar(axle.dot(king))).normalize();
+      const forward = new THREE.Vector3().crossVectors(axle,king).normalize();
+      const basis = new THREE.Matrix4().makeBasis(axle,king,forward);
+      group.quaternion.setFromRotationMatrix(basis);
+      group.position.copy(k.wc);
+    }
+    function springPoints(top,bottom){
+      const axis=bottom.clone().sub(top), len=axis.length(), y=axis.clone().normalize();
+      let x=new THREE.Vector3().crossVectors(y,V(0,0,1)); if(x.lengthSq()<.01)x.set(1,0,0); x.normalize();
+      const z=new THREE.Vector3().crossVectors(x,y).normalize(), pts=[];
+      for(let i=0;i<=96;i++){const t=i/96,a=t*Math.PI*16,center=top.clone().add(axis.clone().multiplyScalar(t));pts.push(center.add(x.clone().multiplyScalar(Math.cos(a)*34)).add(z.clone().multiplyScalar(Math.sin(a)*34)));}
+      return pts;
+    }
+
+    const state = { playing:true, preset:'bump', phase:0, frequency:.4, travel:0, steer:0, roll:0, steerMode:'ackermann', wire:false };
+    let simTime=0, last=performance.now();
+    const fmt=(n,d=1)=>`${n>=0?'':'−'}${Math.abs(n).toFixed(d)}`;
+    function updateModel() {
+      const results=[];
+      sides.forEach(c=>{
+        const k=solveSide(c.sign,state.travel,state.steer,state.roll); results.push(k);
+        updateRod(c.rods.uf,c.upperFront,k.ub); updateRod(c.rods.ur,c.upperRear,k.ub);
+        updateRod(c.rods.lf,c.lowerFront,k.lb); updateRod(c.rods.lr,c.lowerRear,k.lb);
+        updateRod(c.rods.upright,k.lb,k.ub); updateRod(c.rods.tie,k.rackEnd,k.tr);
+        c.joints[4].position.copy(k.ub); c.joints[5].position.copy(k.lb); c.joints[6].position.copy(k.tr);
+        updateWheelBasis(c.wheelGroup,k,c.sign);
+        const bottom=k.lb.clone().lerp(c.lowerFront,.30); bottom.z=-72;
+        updateRod(c.damperBody,c.damperTop,bottom); updateRod(c.damperShaft,c.damperTop,bottom);
+        setLine(c.spring,springPoints(c.damperTop,bottom));
+        setLine(c.kingpin,[k.lb.clone().add(k.lb.clone().sub(k.ub).normalize().multiplyScalar(170)),k.ub.clone().add(k.ub.clone().sub(k.lb).normalize().multiplyScalar(220))]);
+        setLine(c.refUpper,[c.upperFront,c.upperRear,k.ub,c.upperFront]); setLine(c.refLower,[c.lowerFront,c.lowerRear,k.lb,c.lowerFront]);
+        setLine(c.force,[k.wc,k.wc.clone().add(V(0,240+Math.max(0,k.b),0))]);
+        c.labels[0].position.copy(k.ub).add(V(0,54,0)); c.labels[1].position.copy(k.lb).add(V(0,-55,0)); c.labels[2].position.copy(k.tr).add(V(0,48,0));
+      });
+      const L=results[0],R=results[1];
+      rackBody.position.x=state.steer; updateRod(rackBody,V(-520+state.steer,18,148),V(520+state.steer,18,148));
+      const staticL=solveSide(-1,0,0,0), track=(Math.abs(L.wc.x)+Math.abs(R.wc.x))-(Math.abs(staticL.wc.x)*2);
+      $('camberL').innerHTML=`${fmt(L.camber,2)}<small>°</small>`; $('camberR').innerHTML=`${fmt(R.camber,2)}<small>°</small>`;
+      $('toeL').innerHTML=`${fmt(L.toe,2)}<small>°</small>`; $('toeR').innerHTML=`${fmt(R.toe,2)}<small>°</small>`;
+      $('trackChange').innerHTML=`${fmt(track,1)}<small> mm</small>`; $('springComp').innerHTML=`${fmt(state.travel*.72,1)}<small> mm</small>`;
+      $('rollCenter').innerHTML=`${Math.round(78-state.travel*.18)}<small> mm</small>`; $('scrub').innerHTML=`${Math.round(34+track*.06)}<small> mm</small>`;
+      const gain=L.camber-staticL.camber; $('camberGain').textContent=`${fmt(gain,2)}° gain`; $('camberGain').className='metric-delta'+(gain>0?' negative':'');
+      $('toeState').textContent=Math.abs(L.toe)<.05?'neutral':(L.toe>0?'toe out':'toe in');
+      $('travelValue').textContent=`${fmt(state.travel,0)} mm`; $('steerValue').textContent=`${fmt(state.steer,0)} mm`; $('rollValue').textContent=`${fmt(state.roll,1)}°`;
+      $('ubX').textContent=Math.round(L.ub.x); $('ubY').textContent=Math.round(L.ub.y); $('lbX').textContent=Math.round(L.lb.x); $('lbY').textContent=Math.round(L.lb.y); $('trX').textContent=Math.round(L.tr.x); $('trY').textContent=Math.round(L.tr.y);
+      drawGraph(state.travel);
+    }
+
+    function drawGraph(marker) {
+      const c=$('graph'), rect=c.getBoundingClientRect(), dpr=Math.min(devicePixelRatio,2); c.width=rect.width*dpr; c.height=rect.height*dpr;
+      const g=c.getContext('2d'); g.scale(dpr,dpr); const w=rect.width,h=rect.height,p={l:31,r:10,t:20,b:23};
+      g.clearRect(0,0,w,h); g.lineWidth=1; g.font='7px SFMono-Regular,Consolas,monospace'; g.fillStyle='#53656e';
+      for(let i=0;i<=4;i++){const y=p.t+(h-p.t-p.b)*i/4;g.strokeStyle='#1b2a31';g.beginPath();g.moveTo(p.l,y);g.lineTo(w-p.r,y);g.stroke();g.fillText((2-i).toFixed(0)+'°',5,y+3);}
+      [-90,-45,0,45,90].forEach(v=>{const x=p.l+(w-p.l-p.r)*(v+90)/180;g.strokeStyle='#18272e';g.beginPath();g.moveTo(x,p.t);g.lineTo(x,h-p.b);g.stroke();g.fillStyle='#53656e';g.fillText(String(v),x-7,h-8);});
+      const plot=(color,fn)=>{g.strokeStyle=color;g.lineWidth=1.5;g.beginPath();for(let b=-90;b<=90;b+=3){const x=p.l+(w-p.l-p.r)*(b+90)/180,y=p.t+(h-p.t-p.b)*(2-fn(b))/4;b===-90?g.moveTo(x,y):g.lineTo(x,y);}g.stroke();};
+      const staticCam=solveSide(-1,0,0,0).camber; plot('#29c5d7',b=>solveSide(-1,b,0,0).camber-staticCam); plot('#ed943d',b=>Math.sin(b/70)*.35);
+      const mx=p.l+(w-p.l-p.r)*(marker+90)/180;g.strokeStyle='#dce7ea';g.setLineDash([3,3]);g.beginPath();g.moveTo(mx,p.t);g.lineTo(mx,h-p.b);g.stroke();g.setLineDash([]);g.fillStyle='#dce7ea';g.fillRect(mx-2,p.t-2,4,4);
+      g.fillStyle='#61747c';g.fillText('WHEEL TRAVEL / mm',w/2-35,h-8);
+    }
+
+    function setInputs() { $('travel').value=state.travel; $('steer').value=state.steer; $('roll').value=state.roll; updateModel(); }
+    $('travel').addEventListener('input',e=>{state.travel=+e.target.value;state.playing=false;syncPlay();updateModel();});
+    $('steer').addEventListener('input',e=>{state.steer=+e.target.value;state.playing=false;syncPlay();updateModel();});
+    $('roll').addEventListener('input',e=>{state.roll=+e.target.value;state.playing=false;syncPlay();updateModel();});
+    $('frequency').addEventListener('input',e=>{state.frequency=+e.target.value/100;$('freqValue').textContent=state.frequency.toFixed(2)+' Hz';});
+    $('phase').addEventListener('input',e=>{state.phase=+e.target.value/1000*Math.PI*2;state.playing=false;syncPlay();applyPreset();});
+    $('playBtn').addEventListener('click',()=>{state.playing=!state.playing;syncPlay();});
+    function syncPlay(){ $('playBtn').textContent=state.playing?'Ⅱ  PAUSE':'▶  RUN'; }
+    document.querySelectorAll('[data-preset]').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('[data-preset]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');state.preset=btn.dataset.preset;state.playing=true;syncPlay();}));
+    document.querySelectorAll('[data-mode]').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('[data-mode]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');state.steerMode=btn.dataset.mode;updateModel();}));
+    $('showLabels').addEventListener('change',e=>labelLayer.visible=e.target.checked);
+    $('showKingpin').addEventListener('change',e=>sides.forEach(c=>{c.kingpin.visible=e.target.checked;c.kingUpperPath.visible=e.target.checked;c.kingLowerPath.visible=e.target.checked;}));
+    $('showPath').addEventListener('change',e=>sides.forEach(c=>c.path.visible=e.target.checked));
+    $('showForces').addEventListener('change',e=>sides.forEach(c=>c.force.visible=e.target.checked));
+    $('showReference').addEventListener('change',e=>{sides.forEach(c=>{c.refUpper.visible=e.target.checked;c.refLower.visible=e.target.checked;});centerline.visible=e.target.checked;datum.visible=e.target.checked;});
+    $('gridBtn').addEventListener('click',e=>{grid.visible=!grid.visible;e.target.classList.toggle('active',grid.visible);});
+    $('wireBtn').addEventListener('click',e=>{state.wire=!state.wire;e.target.classList.toggle('active',state.wire);Object.values(materials).forEach(m=>{if(m.isMeshStandardMaterial&&m!==materials.transparent)m.wireframe=state.wire;});});
+    $('focusBtn').addEventListener('click',()=>setView('iso'));
+    $('resetBtn').addEventListener('click',()=>{Object.assign(state,{playing:true,preset:'bump',phase:0,travel:0,steer:0,roll:0});document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('active',b.dataset.preset==='bump'));syncPlay();setInputs();setView('iso');});
+
+    const views={iso:[1960,1080,2150],front:[0,150,3200],top:[0,3100,20],side:[3100,130,0]};
+    function setView(name){const v=views[name];camera.position.set(...v);controls.target.set(0,40,20);controls.update();document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===name));}
+    document.querySelectorAll('[data-view]').forEach(btn=>btn.addEventListener('click',()=>setView(btn.dataset.view)));
+
+    function applyPreset(){
+      const s=Math.sin(state.phase), c=Math.cos(state.phase);
+      if(state.preset==='bump'){state.travel=s*90;state.steer=0;state.roll=0;}
+      if(state.preset==='steer'){state.travel=0;state.steer=s*65;state.roll=0;}
+      if(state.preset==='roll'){state.travel=0;state.steer=0;state.roll=s*4;}
+      if(state.preset==='combined'){state.travel=s*58;state.steer=c*48;state.roll=Math.sin(state.phase*.5)*2.8;}
+      setInputs();
+    }
+
+    renderer.domElement.addEventListener('pointermove',e=>{const r=renderer.domElement.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*2-1,y=-(e.clientY-r.top)/r.height*2+1;$('cursorCoord').innerHTML=`X ${x>=0?'+':'−'}${String(Math.abs(x*1000).toFixed(1)).padStart(6,'0')}&nbsp;&nbsp;Y ${y>=0?'+':'−'}${String(Math.abs(y*700).toFixed(1)).padStart(6,'0')}&nbsp;&nbsp;Z +0000.0`;});
+    function resize(){const r=sceneHost.getBoundingClientRect();renderer.setSize(r.width,r.height,false);camera.aspect=r.width/r.height;camera.updateProjectionMatrix();drawGraph(state.travel);}
+    new ResizeObserver(resize).observe(sceneHost); resize(); updateModel();
+
+    function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-last)/1000,.05);last=now;if(state.playing){simTime+=dt;state.phase=(state.phase+dt*state.frequency*Math.PI*2)%(Math.PI*2);applyPreset();}$('phase').value=state.phase/(Math.PI*2)*1000;$('phaseLabel').textContent=(state.phase/(Math.PI*2)*100).toFixed(1).padStart(4,'0')+'%';$('timeLabel').textContent=simTime.toFixed(2)+' s';controls.update();renderer.render(scene,camera);}
+    $('loading').style.display='none'; requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
