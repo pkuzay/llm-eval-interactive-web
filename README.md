@@ -2,6 +2,12 @@
 
 用于记录大模型生成单文件交互应用的测评提示词、原始答案与运行结果。
 
+## 在线预览
+
+GitHub Pages 总入口：<https://pkuzay.github.io/llm-eval-interactive-web/>
+
+网页类答案可直接在线运行；第 03 题为 Python 桌面程序，页面提供源码查看链接。
+
 ## 题目
 
 | 编号 | 题目 | 提示词 |

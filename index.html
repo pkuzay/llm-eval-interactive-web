@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="六个大模型、五道交互应用题目的原始回答与在线预览。">
+  <title>Interactive Web LLM Evaluation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+SC:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #f1efe9;
+      --ink: #171713;
+      --muted: #6d6b63;
+      --rule: #bbb8ae;
+      --accent: #e94822;
+      --panel: #e7e4dc;
+      --available: #176b50;
+      --max-width: 1440px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(23, 23, 19, 0.035) 1px, transparent 1px) 0 0 / 48px 48px,
+        linear-gradient(rgba(23, 23, 19, 0.035) 1px, transparent 1px) 0 0 / 48px 48px,
+        var(--paper);
+      font-family: "IBM Plex Sans SC", sans-serif;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .shell {
+      width: min(var(--max-width), calc(100% - 48px));
+      margin: 0 auto;
+    }
+
+    header {
+      min-height: 76svh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 28px 0 52px;
+      border-bottom: 2px solid var(--ink);
+    }
+
+    .masthead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      font-family: "Space Mono", monospace;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status::before {
+      width: 8px;
+      height: 8px;
+      background: var(--available);
+      border-radius: 50%;
+      content: "";
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
+      gap: clamp(48px, 10vw, 160px);
+      align-items: end;
+      padding-top: 96px;
+    }
+
+    .eyebrow,
+    .section-number,
+    .model-id {
+      font-family: "Space Mono", monospace;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow {
+      margin: 0 0 18px;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    h1 {
+      max-width: 920px;
+      margin: 0;
+      font-size: clamp(52px, 9.5vw, 142px);
+      font-weight: 600;
+      letter-spacing: -0.075em;
+      line-height: 0.84;
+    }
+
+    h1 span {
+      display: block;
+      color: var(--accent);
+    }
+
+    .intro {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.75;
+    }
+
+    .copy-master {
+      width: 100%;
+      margin-top: 24px;
+      padding: 13px 16px;
+      color: var(--paper);
+      background: var(--ink);
+      border: 1px solid var(--ink);
+      border-radius: 0;
+      cursor: pointer;
+      font-family: "Space Mono", monospace;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      transition: color 160ms ease, background 160ms ease;
+    }
+
+    .copy-master:hover,
+    .copy-master:focus-visible {
+      color: var(--ink);
+      background: transparent;
+      outline: none;
+    }
+
+    main {
+      padding: 76px 0 110px;
+    }
+
+    .question {
+      display: grid;
+      grid-template-columns: 84px minmax(220px, 0.8fr) minmax(480px, 1.4fr);
+      gap: 28px;
+      padding: 42px 0 56px;
+      border-bottom: 1px solid var(--rule);
+      opacity: 0;
+      transform: translateY(20px);
+      animation: reveal 500ms ease forwards;
+      animation-delay: calc(var(--order) * 80ms);
+    }
+
+    .question:first-child {
+      border-top: 1px solid var(--rule);
+    }
+
+    .section-number {
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .question h2 {
+      margin: 0;
+      font-size: clamp(27px, 3.2vw, 48px);
+      font-weight: 500;
+      letter-spacing: -0.04em;
+      line-height: 1.08;
+    }
+
+    .question-note {
+      max-width: 420px;
+      margin: 18px 0 0;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .models {
+      border-top: 1px solid var(--ink);
+    }
+
+    .model {
+      display: grid;
+      grid-template-columns: minmax(160px, 1fr) auto;
+      align-items: center;
+      gap: 20px;
+      min-height: 58px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .model-id {
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .preview,
+    .copy-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 32px;
+      padding: 0 11px;
+      border: 1px solid var(--ink);
+      border-radius: 0;
+      background: transparent;
+      font-size: 12px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: color 150ms ease, background 150ms ease, transform 150ms ease;
+    }
+
+    .preview {
+      min-width: 78px;
+      color: var(--paper);
+      background: var(--ink);
+    }
+
+    .preview:hover,
+    .preview:focus-visible {
+      color: var(--ink);
+      background: var(--accent);
+      outline: none;
+      transform: translateX(2px);
+    }
+
+    .copy-link:hover,
+    .copy-link:focus-visible {
+      background: var(--panel);
+      outline: none;
+    }
+
+    .missing {
+      color: var(--muted);
+      font-family: "Space Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+    }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 32px;
+      padding: 28px 0 38px;
+      border-top: 2px solid var(--ink);
+      color: var(--muted);
+      font-family: "Space Mono", monospace;
+      font-size: 11px;
+      line-height: 1.6;
+    }
+
+    .toast {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 10;
+      padding: 12px 16px;
+      color: var(--paper);
+      background: var(--ink);
+      font-family: "Space Mono", monospace;
+      font-size: 12px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(12px);
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .toast.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @keyframes pulse {
+      50% {
+        opacity: 0.35;
+      }
+    }
+
+    @keyframes reveal {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 900px) {
+      .shell {
+        width: min(100% - 28px, var(--max-width));
+      }
+
+      header {
+        min-height: auto;
+        padding-bottom: 42px;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+        gap: 42px;
+        padding-top: 88px;
+      }
+
+      .question {
+        grid-template-columns: 54px 1fr;
+      }
+
+      .models {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .masthead {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      h1 {
+        font-size: clamp(48px, 18vw, 78px);
+      }
+
+      .question {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .models {
+        margin-top: 20px;
+      }
+
+      .model {
+        grid-template-columns: 1fr;
+        gap: 9px;
+        padding: 13px 0;
+      }
+
+      .actions {
+        justify-content: flex-start;
+      }
+
+      footer {
+        flex-direction: column;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="masthead">
+        <strong>Interactive Web LLM Evaluation</strong>
+        <span class="status">GitHub Pages Online</span>
+      </div>
+      <div class="hero">
+        <div>
+          <p class="eyebrow">Model Output Archive / 2026</p>
+          <h1>交互模型<span>测评现场</span></h1>
+        </div>
+        <div>
+          <p class="intro">五道题目，六个模型。保留模型原始输出，提供可分享的在线运行入口。</p>
+          <button class="copy-master" type="button" data-copy-page>复制总览链接</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="question" style="--order: 1">
+        <div class="section-number">01</div>
+        <div>
+          <h2>2048 × Roguelike</h2>
+          <p class="question-note">融合手感、动效反馈与完整的单局 Roguelike 成长闭环。</p>
+        </div>
+        <div class="models">
+          <div class="model"><span class="model-id">DeepSeek</span><div class="actions"><a class="preview" href="answers/01-2048-roguelike/deepseek/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/01-2048-roguelike/deepseek/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">Kimi K3</span><div class="actions"><a class="preview" href="answers/01-2048-roguelike/kimi-k3/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/01-2048-roguelike/kimi-k3/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">GLM 5.2</span><div class="actions"><a class="preview" href="answers/01-2048-roguelike/glm-5.2/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/01-2048-roguelike/glm-5.2/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">Qwen 3.8 Max Preview</span><div class="actions"><a class="preview" href="answers/01-2048-roguelike/qwen-3.8-max-preview/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/01-2048-roguelike/qwen-3.8-max-preview/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">GPT 5.6 Sol</span><div class="actions"><a class="preview" href="answers/01-2048-roguelike/gpt-5.6-sol/nullshift_2048_roguelike.html" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/01-2048-roguelike/gpt-5.6-sol/nullshift_2048_roguelike.html">复制链接</button></div></div>
+          <div class="model"><span class="model-id">Opus 4.8</span><span class="missing">待补充</span></div>
+        </div>
+      </section>
+
+      <section class="question" style="--order: 2">
+        <div class="section-number">02</div>
+        <div>
+          <h2>FPV 花飞模拟器</h2>
+          <p class="question-note">WebGL 场景、刚体飞行动力学、硬件输入与模拟图传衰减。</p>
+        </div>
+        <div class="models">
+          <div class="model"><span class="model-id">DeepSeek</span><div class="actions"><a class="preview" href="answers/02-fpv-drone-simulator/deepseek/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/02-fpv-drone-simulator/deepseek/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">Kimi K3</span><div class="actions"><a class="preview" href="answers/02-fpv-drone-simulator/kimi-k3/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/02-fpv-drone-simulator/kimi-k3/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">GLM 5.2</span><div class="actions"><a class="preview" href="answers/02-fpv-drone-simulator/glm-5.2/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/02-fpv-drone-simulator/glm-5.2/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">Qwen 3.8 Max Preview</span><div class="actions"><a class="preview" href="answers/02-fpv-drone-simulator/qwen-3.8-max-preview/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/02-fpv-drone-simulator/qwen-3.8-max-preview/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">GPT 5.6 Sol</span><div class="actions"><a class="preview" href="answers/02-fpv-drone-simulator/gpt-5.6-sol/fpv-freestyle-simulator.html" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/02-fpv-drone-simulator/gpt-5.6-sol/fpv-freestyle-simulator.html">复制链接</button></div></div>
+          <div class="model"><span class="model-id">Opus 4.8</span><div class="actions"><a class="preview" href="answers/02-fpv-drone-simulator/opus-4.8/fpv_freestyle_sim.html" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/02-fpv-drone-simulator/opus-4.8/fpv_freestyle_sim.html">复制链接</button></div></div>
+        </div>
+      </section>
+
+      <section class="question" style="--order: 3">
+        <div class="section-number">03</div>
+        <div>
+          <h2>赛车遥测分析</h2>
+          <p class="question-note">Python 桌面程序无法在 Pages 内运行；此处提供可分享的源码查看入口。</p>
+        </div>
+        <div class="models">
+          <div class="model"><span class="model-id">DeepSeek</span><div class="actions"><a class="preview" href="https://github.com/pkuzay/llm-eval-interactive-web/blob/main/answers/03-racing-telemetry-analyzer/deepseek/rac_telemetry_analyzer.py" target="_blank" rel="noopener">查看源码</a><button class="copy-link" data-copy="https://github.com/pkuzay/llm-eval-interactive-web/blob/main/answers/03-racing-telemetry-analyzer/deepseek/rac_telemetry_analyzer.py">复制链接</button></div></div>
+          <div class="model"><span class="model-id">Kimi K3</span><div class="actions"><a class="preview" href="https://github.com/pkuzay/llm-eval-interactive-web/tree/main/answers/03-racing-telemetry-analyzer/kimi-k3" target="_blank" rel="noopener">查看源码</a><button class="copy-link" data-copy="https://github.com/pkuzay/llm-eval-interactive-web/tree/main/answers/03-racing-telemetry-analyzer/kimi-k3">复制链接</button></div></div>
+          <div class="model"><span class="model-id">GLM 5.2</span><div class="actions"><a class="preview" href="https://github.com/pkuzay/llm-eval-interactive-web/blob/main/answers/03-racing-telemetry-analyzer/glm-5.2/rac_telemetry.py" target="_blank" rel="noopener">查看源码</a><button class="copy-link" data-copy="https://github.com/pkuzay/llm-eval-interactive-web/blob/main/answers/03-racing-telemetry-analyzer/glm-5.2/rac_telemetry.py">复制链接</button></div></div>
+          <div class="model"><span class="model-id">Qwen 3.8 Max Preview</span><div class="actions"><a class="preview" href="https://github.com/pkuzay/llm-eval-interactive-web/blob/main/answers/03-racing-telemetry-analyzer/qwen-3.8-max-preview/rac_telemetry_analyzer.py" target="_blank" rel="noopener">查看源码</a><button class="copy-link" data-copy="https://github.com/pkuzay/llm-eval-interactive-web/blob/main/answers/03-racing-telemetry-analyzer/qwen-3.8-max-preview/rac_telemetry_analyzer.py">复制链接</button></div></div>
+          <div class="model"><span class="model-id">GPT 5.6 Sol</span><div class="actions"><a class="preview" href="https://github.com/pkuzay/llm-eval-interactive-web/blob/main/answers/03-racing-telemetry-analyzer/gpt-5.6-sol/rac_telemetry_tool.py" target="_blank" rel="noopener">查看源码</a><button class="copy-link" data-copy="https://github.com/pkuzay/llm-eval-interactive-web/blob/main/answers/03-racing-telemetry-analyzer/gpt-5.6-sol/rac_telemetry_tool.py">复制链接</button></div></div>
+          <div class="model"><span class="model-id">Opus 4.8</span><div class="actions"><a class="preview" href="https://github.com/pkuzay/llm-eval-interactive-web/blob/main/answers/03-racing-telemetry-analyzer/opus-4.8/rac_telemetry_studio.py" target="_blank" rel="noopener">查看源码</a><button class="copy-link" data-copy="https://github.com/pkuzay/llm-eval-interactive-web/blob/main/answers/03-racing-telemetry-analyzer/opus-4.8/rac_telemetry_studio.py">复制链接</button></div></div>
+        </div>
+      </section>
+
+      <section class="question" style="--order: 4">
+        <div class="section-number">04</div>
+        <div>
+          <h2>小丑牌网页版</h2>
+          <p class="question-note">牌组构筑、计分反馈与接近原作节奏的视觉动效。</p>
+        </div>
+        <div class="models">
+          <div class="model"><span class="model-id">DeepSeek</span><div class="actions"><a class="preview" href="answers/04-balatro-web/deepseek/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/04-balatro-web/deepseek/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">Kimi K3</span><div class="actions"><a class="preview" href="answers/04-balatro-web/kimi-k3/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/04-balatro-web/kimi-k3/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">GLM 5.2</span><div class="actions"><a class="preview" href="answers/04-balatro-web/glm-5.2/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/04-balatro-web/glm-5.2/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">Qwen 3.8 Max Preview</span><div class="actions"><a class="preview" href="answers/04-balatro-web/qwen-3.8-max-preview/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/04-balatro-web/qwen-3.8-max-preview/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">GPT 5.6 Sol</span><div class="actions"><a class="preview" href="answers/04-balatro-web/gpt-5.6-sol/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/04-balatro-web/gpt-5.6-sol/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">Opus 4.8</span><div class="actions"><a class="preview" href="answers/04-balatro-web/opus-4.8/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/04-balatro-web/opus-4.8/">复制链接</button></div></div>
+        </div>
+      </section>
+
+      <section class="question" style="--order: 5">
+        <div class="section-number">05</div>
+        <div>
+          <h2>双叉臂悬挂</h2>
+          <p class="question-note">刚性连杆、可形变线、转向联动和主销运动路径可视化。</p>
+        </div>
+        <div class="models">
+          <div class="model"><span class="model-id">DeepSeek</span><div class="actions"><a class="preview" href="answers/05-double-wishbone-suspension/deepseek/%E5%8F%8C%E5%8F%89%E8%87%82%E6%82%AC%E6%8C%82%E6%BC%94%E7%A4%BA.html" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/05-double-wishbone-suspension/deepseek/%E5%8F%8C%E5%8F%89%E8%87%82%E6%82%AC%E6%8C%82%E6%BC%94%E7%A4%BA.html">复制链接</button></div></div>
+          <div class="model"><span class="model-id">Kimi K3</span><div class="actions"><a class="preview" href="answers/05-double-wishbone-suspension/kimi-k3/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/05-double-wishbone-suspension/kimi-k3/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">GLM 5.2</span><div class="actions"><a class="preview" href="answers/05-double-wishbone-suspension/glm-5.2/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/05-double-wishbone-suspension/glm-5.2/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">Qwen 3.8 Max Preview</span><div class="actions"><a class="preview" href="answers/05-double-wishbone-suspension/qwen-3.8-max-preview/" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/05-double-wishbone-suspension/qwen-3.8-max-preview/">复制链接</button></div></div>
+          <div class="model"><span class="model-id">GPT 5.6 Sol</span><div class="actions"><a class="preview" href="answers/05-double-wishbone-suspension/gpt-5.6-sol/double-wishbone-suspension.html" target="_blank" rel="noopener">在线预览</a><button class="copy-link" data-copy="answers/05-double-wishbone-suspension/gpt-5.6-sol/double-wishbone-suspension.html">复制链接</button></div></div>
+          <div class="model"><span class="model-id">Opus 4.8</span><span class="missing">待补充</span></div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>原始回答按题目与模型归档，不修复、不重排、不覆盖。</span>
+      <a href="https://github.com/pkuzay/llm-eval-interactive-web" target="_blank" rel="noopener">GitHub Repository</a>
+    </footer>
+  </div>
+
+  <div class="toast" role="status" aria-live="polite">链接已复制</div>
+
+  <script>
+    const toast = document.querySelector(".toast");
+    let toastTimer;
+
+    async function copyText(value) {
+      const link = new URL(value, window.location.href).href;
+      try {
+        await navigator.clipboard.writeText(link);
+      } catch {
+        const field = document.createElement("textarea");
+        field.value = link;
+        field.style.position = "fixed";
+        field.style.opacity = "0";
+        document.body.appendChild(field);
+        field.select();
+        document.execCommand("copy");
+        field.remove();
+      }
+
+      toast.classList.add("visible");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("visible"), 1600);
+    }
+
+    document.querySelector("[data-copy-page]").addEventListener("click", () => {
+      copyText(window.location.href);
+    });
+
+    document.querySelectorAll("[data-copy]").forEach((button) => {
+      button.addEventListener("click", () => copyText(button.dataset.copy));
+    });
+  </script>
+</body>
+</html>
