@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FPV 穿越机花飞模拟器 — SO(3) 刚体动力学 + 模拟图传</title>
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000;
+               font-family: "Segoe UI", "Microsoft YaHei", monospace; }
+  #app { position:fixed; inset:0; }
+  canvas { display:block; }
+
+  /* ---------- HUD ---------- */
+  .hud { position:fixed; color:#7CFF6B; text-shadow:0 0 6px rgba(124,255,107,.8);
+         font-family:"Consolas","Courier New",monospace; user-select:none; pointer-events:none; z-index:10; }
+  #osd-tl { top:14px; left:16px; font-size:14px; line-height:1.7; }
+  #osd-tr { top:14px; right:16px; font-size:13px; text-align:right; line-height:1.7; }
+  #osd-bl { bottom:14px; left:16px; font-size:13px; line-height:1.7; }
+  #osd-br { bottom:14px; right:16px; font-size:12px; text-align:right; line-height:1.6; color:#9fd8ff;
+            text-shadow:0 0 6px rgba(159,216,255,.6); }
+  .label { color:#b8ffb0; opacity:.75; }
+  .warn  { color:#ffd24d; text-shadow:0 0 8px rgba(255,210,77,.9); }
+  .danger{ color:#ff4d4d; text-shadow:0 0 10px rgba(255,77,77,.95); }
+
+  /* 信号条 */
+  #sigwrap { margin-top:4px; width:190px; height:12px; border:1px solid #7CFF6B; background:rgba(0,0,0,.35); }
+  #sigbar  { height:100%; width:100%; background:linear-gradient(90deg,#ff4d4d,#ffd24d,#7CFF6B);
+             transition:width .12s linear; }
+
+  /* 中央大字警告 */
+  #center-msg { top:38%; left:50%; transform:translate(-50%,-50%); font-size:44px; font-weight:bold;
+                letter-spacing:6px; display:none; text-align:center; }
+  #center-sub { top:48%; left:50%; transform:translate(-50%,-50%); font-size:16px; display:none;
+                color:#cfe8ff; text-shadow:0 0 8px rgba(160,200,255,.8); text-align:center; }
+
+  /* FPV 十字准星 */
+  #cross { top:50%; left:50%; transform:translate(-50%,-50%); width:26px; height:26px; opacity:.85; }
+  #cross::before, #cross::after { content:""; position:absolute; background:#7CFF6B;
+                box-shadow:0 0 5px rgba(124,255,107,.9); }
+  #cross::before { left:50%; top:0; width:2px; height:100%; transform:translateX(-50%); }
+  #cross::after  { top:50%; left:0; height:2px; width:100%; transform:translateY(-50%); }
+
+  /* 启动遮罩 */
+  #boot { position:fixed; inset:0; background:rgba(0,0,0,.88); z-index:100; display:flex;
+          flex-direction:column; align-items:center; justify-content:center; color:#d8ffd0;
+          font-family:"Consolas",monospace; cursor:pointer; text-align:center; }
+  #boot h1 { font-size:30px; letter-spacing:4px; color:#7CFF6B; text-shadow:0 0 14px rgba(124,255,107,.9); margin:0 0 18px; }
+  #boot p  { font-size:14px; line-height:2; margin:4px 0; color:#bfe8ff; }
+  #boot .go { margin-top:26px; font-size:18px; color:#ffd24d; animation:blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity:.25; } }
+  #boot .small { font-size:12px; color:#7d9a86; margin-top:24px; line-height:1.9; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- OSD / HUD -->
+<div id="osd-tl" class="hud">
+  <div><span class="label">RSSI </span><span id="sig-pct">100%</span> <span id="sig-db" class="label"></span></div>
+  <div id="sigwrap"><div id="sigbar"></div></div>
+  <div><span class="label">MODE</span> ACRO <span class="label">| ARMED</span></div>
+  <div id="failsafe-line" class="danger" style="display:none">!! FAILSAFE — RX LOSS !!</div>
+</div>
+<div id="osd-tr" class="hud">
+  <div id="gp-status" class="warn">TX: 未检测到 — 按遥控器任意键</div>
+  <div id="gp-ch" class="label"></div>
+</div>
+<div id="osd-bl" class="hud">
+  <div><span class="label">ALT </span><span id="t-alt">0.0</span> m</div>
+  <div><span class="label">SPD </span><span id="t-spd">0.0</span> m/s</div>
+  <div><span class="label">DST </span><span id="t-dst">0</span> m</div>
+</div>
+<div id="osd-br" class="hud">
+  <div>键盘: ↑↓←→ 俯仰/横滚 · A/D 偏航 · W/S 油门</div>
+  <div>R 复位 · C 切换视角 · 全屏 F11</div>
+</div>
+<div id="cross" class="hud"></div>
+<div id="center-msg" class="hud danger">RX LOSS</div>
+<div id="center-sub" class="hud"></div>
+
+<!-- 启动遮罩 -->
+<div id="boot">
+  <h1>FPV FREESTYLE SIM</h1>
+  <p>SO(3) 李群姿态积分 · 三轴 PID 角速度环 · 5.8G 模拟图传衰弱</p>
+  <p>接入 OpenTX / EdgeTX 遥控器（USB HID），<b>拨动任意摇杆</b>即自动识别</p>
+  <p>通道映射（美国手 Mode 2）：CH1 Roll · CH2 Throttle · CH3 Yaw · CH4 Pitch</p>
+  <p class="go">— 点击任意处 开始飞行 —</p>
+  <p class="small">物理内核为手写刚体动力学：R ∈ SO(3)，R(t+Δt)=R(t)·exp(ω̂Δt)，无欧拉角 / 无第三方物理引擎<br>
+  飞离天线约 400m 将彻底失联（RX LOSS）并坠机，注意图传信号条</p>
+</div>
+
+<!-- Three.js r128 全局构建 + EffectComposer 扩展（CDN） -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+
+<script>
+/* ================================================================================
+ * FPV 穿越机花飞模拟器
+ * 物理：手写刚体动力学 —— 姿态 R ∈ SO(3)（四元数存储），指数映射 exp(ω̂Δt) 积分；
+ *       Acro 模式摇杆 → 目标角速度，三轴 PID 输出力矩；推力 + 重力 + 二次空气阻尼。
+ * 渲染：Three.js + EffectComposer，自研 VTX 模拟图传衰弱全屏后处理着色器。
+ * ============================================================================== */
+
+/* ---------------- 基础渲染器 ---------------- */
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:"high-performance" });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.getElementById('app').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xa8c8e8, 250, 1200);
+
+const camera = new THREE.PerspectiveCamera(100, window.innerWidth/window.innerHeight, 0.05, 4000);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* ---------------- 渐变天空穹顶（等效 HDRI 环境光） ---------------- */
+const skyGeo = new THREE.SphereGeometry(1800, 32, 20);
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite:false, fog:false,
+  uniforms: { sunDir: { value: new THREE.Vector3(0.45, 0.55, 0.35).normalize() } },
+  vertexShader: `
+    varying vec3 vDir;
+    void main(){ vDir = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader: `
+    varying vec3 vDir; uniform vec3 sunDir;
+    void main(){
+      float h = clamp(vDir.y, -0.1, 1.0);
+      vec3 zenith  = vec3(0.18, 0.42, 0.78);
+      vec3 horizon = vec3(0.78, 0.86, 0.94);
+      vec3 col = mix(horizon, zenith, pow(max(h,0.0), 0.55));
+      float s = max(dot(vDir, sunDir), 0.0);
+      col += vec3(1.0,0.92,0.72)*pow(s, 350.0)*3.0;   // 太阳盘
+      col += vec3(1.0,0.85,0.55)*pow(s, 8.0)*0.18;    // 日晕
+      gl_FragColor = vec4(col, 1.0);
+    }`
+});
+scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+/* ---------------- 光照 ---------------- */
+const hemi = new THREE.HemisphereLight(0xbdd8ff, 0x4d7a3a, 0.85);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff2d8, 1.15);
+sun.position.set(220, 300, 160);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left=-160; sun.shadow.camera.right=160;
+sun.shadow.camera.top=160;  sun.shadow.camera.bottom=-160;
+sun.shadow.camera.far=900;
+scene.add(sun);
+
+/* ---------------- 程序化草地纹理（Canvas 生成，Repeat 平铺） ---------------- */
+function makeGrassTexture(){
+  const S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#3e7a2e'; g.fillRect(0,0,S,S);
+  for(let i=0;i<9000;i++){
+    const x = Math.random()*S, y = Math.random()*S;
+    const v = Math.random();
+    g.fillStyle = v<0.33 ? '#356b27' : (v<0.66 ? '#488a37' : '#2c5c21');
+    g.fillRect(x, y, 1.6, 1.6 + Math.random()*2.5);
+  }
+  for(let i=0;i<350;i++){  // 少量枯黄杂点
+    g.fillStyle = 'rgba(150,150,70,0.25)';
+    g.fillRect(Math.random()*S, Math.random()*S, 2, 2);
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(400, 400);
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return tex;
+}
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(2400, 2400),
+  new THREE.MeshStandardMaterial({ map: makeGrassTexture(), roughness:1.0, metalness:0.0 })
+);
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+/* 起飞点白色 H 停机坪 */
+const pad = new THREE.Mesh(new THREE.CircleGeometry(1.6, 32),
+  new THREE.MeshStandardMaterial({ color:0xdddddd, roughness:0.9 }));
+pad.rotation.x = -Math.PI/2; pad.position.y = 0.01; pad.receiveShadow = true;
+scene.add(pad);
+
+/* ---------------- 花飞训练场 ---------------- */
+const track = new THREE.Group();
+scene.add(track);
+
+function addGate(x, y, z, ry, color, r=2.4){
+  const m = new THREE.Mesh(
+    new THREE.TorusGeometry(r, 0.13, 12, 40),
+    new THREE.MeshStandardMaterial({ color, emissive:color, emissiveIntensity:0.55, roughness:0.4 }));
+  m.position.set(x,y,z); m.rotation.y = ry; m.castShadow = true;
+  track.add(m);
+  // 门两侧支柱
+  const legMat = new THREE.MeshStandardMaterial({ color:0x333333 });
+  for(const s of [-1,1]){
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,y-r,8), legMat);
+    const off = new THREE.Vector3(Math.cos(ry)*r*s, 0, -Math.sin(ry)*r*s);
+    leg.position.set(x+off.x, (y-r)/2, z+off.z);
+    track.add(leg);
+  }
+  return m;
+}
+function addWall(x, z, ry, w=10, h=4, gapW=3.2, gapH=2.4, color=0x8a4b3a){
+  const grp = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color, roughness:0.95 });
+  const sideW = (w-gapW)/2;
+  const mk = (bw,bh,bx,by)=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,0.5),mat);
+    b.position.set(bx,by,0); b.castShadow=b.receiveShadow=true; grp.add(b); };
+  mk(sideW, h, -(gapW/2+sideW/2), h/2);       // 左墙
+  mk(sideW, h,  (gapW/2+sideW/2), h/2);       // 右墙
+  mk(gapW, h-gapH, 0, gapH+(h-gapH)/2);       // 门楣（钻越窗）
+  grp.position.set(x,0,z); grp.rotation.y = ry;
+  track.add(grp);
+}
+function addPylon(x, z, h, color){
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.45,h,14),
+    new THREE.MeshStandardMaterial({ color, roughness:0.6 }));
+  m.position.set(x,h/2,z); m.castShadow = true; track.add(m);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.5,10,10),
+    new THREE.MeshStandardMaterial({ color:0xff2222, emissive:0xff2222, emissiveIntensity:0.9 }));
+  tip.position.set(x,h+0.4,z); track.add(tip);
+}
+
+/* 环形门线路（错落高度/朝向） */
+addGate(  0, 3.0, -30, 0,            0xff8800);
+addGate( 14, 4.5, -62, 0.5,          0x00ccff);
+addGate(-12, 2.6, -95, -0.4,         0xff2266);
+addGate(-30, 5.5, -55, Math.PI/2,    0xccff00);
+addGate( 30, 3.4, -110, 0.9,         0x9900ff, 2.8);
+addGate(  6, 6.5, -140, 0.1,         0x00ff88);
+/* 钻越废墟墙 */
+addWall( -22, -20, 0.35);
+addWall(  26, -70, -0.5, 12, 5, 4.0, 2.8, 0x5a5a66);
+addWall(  -4, -128, 0.15, 11, 4.5, 3.0, 2.2, 0x7a6a2a);
+/* 绕桩立柱群 */
+addPylon( 20, -18, 7, 0xff5500);
+addPylon( 27, -26, 9, 0x00bbff);
+addPylon( 17, -34, 6, 0xffee00);
+addPylon( -8, -50, 8, 0xff00aa);
+addPylon( -16, -62, 10, 0x00ffcc);
+/* 远处地标塔（飞太远时用于目视归航） */
+addPylon( 120, -260, 26, 0xffffff);
+addPylon(-150, -180, 22, 0xff3333);
+
+/* 起飞点接收天线（信号源） */
+const antenna = new THREE.Group();
+const aPole = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.07,2.2,8),
+  new THREE.MeshStandardMaterial({ color:0x222222 }));
+aPole.position.y = 1.1; antenna.add(aPole);
+const aDipole = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.8,8),
+  new THREE.MeshStandardMaterial({ color:0x00ffcc, emissive:0x00ffcc, emissiveIntensity:0.7 }));
+aDipole.position.y = 2.4; antenna.add(aDipole);
+antenna.position.set(2.5, 0, 2.5);
+scene.add(antenna);
+const ANTENNA_POS = new THREE.Vector3(2.5, 1.5, 2.5);
+</script>
+
+<script>
+/* ================================================================================
+ * 一、穿越机机体模型（仅第三人称视角可见；FPV 时隐藏）
+ * ============================================================================== */
+const droneMesh = new THREE.Group();
+{
+  const frameMat = new THREE.MeshStandardMaterial({ color:0x181818, roughness:0.5, metalness:0.4 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.16,0.05,0.22), frameMat);
+  body.castShadow = true; droneMesh.add(body);
+  // X 型机臂
+  for(const [sx,sz] of [[1,1],[1,-1],[-1,1],[-1,-1]]){
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.02,0.30), frameMat);
+    arm.position.set(sx*0.13, 0, sz*0.13);
+    arm.rotation.y = sx*sz*Math.PI/4;
+    arm.castShadow = true; droneMesh.add(arm);
+    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.05,10),
+      new THREE.MeshStandardMaterial({ color:0x884400, metalness:0.7, roughness:0.3 }));
+    motor.position.set(sx*0.22, 0.02, sz*0.22); droneMesh.add(motor);
+  }
+  // 摄像头
+  const cam = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.05,0.04),
+    new THREE.MeshStandardMaterial({ color:0x0066ff, emissive:0x0033aa, emissiveIntensity:0.4 }));
+  cam.position.set(0, 0.045, -0.12); droneMesh.add(cam);
+}
+const props = [];
+for(const [sx,sz] of [[1,1],[1,-1],[-1,1],[-1,-1]]){
+  const p = new THREE.Mesh(new THREE.CircleGeometry(0.13, 16),
+    new THREE.MeshBasicMaterial({ color:0x222222, transparent:true, opacity:0.35, side:THREE.DoubleSide }));
+  p.rotation.x = -Math.PI/2; p.position.set(sx*0.22, 0.055, sz*0.22);
+  droneMesh.add(p); props.push(p);
+}
+scene.add(droneMesh);
+
+/* ================================================================================
+ * 二、刚体动力学内核（手写，无第三方物理引擎）
+ * 状态量：
+ *   R ∈ SO(3)  —— 用单位四元数 q 存储（SO(3) 的双覆盖，无万向节死锁）
+ *   ω          —— 机体系角速度（李代数 so(3) 元素）
+ *   p, v       —— 世界系位置 / 速度
+ * ============================================================================== */
+const P = {
+  mass:      0.72,                          // kg（5 寸花飞机含电池）
+  gravity:   9.81,
+  inertia:   new THREE.Vector3(0.0052, 0.0052, 0.0095), // Ix Iy Iz (kg·m²)
+  maxThrust: 24.0,                          // N，悬停油门 ≈ 30%
+  dragLin:   0.0032,                        // 二次阻尼系数：F = -k·|v|·v
+  angDamp:   0.015,                         // 机体角阻尼
+  maxRateRP: 7.2,                           // rad/s 横滚/俯仰最大角速度
+  maxRateY:  5.2,                           // rad/s 偏航最大角速度
+  camTilt:   THREE.MathUtils.degToRad(14),  // FPV 摄像头上仰角
+};
+
+const drone = {
+  q:   new THREE.Quaternion(),               // 姿态 R
+  w:   new THREE.Vector3(),                  // 机体系角速度 ω
+  p:   new THREE.Vector3(0, 0.35, 0),        // 位置
+  v:   new THREE.Vector3(),                  // 世界系速度
+  crashed: false,
+};
+
+/* ---------- SO(3) 指数映射姿态积分 ----------
+ * R(t+Δt) = R(t)·exp(ω̂Δt)
+ * exp(ω̂Δt) 的闭式解（Rodrigues / 轴角→四元数）：
+ *   θ = |ω|Δt,  n = ω/|ω|  ⇒  Δq = (n·sin(θ/2), cos(θ/2))
+ * 右乘是因为 ω 定义在机体系。
+ */
+const _dq = new THREE.Quaternion();
+function integrateAttitudeSO3(q, w, dt){
+  const wn = w.length();
+  if (wn < 1e-12) return;
+  const half = 0.5 * wn * dt;
+  const s = Math.sin(half) / wn;
+  _dq.set(w.x*s, w.y*s, w.z*s, Math.cos(half));
+  q.multiply(_dq);            // q ← q ⊗ Δq（机体系增量，精确指数映射）
+  q.normalize();              // 抑制数值漂移，保持流形约束
+}
+
+/* ---------- 三轴 PID 角速度环（Acro 模式） ----------
+ * 摇杆 → 目标角速度 ω*；误差 e = ω* − ω
+ * τ = I·(Kp·e + Ki·∫e dt + Kd·de/dt)
+ * D 项做一阶低通滤波抑制高频噪声。
+ */
+const PID = {
+  kp: new THREE.Vector3(26, 26, 14),
+  ki: new THREE.Vector3(10, 10,  4),
+  kd: new THREE.Vector3(0.55, 0.55, 0.25),
+  iTerm:  new THREE.Vector3(),
+  prevErr:new THREE.Vector3(),
+  dFilt:  new THREE.Vector3(),
+  iLimit: 3.0,
+};
+function pidTorque(targetRate, dt){
+  const e = new THREE.Vector3().subVectors(targetRate, drone.w);
+  // 积分项（带抗饱和钳制）
+  PID.iTerm.addScaledVector(e, dt);
+  for(const ax of ['x','y','z'])
+    PID.iTerm[ax] = THREE.MathUtils.clamp(PID.iTerm[ax], -PID.iLimit, PID.iLimit);
+  // 微分项（滤波）
+  const de = new THREE.Vector3().subVectors(e, PID.prevErr).divideScalar(dt);
+  PID.dFilt.lerp(de, Math.min(1, dt*40));       // 一阶低通
+  PID.prevErr.copy(e);
+  // τ = I ⊙ (Kp·e + Ki·∫e + Kd·de/dt)
+  return new THREE.Vector3(
+    P.inertia.x * (PID.kp.x*e.x + PID.ki.x*PID.iTerm.x + PID.kd.x*PID.dFilt.x),
+    P.inertia.y * (PID.kp.y*e.y + PID.ki.y*PID.iTerm.y + PID.kd.y*PID.dFilt.y),
+    P.inertia.z * (PID.kp.z*e.z + PID.ki.z*PID.iTerm.z + PID.kd.z*PID.dFilt.z)
+  );
+}
+
+/* ---------- 完整动力学步进 ----------
+ * 平动：m·v̇ = T·(R·ŷ) + m·g − k·|v|·v
+ * 转动：I·ω̇ = τ − ω×(I·ω) − c·ω   （陀螺项 ω×Iω 不可省略）
+ */
+const _up = new THREE.Vector3(), _F = new THREE.Vector3(), _Iw = new THREE.Vector3();
+function stepPhysics(targetRate, throttle, dt){
+  /* --- 姿态：so(3) → SO(3) 精确积分 --- */
+  integrateAttitudeSO3(drone.q, drone.w, dt);
+
+  /* --- 转动动力学 --- */
+  const tau = pidTorque(targetRate, dt);
+  _Iw.set(P.inertia.x*drone.w.x, P.inertia.y*drone.w.y, P.inertia.z*drone.w.z);
+  const gyro = new THREE.Vector3().copy(drone.w).cross(_Iw);   // ω × (Iω)
+  drone.w.x += dt * (tau.x - gyro.x)/P.inertia.x - dt*P.angDamp*drone.w.x*18;
+  drone.w.y += dt * (tau.y - gyro.y)/P.inertia.y - dt*P.angDamp*drone.w.y*18;
+  drone.w.z += dt * (tau.z - gyro.z)/P.inertia.z - dt*P.angDamp*drone.w.z*18;
+
+  /* --- 平动动力学 --- */
+  _up.set(0,1,0).applyQuaternion(drone.q);                     // 机体推力方向 R·ŷ
+  _F.copy(_up).multiplyScalar(throttle * P.maxThrust);         // 电机总推力
+  _F.y -= P.mass * P.gravity;                                  // 重力
+  const sp = drone.v.length();
+  if (sp > 1e-6) _F.addScaledVector(drone.v, -P.dragLin * sp); // 二次空气阻尼
+  drone.v.addScaledVector(_F, dt / P.mass);
+  drone.p.addScaledVector(drone.v, dt);
+
+  /* --- 地面碰撞 --- */
+  const GROUND_Y = 0.22;
+  if (drone.p.y < GROUND_Y){
+    drone.p.y = GROUND_Y;
+    if (drone.v.y < -4.5){ drone.crashed = true; }             // 硬着陆 → 炸机
+    drone.v.y = Math.abs(drone.v.y) < 0.6 ? 0 : -drone.v.y*0.25;
+    // 地面摩擦
+    drone.v.x *= (1 - Math.min(1, dt*6));
+    drone.v.z *= (1 - Math.min(1, dt*6));
+    if (throttle < 0.05){ drone.w.multiplyScalar(1 - Math.min(1, dt*8)); }
+  }
+  if (drone.v.length() > 28 && drone.p.y <= GROUND_Y + 0.02) drone.crashed = true;
+}
+
+/* ================================================================================
+ * 三、输入层 —— USB HID Gamepad（OpenTX/EdgeTX） + 键盘回退
+ * ============================================================================== */
+const input = { roll:0, pitch:0, yaw:0, throttle:0 };
+const keys = {};
+let gamepadIdx = -1, gamepadName = "";
+
+window.addEventListener('gamepadconnected', e => {
+  gamepadIdx = e.gamepad.index; gamepadName = e.gamepad.id;
+  document.getElementById('gp-status').textContent = "TX: " + gamepadName.slice(0,34);
+  document.getElementById('gp-status').className = "";
+});
+window.addEventListener('gamepaddisconnected', () => {
+  gamepadIdx = -1;
+  document.getElementById('gp-status').textContent = "TX: 已断开 — 键盘模式";
+  document.getElementById('gp-status').className = "warn";
+});
+
+const dz = v => Math.abs(v) < 0.04 ? 0 : v;                    // 死区
+const expo = (v, k=0.35) => v*(1-k) + v*v*v*k;                 // 指数曲线手感
+
+function pollGamepad(){
+  if (gamepadIdx < 0) return false;
+  const gp = navigator.getGamepads()[gamepadIdx];
+  if (!gp || gp.axes.length < 4) return false;
+  /* Mode 2 / AETR：CH1 Roll, CH2 Throttle, CH3 Yaw, CH4 Pitch */
+  const a = gp.axes.map(dz);
+  input.roll  = expo(THREE.MathUtils.clamp( a[0], -1, 1));
+  input.throttle = THREE.MathUtils.clamp((1 - a[1]) / 2, 0, 1);   // -1..1 → 0..1
+  input.yaw   = expo(THREE.MathUtils.clamp( a[2], -1, 1));
+  input.pitch = expo(THREE.MathUtils.clamp(-a[3], -1, 1));        // 推杆 = 低头
+  return true;
+}
+
+window.addEventListener('keydown', e => { keys[e.code] = true;
+  if (e.code === 'KeyR') resetDrone();
+  if (e.code === 'KeyC') chaseCam = !chaseCam;
+});
+window.addEventListener('keyup',   e => { keys[e.code] = false; });
+
+function pollKeyboard(){
+  const R = 1, T = 0.018;
+  input.roll  = (keys['ArrowRight']?R:0) - (keys['ArrowLeft']?R:0);
+  input.pitch = (keys['ArrowUp']?R:0)    - (keys['ArrowDown']?R:0);
+  input.yaw   = (keys['KeyD']?R:0)       - (keys['KeyA']?R:0);
+  if (keys['KeyW']) input.throttle = Math.min(1, input.throttle + T);
+  if (keys['KeyS']) input.throttle = Math.max(0, input.throttle - T);
+}
+
+function resetDrone(){
+  drone.q.identity(); drone.w.set(0,0,0);
+  drone.p.set(0, 0.35, 0); drone.v.set(0,0,0);
+  drone.crashed = false; signalLost = false;
+  PID.iTerm.set(0,0,0); PID.prevErr.set(0,0,0); PID.dFilt.set(0,0,0);
+  input.throttle = 0;
+}
+</script>
+
+<script>
+/* ================================================================================
+ * 四、VTX 模拟图传衰弱后处理着色器（5.8G 模拟信号）
+ * 信号强度 S 随距离 D 衰减；degradation d = 1−S 驱动以下效果：
+ *   d > 0.15 : 白噪声雪花、去饱和
+ *   d > 0.40 : 横向撕裂（行位移）
+ *   d > 0.60 : 黑色滚动条纹（行同步失锁）
+ *   d = 1    : 彻底失联 → 纯雪花
+ * ============================================================================== */
+const VTXShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    time:     { value: 0 },
+    deg:      { value: 0 },        // degradation 0..1
+    res:      { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float time, deg;
+    uniform vec2 res;
+    varying vec2 vUv;
+
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)) + time*61.7)*43758.5453); }
+
+    void main(){
+      vec2 uv = vUv;
+      float d = deg;
+
+      /* --- 1) 横向撕裂：按扫描行随机错位（d>0.4 时加剧） --- */
+      float tear = smoothstep(0.40, 0.85, d);
+      if (tear > 0.001){
+        float line = floor(uv.y * 220.0);
+        float jitter = hash(vec2(line, floor(time*37.0)));
+        /* 偶发的长撕裂带 */
+        float bandNoise = hash(vec2(floor(uv.y*9.0), floor(time*11.0)));
+        float longTear = step(0.93, bandNoise) * (hash(vec2(floor(time*23.0), 7.0)) - 0.5) * 0.55;
+        uv.x += (jitter - 0.5) * 0.09 * tear + longTear * tear;
+      }
+
+      /* --- 2) 帧垂直跳动（同步不稳定） --- */
+      float vsync = smoothstep(0.55, 0.95, d);
+      uv.y += (hash(vec2(floor(time*29.0), 3.0)) - 0.5) * 0.05 * vsync;
+      uv = fract(uv);
+
+      vec3 col = texture2D(tDiffuse, uv).rgb;
+
+      /* --- 3) 色度衰减：模拟信号丢色度先于丢亮度 --- */
+      float gray = dot(col, vec3(0.299, 0.587, 0.114));
+      col = mix(col, vec3(gray), clamp(d*1.25, 0.0, 1.0)*0.85);
+
+      /* --- 4) 黑色滚动条纹（行同步失锁，d>0.6） --- */
+      float roll = smoothstep(0.60, 0.95, d);
+      if (roll > 0.001){
+        float y = fract(uv.y - time*(1.2 + 2.0*hash(vec2(floor(time*3.0),1.0))));
+        float band = smoothstep(0.0,0.12,y)*smoothstep(0.42,0.30,y);   // 一条宽带
+        float y2 = fract(uv.y*2.0 + time*0.7);
+        float band2 = smoothstep(0.0,0.05,y2)*smoothstep(0.18,0.10,y2);
+        col *= 1.0 - clamp(band + band2*0.6, 0.0, 1.0) * roll * 0.92;
+      }
+
+      /* --- 5) 雪花白噪声：随 d 增长 --- */
+      float n = hash(uv*res*0.5 + vec2(time*913.0, time*731.0));
+      float n2 = hash(uv*res*0.25 - vec2(time*577.0, time*389.0));
+      float snowAmt = 0.10*d + 0.85*pow(d, 2.4);
+      float snow = mix(n, n*n2, 0.5);
+      col = mix(col, vec3(snow), clamp(snowAmt, 0.0, 1.0));
+
+      /* --- 6) 彻底失联：纯雪花 + 对比度拉爆 --- */
+      if (d > 0.985){
+        col = vec3(pow(n, 0.8))*0.9 + vec3(n2)*0.15;
+      }
+
+      /* 轻微扫描线质感（始终存在，模拟 OSD 风味） */
+      col *= 0.94 + 0.06*sin(vUv.y*res.y*3.14159);
+
+      gl_FragColor = vec4(col, 1.0);
+    }`
+};
+
+/* EffectComposer 管线 */
+const composer = new THREE.EffectComposer(renderer);
+composer.addPass(new THREE.RenderPass(scene, camera));
+const vtxPass = new THREE.ShaderPass(VTXShader);
+composer.addPass(vtxPass);
+
+/* ================================================================================
+ * 五、信号模型 + HUD + 主循环
+ * ============================================================================== */
+const MAX_RANGE = 400;              // 极限失联距离（m）
+let signalLost = false, chaseCam = false, booted = false;
+const _toAnt = new THREE.Vector3();
+
+function computeSignal(){
+  _toAnt.copy(drone.p).sub(ANTENNA_POS);
+  const D = _toAnt.length();
+  /* S ∝ 1/D 型衰减（菲涅尔区近似幂律），钳制到 [0,1] */
+  const d = Math.pow(Math.min(D / MAX_RANGE, 1), 1.7);
+  return { D, S: 1 - d };
+}
+
+const el = id => document.getElementById(id);
+function updateHUD(D, S){
+  const pct = Math.round(S*100);
+  el('sig-pct').textContent = pct + "%";
+  el('sig-db').textContent = (-(1-S)*60).toFixed(0) + "dB";
+  el('sigbar').style.width = pct + "%";
+  el('t-alt').textContent = drone.p.y.toFixed(1);
+  el('t-spd').textContent = drone.v.length().toFixed(1);
+  el('t-dst').textContent = Math.round(D);
+
+  const msg = el('center-msg'), sub = el('center-sub');
+  const fsLine = el('failsafe-line');
+  if (drone.crashed){
+    msg.style.display='block'; msg.textContent = "CRASHED";
+    sub.style.display='block'; sub.textContent = "按 R 复位重新起飞";
+    fsLine.style.display='none';
+  } else if (signalLost){
+    msg.style.display='block'; msg.textContent = "RX LOSS";
+    sub.style.display='block'; sub.textContent = "信号中断 — 动力已切断";
+    fsLine.style.display='block';
+  } else if (S < 0.35){
+    msg.style.display='block'; msg.textContent = "WEAK SIGNAL";
+    msg.className = "hud warn";
+    sub.style.display='block'; sub.textContent = "立即返航！";
+    fsLine.style.display='none';
+  } else {
+    msg.style.display='none'; msg.className = "hud danger";
+    sub.style.display='none'; fsLine.style.display='none';
+  }
+  if (gamepadIdx >= 0){
+    el('gp-ch').textContent =
+      `R${input.roll.toFixed(2)} P${input.pitch.toFixed(2)} Y${input.yaw.toFixed(2)} T${input.throttle.toFixed(2)}`;
+  }
+}
+
+/* ---------- 主循环：固定步长物理子步，避免帧率耦合 ---------- */
+const clock = new THREE.Clock();
+const FIXED_DT = 1/240;             // 物理 240Hz 子步，保证 SO(3) 积分精度
+let acc = 0, propSpin = 0;
+
+function animate(){
+  requestAnimationFrame(animate);
+  const frameDt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  /* 输入采样：优先遥控器，否则键盘 */
+  const gpOK = pollGamepad();
+  if (!gpOK) pollKeyboard();
+
+  /* 信号计算 */
+  const { D, S } = computeSignal();
+  signalLost = S <= 0.001;
+
+  /* Acro 目标角速度映射（机体系，注意各轴符号与摇杆方向对应） */
+  const targetRate = new THREE.Vector3(
+    input.pitch * P.maxRateRP,     // +X：推杆低头（+Y 转向 +Z）
+    -input.yaw  * P.maxRateY,      // +Y 正转 = 机头向左，取反使右舵右转
+    -input.roll * P.maxRateRP      // +Z 正转 = 右升左降，取反使右杆右滚
+  );
+
+  /* 失控 / 坠机：切断动力 */
+  let throttle = input.throttle;
+  if (signalLost || drone.crashed || !booted){
+    throttle = 0;
+    targetRate.set(0,0,0);
+    if (signalLost) PID.iTerm.multiplyScalar(0.9);
+  }
+
+  /* 固定步长物理积分 */
+  acc += frameDt;
+  while (acc >= FIXED_DT){
+    stepPhysics(targetRate, throttle, FIXED_DT);
+    acc -= FIXED_DT;
+  }
+
+  /* 机体可视模型同步 + 螺旋桨旋转 */
+  droneMesh.position.copy(drone.p);
+  droneMesh.quaternion.copy(drone.q);
+  propSpin += frameDt * (8 + throttle*140);
+  props.forEach((p,i)=>{ p.rotation.z = (i%2?1:-1)*propSpin; });
+  droneMesh.visible = chaseCam;
+
+  /* 相机：FPV（含上仰角）或追尾 */
+  if (chaseCam){
+    const back = new THREE.Vector3(0, 1.6, 5.5).applyQuaternion(drone.q).add(drone.p);
+    camera.position.lerp(back, 0.18);
+    camera.lookAt(drone.p);
+  } else {
+    camera.position.copy(drone.p);
+    camera.position.y += 0.04;
+    camera.quaternion.copy(drone.q);
+    camera.rotateX(P.camTilt);      // 摄像头上仰（花飞典型 10~20°）
+  }
+
+  /* VTX 后处理参数 */
+  vtxPass.uniforms.time.value = t;
+  const targetDeg = drone.crashed ? 0.25 : (1 - S);
+  vtxPass.uniforms.deg.value += (targetDeg - vtxPass.uniforms.deg.value) * 0.25;
+  vtxPass.uniforms.res.value.set(window.innerWidth, window.innerHeight);
+
+  updateHUD(D, S);
+  composer.render();
+}
+
+/* 启动遮罩：点击进入（Gamepad API 需用户手势激活） */
+document.getElementById('boot').addEventListener('click', function(){
+  this.style.display = 'none';
+  booted = true;
+  clock.getDelta();
+});
+
+animate();
+</script>
+</body>
+</html>

@@ -7,7 +7,8 @@ answers/
 ├── 01-2048-roguelike/
 │   └── deepseek/
 ├── 02-fpv-drone-simulator/
-│   └── deepseek/
+│   ├── deepseek/
+│   └── kimi-k3/
 ├── 03-racing-telemetry-analyzer/
 │   └── deepseek/
 ├── 04-balatro-web/
@@ -28,4 +29,4 @@ answers/
 | GPT 5.6 Sol | `gpt-5.6-sol` |
 | Opus 4.8 | `opus-4.8` |
 
-新增结果时，在对应题号目录下创建模型目录。所有答案均按模型原始输出归档，不主动修正代码或合并文件。第 04 题的 DeepSeek 与 Kimi K3 输出均为多文件网页，因此保留其原始目录结构。
+新增结果时，在对应题号目录下创建模型目录。所有答案均按模型原始输出归档，不主动修正代码或合并文件。若模型同时给出说明文本与代码，则分别保存为 `response.md` 和原始代码文件。第 04 题的 DeepSeek 与 Kimi K3 输出均为多文件网页，因此保留其原始目录结构。
