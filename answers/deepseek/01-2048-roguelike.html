@@ -1,0 +1,1735 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>灵渊问道 · 2048 Roguelike</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;600;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+:root{
+  --bg1:#0a0d1c; --bg2:#141a33; --panel:rgba(16,21,44,.78);
+  --gold:#e7c268; --ink:#dbe4f5; --dim:#8b96b5;
+  --hp:#5ee08a; --hp2:#2fa35c; --ehp:#ff5f6d; --ehp2:#c22a45;
+  --r0:#7f8db0; --r1:#5aa0ff; --r2:#ffce54;
+  --fkai:'Ma Shan Zheng','STKaiti','KaiTi',serif;
+  --fbody:'Noto Serif SC','PingFang SC','Microsoft YaHei',serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{
+  background:var(--bg1);
+  font-family:var(--fbody);
+  color:var(--ink);
+  display:flex;align-items:center;justify-content:center;
+  user-select:none;-webkit-user-select:none;
+}
+/* ======= 背景：真实星空摄影(Unsplash) + 墨色罩染 + 流动星云 ======= */
+#bg{
+  position:fixed;inset:-48px;z-index:0;pointer-events:none;
+  background:url('https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=1600&q=62&auto=format&fit=crop') center/cover no-repeat;
+  transform:translate3d(0,0,0) scale(1.05);
+  transition:transform .5s cubic-bezier(.2,.8,.3,1);
+  will-change:transform;
+  animation:bgBreath 30s ease-in-out infinite alternate;
+}
+@keyframes bgBreath{from{filter:brightness(.85) saturate(1.05)}to{filter:brightness(1.02) saturate(1.2)}}
+#bgVeil{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:
+    radial-gradient(120% 90% at 50% 15%,rgba(8,10,24,.38) 0%,rgba(7,9,20,.74) 70%,rgba(5,6,15,.9) 100%),
+    linear-gradient(180deg,rgba(6,8,18,.5),rgba(6,8,18,.68));
+}
+body::before,body::after{
+  content:"";position:fixed;inset:-20%;z-index:1;pointer-events:none;
+  background:
+    radial-gradient(60% 50% at 20% 25%,rgba(90,60,180,.24),transparent 60%),
+    radial-gradient(50% 45% at 82% 70%,rgba(30,120,160,.20),transparent 60%),
+    radial-gradient(40% 35% at 60% 15%,rgba(200,120,60,.10),transparent 60%);
+  animation:nebula 26s ease-in-out infinite alternate;
+}
+body::after{
+  background:
+    radial-gradient(2px 2px at 12% 30%,rgba(255,255,255,.5),transparent 60%),
+    radial-gradient(1.5px 1.5px at 30% 70%,rgba(255,255,255,.4),transparent 60%),
+    radial-gradient(2px 2px at 55% 20%,rgba(255,255,255,.45),transparent 60%),
+    radial-gradient(1.5px 1.5px at 72% 55%,rgba(255,255,255,.35),transparent 60%),
+    radial-gradient(2px 2px at 88% 28%,rgba(255,255,255,.5),transparent 60%),
+    radial-gradient(1.5px 1.5px at 40% 88%,rgba(255,255,255,.4),transparent 60%),
+    radial-gradient(2px 2px at 65% 80%,rgba(255,255,255,.35),transparent 60%);
+  animation:drift 40s linear infinite alternate;
+}
+@keyframes nebula{from{transform:translate(-2%,-1%) scale(1)}to{transform:translate(2%,2%) scale(1.06)}}
+@keyframes drift{from{transform:translate(0,0)}to{transform:translate(-3%,2%)}}
+
+#app{
+  position:relative;z-index:2;width:min(94vw,440px);
+  display:flex;flex-direction:column;gap:10px;padding:8px 0;
+  touch-action:none;
+}
+#app.shake-s{animation:shakeS .22s}
+#app.shake-m{animation:shakeM .3s}
+#app.shake-l{animation:shakeL .42s}
+@keyframes shakeS{25%{transform:translate(2px,-1px)}50%{transform:translate(-2px,1px)}75%{transform:translate(1px,1px)}}
+@keyframes shakeM{20%{transform:translate(4px,-3px)}40%{transform:translate(-4px,2px)}60%{transform:translate(3px,3px)}80%{transform:translate(-2px,-2px)}}
+@keyframes shakeL{15%{transform:translate(7px,-5px) rotate(.4deg)}30%{transform:translate(-7px,4px)}45%{transform:translate(5px,5px) rotate(-.4deg)}60%{transform:translate(-5px,-3px)}75%{transform:translate(3px,2px)}90%{transform:translate(-2px,1px)}}
+
+/* ======= 顶栏 ======= */
+header{
+  display:flex;align-items:center;gap:8px;padding:4px 4px;
+}
+header .title{
+  font-family:var(--fkai);font-size:24px;color:var(--gold);
+  letter-spacing:3px;text-shadow:0 0 16px rgba(231,194,104,.5),0 2px 4px rgba(0,0,0,.6);
+}
+header .hspace{flex:1}
+.stat{
+  background:var(--panel);border:1px solid rgba(255,255,255,.08);
+  border-radius:8px;padding:3px 9px;font-size:12px;color:var(--dim);
+  display:flex;gap:5px;align-items:center;
+}
+.stat b{color:var(--ink);font-size:13px}
+.iconbtn{
+  width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.12);
+  background:var(--panel);color:var(--ink);font-size:14px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:transform .12s,background .2s;
+}
+.iconbtn:hover{background:rgba(70,86,140,.6);transform:translateY(-1px)}
+.iconbtn:active{transform:scale(.92)}
+.iconbtn.off{opacity:.4}
+
+/* ======= 敌人面板 ======= */
+#enemyPanel{
+  position:relative;display:flex;gap:12px;align-items:center;
+  background:var(--panel);border:1px solid rgba(255,255,255,.09);
+  border-radius:14px;padding:10px 14px;overflow:visible;
+  box-shadow:0 6px 22px rgba(0,0,0,.35), inset 0 0 30px rgba(120,60,180,.06);
+}
+#spriteRing{
+  position:relative;width:72px;height:72px;flex:none;
+  display:flex;align-items:center;justify-content:center;
+}
+#spriteRing::before{
+  content:"";position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(from 0deg,transparent 0 20deg,rgba(231,194,104,.55) 30deg 40deg,transparent 50deg 110deg,rgba(231,194,104,.35) 120deg 130deg,transparent 140deg 200deg,rgba(231,194,104,.55) 210deg 220deg,transparent 230deg 290deg,rgba(231,194,104,.35) 300deg 310deg,transparent 320deg);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2px));
+  mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2px));
+  animation:ringSpin 9s linear infinite;
+}
+#spriteRing::after{
+  content:"";position:absolute;inset:6px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.07),transparent 70%);
+  border:1px solid rgba(255,255,255,.1);
+}
+@keyframes ringSpin{to{transform:rotate(360deg)}}
+#enemySprite{
+  position:relative;z-index:2;width:50px;height:50px;line-height:1;
+  font-size:42px;display:flex;align-items:center;justify-content:center;
+  color:#ff8f9a;
+  filter:drop-shadow(0 0 12px currentColor);
+  animation:idleFloat 2.6s ease-in-out infinite;transform-origin:50% 85%;
+  cursor:default;
+}
+#enemySprite svg{width:100%;height:100%;display:block}
+#enemySprite.boss{width:58px;height:58px;font-size:50px}
+@keyframes idleFloat{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-6px) rotate(2deg)}}
+#enemySprite.hit{animation:eHit .32s}
+@keyframes eHit{
+  0%{transform:translate(0,0);filter:brightness(3) drop-shadow(0 0 18px #fff)}
+  25%{transform:translate(-7px,2px) rotate(-6deg)}
+  50%{transform:translate(6px,-3px) rotate(5deg)}
+  75%{transform:translate(-3px,1px)}
+  100%{transform:translate(0,0)}
+}
+#enemySprite.lunge{animation:eLunge .45s cubic-bezier(.3,1.6,.5,1)}
+@keyframes eLunge{
+  0%{transform:scale(1)}
+  30%{transform:scale(1.35) translateY(10px) rotate(-8deg)}
+  55%{transform:scale(1.1) translateY(14px)}
+  100%{transform:scale(1) translateY(0)}
+}
+#enemySprite.die{animation:eDie .7s forwards}
+@keyframes eDie{
+  20%{transform:scale(1.3);filter:brightness(4)}
+  100%{transform:scale(0) rotate(180deg);opacity:0}
+}
+.einfo{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0}
+.erow1{display:flex;align-items:baseline;gap:8px}
+#enemyName{font-size:16px;font-weight:700;letter-spacing:1px}
+#enemyTag{font-size:11px;color:var(--gold);border:1px solid rgba(231,194,104,.4);border-radius:6px;padding:0 6px}
+.erow2{display:flex;gap:10px;font-size:12px;color:var(--dim);flex-wrap:wrap}
+.erow2 b{color:#ffb3ba}
+#atkCnt.danger{color:#ff5f6d;animation:pulse .5s infinite alternate;font-weight:800}
+@keyframes pulse{from{opacity:.6}to{opacity:1;text-shadow:0 0 8px #ff5f6d}}
+.edesc{font-size:11px;color:#a08cc8}
+
+/* 斩击特效（game-icons 剑气图腾 + 剑光扫线） */
+.slashfx{
+  position:absolute;z-index:8;width:82px;height:82px;left:6px;top:-4px;
+  color:#ffe9b0;pointer-events:none;
+  filter:drop-shadow(0 0 14px rgba(255,220,120,.9));
+}
+.slashfx svg{width:100%;height:100%}
+.slashfx.cssanim{animation:slashCss .35s forwards}
+@keyframes slashCss{
+  0%{transform:scale(.3) rotate(-35deg);opacity:0}
+  35%{transform:scale(1.4) rotate(8deg);opacity:1}
+  100%{transform:scale(1.8) rotate(14deg);opacity:0}
+}
+.sweepline{
+  position:absolute;z-index:7;left:-6%;top:40%;width:112%;height:3px;
+  background:linear-gradient(90deg,transparent,#fff5cf 30%,#ffd76a 50%,#fff5cf 70%,transparent);
+  border-radius:2px;pointer-events:none;transform:rotate(-13deg);
+  box-shadow:0 0 12px rgba(255,215,106,.8);
+  animation:sweep .28s ease-out forwards;
+}
+@keyframes sweep{
+  from{clip-path:inset(0 100% 0 0);opacity:1}
+  60%{clip-path:inset(0 0 0 0);opacity:1}
+  to{clip-path:inset(0 0 0 100%);opacity:0}
+}
+
+/* 血条 */
+.bar{position:relative;height:16px;border-radius:8px;background:rgba(0,0,0,.45);overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+.bar .ghost{position:absolute;inset:0;width:100%;background:#f6d977;transition:width .9s cubic-bezier(.2,.7,.3,1) .3s}
+.bar .fill{position:absolute;inset:0;width:100%;transition:width .18s ease-out}
+.ebar .fill{background:linear-gradient(90deg,var(--ehp2),var(--ehp))}
+.pbar .fill{background:linear-gradient(90deg,var(--hp2),var(--hp))}
+.bar .bartext{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8);letter-spacing:1px;
+}
+.bar.noanim .fill,.bar.noanim .ghost{transition:none}
+.pbar.hurt{animation:barHurt .4s}
+@keyframes barHurt{25%{transform:translateX(-3px)}50%{transform:translateX(3px)}75%{transform:translateX(-2px)}}
+
+/* 伤害飘字层 */
+#dmgLayer{position:absolute;inset:0;pointer-events:none;overflow:visible;z-index:5}
+.dmgnum{
+  position:absolute;font-weight:900;font-size:18px;color:#ffd76a;
+  text-shadow:0 0 10px rgba(255,180,60,.8),0 2px 3px rgba(0,0,0,.6);
+  white-space:nowrap;will-change:transform,opacity;
+}
+.dmgnum.crit{font-size:24px;color:#ff7b6b;text-shadow:0 0 14px rgba(255,80,60,.9),0 2px 3px rgba(0,0,0,.6)}
+.dmgnum.player{color:#ff6b7d}
+.dmgnum.heal{color:#79f2a0;text-shadow:0 0 10px rgba(80,255,140,.7)}
+.dmgnum.cssanim{animation:floatUp .85s ease-out forwards}
+@keyframes floatUp{
+  0%{transform:translateY(6px) scale(.6);opacity:0}
+  15%{transform:translateY(0) scale(1.2);opacity:1}
+  100%{transform:translateY(-42px) scale(1);opacity:0}
+}
+
+/* ======= 棋盘 ======= */
+#boardWrap{display:flex;justify-content:center}
+#board{
+  position:relative;width:min(88vw,400px);aspect-ratio:1/1;
+  background:linear-gradient(160deg,rgba(30,36,68,.9),rgba(16,20,40,.92));
+  border-radius:16px;border:1px solid rgba(255,255,255,.1);
+  box-shadow:0 14px 40px rgba(0,0,0,.5), inset 0 0 40px rgba(80,100,220,.08);
+  transition:transform .15s;transform-style:preserve-3d;perspective:600px;
+}
+#board.tilt-left{animation:tL .2s}
+#board.tilt-right{animation:tR .2s}
+#board.tilt-up{animation:tU .2s}
+#board.tilt-down{animation:tD .2s}
+@keyframes tL{40%{transform:rotate3d(0,1,0,-4deg) translateX(-4px)}}
+@keyframes tR{40%{transform:rotate3d(0,1,0,4deg) translateX(4px)}}
+@keyframes tU{40%{transform:rotate3d(1,0,0,4deg) translateY(-4px)}}
+@keyframes tD{40%{transform:rotate3d(1,0,0,-4deg) translateY(4px)}}
+#board.nudge-left{animation:nL .18s}
+#board.nudge-right{animation:nR .18s}
+#board.nudge-up{animation:nU .18s}
+#board.nudge-down{animation:nD .18s}
+@keyframes nL{40%{transform:translateX(-6px)}70%{transform:translateX(2px)}}
+@keyframes nR{40%{transform:translateX(6px)}70%{transform:translateX(-2px)}}
+@keyframes nU{40%{transform:translateY(-6px)}70%{transform:translateY(2px)}}
+@keyframes nD{40%{transform:translateY(6px)}70%{transform:translateY(-2px)}}
+
+#gridbg{
+  position:absolute;inset:0;display:grid;padding:10px;gap:10px;
+  grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);
+}
+.cell{background:rgba(255,255,255,.045);border-radius:10px;box-shadow:inset 0 2px 10px rgba(0,0,0,.35)}
+
+#tilesLayer{position:absolute;inset:0;z-index:2}
+#tilesLayer.noanim .tile{transition:none!important}
+
+.tile{
+  position:absolute;top:0;left:0;border-radius:10px;
+  transition:transform .125s cubic-bezier(.25,.7,.35,1);
+  will-change:transform;z-index:2;
+}
+.tile.under{z-index:1}
+.tile-inner{
+  width:100%;height:100%;border-radius:10px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  font-weight:900;position:relative;overflow:hidden;
+}
+.tile-inner::after{
+  content:"";position:absolute;inset:0;border-radius:10px;
+  background:linear-gradient(160deg,rgba(255,255,255,.22),transparent 45%);
+  pointer-events:none;
+}
+.tile-inner.spawn{animation:spawnIn .17s cubic-bezier(.3,1.4,.5,1) backwards}
+@keyframes spawnIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+.tile-inner.pop{animation:mergePop .26s cubic-bezier(.3,1.8,.5,1)}
+@keyframes mergePop{
+  0%{transform:scale(1)}
+  40%{transform:scale(1.28) rotate(1.5deg)}
+  70%{transform:scale(.95) rotate(-1deg)}
+  100%{transform:scale(1)}
+}
+.tile-inner.zap{animation:zapFx .35s}
+@keyframes zapFx{30%{filter:brightness(.4) hue-rotate(90deg);transform:scale(.85)}}
+.num{font-size:32px;line-height:1;text-shadow:0 2px 4px rgba(0,0,0,.4)}
+.num.n3{font-size:27px}.num.n4{font-size:22px}.num.n5{font-size:17px}
+.rank{font-size:11px;opacity:.82;letter-spacing:2px;font-family:var(--fkai);font-weight:400}
+
+.tile-v2 .tile-inner{background:linear-gradient(145deg,#46536e,#2c3550);color:#ccd8ec}
+.tile-v4 .tile-inner{background:linear-gradient(145deg,#40695a,#28453a);color:#cdeedd}
+.tile-v8 .tile-inner{background:linear-gradient(145deg,#2c8a79,#1c5c52);color:#d8fff5;box-shadow:0 0 14px rgba(50,190,160,.35)}
+.tile-v16 .tile-inner{background:linear-gradient(145deg,#2794b6,#175f7c);color:#dcf7ff;box-shadow:0 0 15px rgba(60,190,230,.4)}
+.tile-v32 .tile-inner{background:linear-gradient(145deg,#3775e0,#22499c);color:#e2ecff;box-shadow:0 0 16px rgba(70,130,255,.45)}
+.tile-v64 .tile-inner{background:linear-gradient(145deg,#5f5ce6,#3a37a8);color:#e9e7ff;box-shadow:0 0 18px rgba(110,105,255,.5)}
+.tile-v128 .tile-inner{background:linear-gradient(145deg,#8746e0,#5a2b9e);color:#f2e6ff;box-shadow:0 0 20px rgba(150,80,255,.55)}
+.tile-v256 .tile-inner{background:linear-gradient(145deg,#b13fd0,#7a2694);color:#fce8ff;box-shadow:0 0 22px rgba(200,80,240,.55)}
+.tile-v512 .tile-inner{background:linear-gradient(145deg,#d84079,#9c2450);color:#ffe6ef;box-shadow:0 0 24px rgba(255,80,140,.6)}
+.tile-v1024 .tile-inner{background:linear-gradient(145deg,#e06a37,#a8431e);color:#fff0e6;box-shadow:0 0 26px rgba(255,130,60,.6)}
+.tile-v2048 .tile-inner{background:linear-gradient(145deg,#f0b93b,#c78a17);color:#fff8e0;box-shadow:0 0 30px rgba(255,200,80,.75);animation:shimmer 1.8s linear infinite}
+.tile-v4096 .tile-inner,.tile-super .tile-inner{background:linear-gradient(145deg,#ffe9b0,#e8b74a);color:#6b4a00;box-shadow:0 0 34px rgba(255,225,140,.9);animation:shimmer 1.4s linear infinite}
+@keyframes shimmer{0%,100%{filter:brightness(1)}50%{filter:brightness(1.22)}}
+
+/* 岩石 & 冰冻 */
+.tile-rock .tile-inner{background:linear-gradient(145deg,#5b544c,#37322c);box-shadow:inset 0 0 12px rgba(0,0,0,.6)}
+.tile-rock .num{font-size:34px}
+.tile-rock .life{
+  position:absolute;top:3px;right:5px;font-size:11px;font-weight:800;color:#e8ddc8;
+  background:rgba(0,0,0,.45);border-radius:6px;padding:0 4px;
+}
+.tile.is-frozen .tile-inner{filter:saturate(.4) brightness(1.05)}
+.ice{
+  position:absolute;inset:0;border-radius:10px;z-index:3;pointer-events:none;
+  background:linear-gradient(150deg,rgba(160,220,255,.55),rgba(90,160,230,.35));
+  border:2px solid rgba(200,240,255,.7);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;color:#eaffff;text-shadow:0 0 8px #9adcff;
+  animation:iceIn .25s cubic-bezier(.3,1.5,.5,1);
+}
+@keyframes iceIn{from{transform:scale(1.4);opacity:0}to{transform:scale(1);opacity:1}}
+.ice b{position:absolute;bottom:2px;right:6px;font-size:12px}
+
+/* 棋盘浮字 */
+#boardFloat{position:absolute;inset:0;z-index:6;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.bfloat{
+  position:absolute;font-size:22px;letter-spacing:3px;
+  font-family:var(--fkai);
+  text-shadow:0 0 14px currentColor,0 2px 4px rgba(0,0,0,.7);
+  animation:bfloatAnim 1s ease-out forwards;white-space:nowrap;
+}
+@keyframes bfloatAnim{
+  0%{transform:scale(.4);opacity:0}
+  20%{transform:scale(1.25);opacity:1}
+  40%{transform:scale(1)}
+  100%{transform:scale(1) translateY(-34px);opacity:0}
+}
+.combofx{
+  position:absolute;font-size:28px;font-family:var(--fkai);color:#ffd76a;letter-spacing:2px;
+  text-shadow:0 0 18px rgba(255,190,70,.9),0 2px 4px rgba(0,0,0,.6);
+  animation:comboAnim .8s cubic-bezier(.2,1.5,.4,1) forwards;
+}
+@keyframes comboAnim{
+  0%{transform:scale(.3) rotate(-8deg);opacity:0}
+  25%{transform:scale(1.35) rotate(3deg);opacity:1}
+  50%{transform:scale(1.05) rotate(0)}
+  100%{transform:scale(1) translateY(-26px);opacity:0}
+}
+.shockwave{
+  position:absolute;border-radius:50%;pointer-events:none;
+  border:3px solid rgba(255,220,120,.85);
+  box-shadow:0 0 20px rgba(255,215,106,.6),inset 0 0 14px rgba(255,215,106,.4);
+  will-change:transform,opacity;
+}
+.shockwave.cssanim{animation:shockCss .5s ease-out forwards}
+@keyframes shockCss{from{transform:scale(.2);opacity:1}to{transform:scale(3);opacity:0}}
+
+/* ======= 玩家面板 ======= */
+#playerPanel{
+  position:relative;background:var(--panel);border:1px solid rgba(255,255,255,.09);
+  border-radius:14px;padding:10px 14px;display:flex;flex-direction:column;gap:8px;
+  box-shadow:0 6px 22px rgba(0,0,0,.35);
+}
+.prow{display:flex;align-items:center;gap:10px}
+.plabel{font-size:14px;color:var(--dim);white-space:nowrap;font-family:var(--fkai);letter-spacing:2px}
+.pbar{flex:1;height:18px}
+#shieldChip{
+  font-size:12px;font-weight:800;color:#9fd4ff;background:rgba(70,140,220,.18);
+  border:1px solid rgba(120,180,255,.45);border-radius:8px;padding:1px 8px;display:none;
+}
+#relicRow{display:flex;gap:6px;flex-wrap:wrap;min-height:30px;align-items:center}
+#relicRow .hint{font-size:11px;color:var(--dim);font-style:italic}
+.relicChip{
+  width:30px;height:30px;border-radius:9px;font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+  transition:transform .12s;animation:spawnIn .3s cubic-bezier(.3,1.5,.5,1);
+  gap:0;
+}
+.relicChip:hover{transform:translateY(-3px) scale(1.1)}
+.relicChip.rr1{border-color:var(--r1);box-shadow:0 0 8px rgba(90,160,255,.4)}
+.relicChip.rr2{border-color:var(--r2);box-shadow:0 0 10px rgba(255,206,84,.5)}
+.relicChip .cn{display:none}
+#pFxLayer{position:absolute;inset:0;pointer-events:none;z-index:5}
+.hintline{text-align:center;font-size:11px;color:var(--dim);letter-spacing:1px}
+
+/* ======= 特效层 ======= */
+#fx{position:fixed;inset:0;z-index:50;pointer-events:none}
+#vignette{
+  position:fixed;inset:0;z-index:40;pointer-events:none;opacity:0;
+  box-shadow:inset 0 0 120px 40px rgba(255,30,50,.55);
+}
+#vignette.flash{animation:vflash .5s}
+@keyframes vflash{0%{opacity:0}15%{opacity:1}100%{opacity:0}}
+#banner{
+  position:fixed;left:0;right:0;top:38%;z-index:60;pointer-events:none;
+  text-align:center;opacity:0;
+}
+#banner.go{animation:bannerAnim 1.7s cubic-bezier(.2,.8,.3,1) forwards}
+@keyframes bannerAnim{
+  0%{opacity:0;transform:translateX(60px);letter-spacing:14px}
+  18%{opacity:1;transform:translateX(0)}
+  75%{opacity:1;transform:translateX(0);letter-spacing:6px}
+  100%{opacity:0;transform:translateX(-60px)}
+}
+#banner .b1{
+  font-family:var(--fkai);font-size:40px;color:var(--gold);
+  text-shadow:0 0 24px rgba(231,194,104,.7),0 3px 6px rgba(0,0,0,.8);letter-spacing:10px;
+}
+#banner .b2{font-size:16px;color:var(--ink);margin-top:6px;text-shadow:0 2px 5px rgba(0,0,0,.8);letter-spacing:4px;font-family:var(--fkai)}
+
+#toast{
+  position:fixed;bottom:6%;left:50%;transform:translateX(-50%) translateY(20px);
+  background:rgba(14,18,38,.92);border:1px solid rgba(231,194,104,.4);
+  border-radius:10px;padding:8px 18px;font-size:13px;z-index:80;
+  opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ======= 覆盖层 ======= */
+.overlay{
+  position:fixed;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;
+  background:rgba(5,7,16,.82);backdrop-filter:blur(6px);
+  opacity:0;visibility:hidden;transition:opacity .3s,visibility .3s;
+}
+.overlay.show{opacity:1;visibility:visible}
+.panelBox{
+  width:min(92vw,420px);max-height:90vh;overflow-y:auto;
+  background:linear-gradient(170deg,#1b2140,#10142a);
+  border:1px solid rgba(231,194,104,.35);border-radius:18px;
+  padding:26px 22px;text-align:center;
+  box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 40px rgba(120,90,220,.12) inset;
+  transform:translateY(14px) scale(.97);transition:transform .35s cubic-bezier(.2,1.3,.4,1);
+}
+.overlay.show .panelBox{transform:translateY(0) scale(1)}
+.gtitle{
+  font-family:var(--fkai);font-size:42px;color:var(--gold);letter-spacing:8px;
+  text-shadow:0 0 24px rgba(231,194,104,.55);margin-bottom:6px;font-weight:400;
+}
+.gsub{font-size:13px;color:var(--dim);letter-spacing:3px;margin-bottom:18px}
+.rulebox{
+  text-align:left;font-size:13px;line-height:1.9;color:#bcc7e2;
+  background:rgba(255,255,255,.04);border-radius:12px;padding:12px 16px;margin-bottom:16px;
+}
+.rulebox b{color:var(--gold)}
+.credits{
+  font-size:10px;color:#5f6b8c;line-height:1.7;margin-bottom:16px;letter-spacing:.5px;
+}
+.bigbtn{
+  display:inline-block;background:linear-gradient(160deg,#e7c268,#b9903a);
+  color:#241a05;font-size:19px;letter-spacing:8px;
+  border:none;border-radius:12px;padding:12px 42px;cursor:pointer;
+  box-shadow:0 6px 20px rgba(231,194,104,.35);
+  transition:transform .15s,box-shadow .2s;font-family:var(--fkai);
+}
+.bigbtn:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 10px 26px rgba(231,194,104,.5)}
+.bigbtn:active{transform:scale(.96)}
+.subbtn{
+  display:inline-block;background:transparent;color:var(--dim);font-size:13px;
+  border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:9px 22px;
+  cursor:pointer;margin-top:12px;transition:color .2s,border-color .2s;font-family:inherit;letter-spacing:2px;
+}
+.subbtn:hover{color:var(--ink);border-color:rgba(255,255,255,.45)}
+
+/* 遗物选择 */
+#relicCards{display:flex;flex-direction:column;gap:12px;margin:16px 0 4px}
+.relicCard{
+  display:flex;align-items:center;gap:14px;text-align:left;
+  background:rgba(255,255,255,.045);border:1px solid var(--r0);
+  border-radius:14px;padding:13px 16px;cursor:pointer;
+  transition:transform .15s,box-shadow .2s,background .2s;
+  animation:cardIn .4s cubic-bezier(.2,1.3,.4,1) backwards;
+}
+.relicCard:nth-child(1){animation-delay:.05s}
+.relicCard:nth-child(2){animation-delay:.15s}
+.relicCard:nth-child(3){animation-delay:.25s}
+@keyframes cardIn{from{transform:translateY(24px) scale(.9);opacity:0}to{transform:none;opacity:1}}
+.relicCard:hover{transform:translateY(-3px) scale(1.02);background:rgba(255,255,255,.09)}
+.relicCard:active{transform:scale(.97)}
+.relicCard.r1{border-color:var(--r1);box-shadow:0 0 16px rgba(90,160,255,.25)}
+.relicCard.r2{border-color:var(--r2);box-shadow:0 0 20px rgba(255,206,84,.3)}
+.relicCard .remoji{font-size:32px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))}
+.relicCard .rname{font-size:16px;font-family:var(--fkai);letter-spacing:1px;margin-bottom:2px}
+.relicCard .rtier{font-size:10px;margin-left:8px;padding:0 6px;border-radius:5px;font-weight:600;font-family:var(--fbody)}
+.relicCard.r0 .rtier{color:var(--r0);border:1px solid var(--r0)}
+.relicCard.r1 .rtier{color:var(--r1);border:1px solid var(--r1)}
+.relicCard.r2 .rtier{color:var(--r2);border:1px solid var(--r2)}
+.relicCard .rdesc{font-size:12px;color:var(--dim);line-height:1.5}
+
+/* 结算 */
+.statgrid{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0;
+}
+.statitem{background:rgba(255,255,255,.045);border-radius:10px;padding:10px}
+.statitem .sv{font-size:20px;font-weight:900;color:var(--gold)}
+.statitem .sk{font-size:11px;color:var(--dim);margin-top:2px;letter-spacing:2px}
+#endRelics,#winRelics{font-size:20px;letter-spacing:4px;margin-bottom:6px;min-height:26px}
+.deathword{
+  font-family:var(--fkai);font-size:16px;color:#c98f9d;letter-spacing:2px;margin-bottom:4px;
+}
+
+/* ======================================================
+   桌面 Web 端布局（参考 Slay the Spire / 经典 Rogue 三栏战场）
+   左：层主战场 | 中：灵核棋盘 | 右：行囊与道躯
+   ====================================================== */
+@media (min-width:960px){
+  #app{
+    width:min(96vw,1240px);
+    display:grid;
+    grid-template-columns:minmax(250px,320px) minmax(430px,1fr) minmax(250px,320px);
+    grid-template-rows:auto 1fr auto;
+    grid-template-areas:
+      "top top top"
+      "enemy board side"
+      "hint hint hint";
+    gap:16px;align-items:stretch;padding:14px 0;
+  }
+  header{grid-area:top;padding:6px 10px;
+    background:var(--panel);border:1px solid rgba(255,255,255,.09);
+    border-radius:14px;box-shadow:0 6px 22px rgba(0,0,0,.35);
+  }
+  header .title{font-size:30px}
+  .stat{font-size:14px;padding:5px 14px}
+  .stat b{font-size:16px}
+  .iconbtn{width:36px;height:36px;font-size:16px}
+
+  /* 左栏：层主战场（大立绘 + 意图气泡） */
+  #enemyPanel{
+    grid-area:enemy;flex-direction:column;justify-content:flex-start;
+    text-align:center;padding:26px 18px;gap:14px;
+  }
+  #enemyPanel::before{
+    content:"渊 · 层主";font-family:var(--fkai);font-size:14px;color:var(--dim);
+    letter-spacing:6px;border-bottom:1px solid rgba(255,255,255,.08);
+    padding-bottom:8px;width:100%;
+  }
+  #spriteRing{width:150px;height:150px;margin-top:6px}
+  #enemySprite{width:100px;height:100px;font-size:84px}
+  #enemySprite.boss{width:116px;height:116px;font-size:96px}
+  .einfo{width:100%;align-items:center;gap:9px}
+  .erow1{justify-content:center}
+  #enemyName{font-size:28px}
+  #enemyTag{font-size:12px;padding:1px 9px}
+  .ebar{width:100%;height:22px}
+  .bar .bartext{font-size:12px}
+  .erow2{justify-content:center;gap:8px}
+  .erow2>span{
+    background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);
+    border-radius:8px;padding:4px 10px;font-size:13px;
+  }
+  .edesc{font-size:12.5px;line-height:1.7;max-width:260px}
+  .slashfx{width:170px;height:170px;left:50%;top:56px;margin-left:-85px}
+  .sweepline{top:26%}
+  .dmgnum{font-size:24px}
+  .dmgnum.crit{font-size:32px}
+
+  /* 中栏：棋盘 */
+  #boardWrap{grid-area:board;align-items:center}
+  #board{width:min(560px,44vw,calc(100vh - 220px))}
+  .num{font-size:44px}
+  .num.n3{font-size:37px}.num.n4{font-size:30px}.num.n5{font-size:24px}
+  .rank{font-size:14px}
+  .tile-rock .num{font-size:46px}
+  .tile-rock .life{font-size:13px}
+  .ice{font-size:32px}
+  .ice b{font-size:14px}
+  .bfloat{font-size:30px}
+  .combofx{font-size:40px}
+
+  /* 右栏：行囊与道躯 */
+  #playerPanel{grid-area:side;justify-content:flex-start;padding:26px 18px;gap:12px}
+  #playerPanel::before{
+    content:"行囊 · 道途";font-family:var(--fkai);font-size:14px;color:var(--dim);
+    letter-spacing:6px;border-bottom:1px solid rgba(255,255,255,.08);
+    padding-bottom:8px;width:100%;text-align:center;
+  }
+  .plabel{font-size:17px}
+  .pbar{height:24px}
+  #shieldChip{font-size:14px;padding:3px 10px}
+  #relicRow{
+    flex-direction:column;align-items:stretch;gap:8px;
+    overflow-y:auto;max-height:calc(100vh - 420px);min-height:60px;
+    scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent;
+  }
+  #relicRow .hint{text-align:center;font-size:12px;padding-top:8px}
+  .relicChip{
+    width:100%;height:auto;justify-content:flex-start;gap:10px;
+    padding:8px 12px;font-size:18px;border-radius:10px;
+  }
+  .relicChip:hover{transform:translateX(4px) scale(1.02)}
+  .relicChip .cn{display:inline;font-size:13.5px;color:var(--ink);font-family:var(--fkai);letter-spacing:1px}
+  .hintline{grid-area:hint;font-size:12.5px;letter-spacing:2px;opacity:.85}
+
+  /* 遗物三选一：横排立卡（经典 Rogue 卡牌选择） */
+  #ovRelic .panelBox{width:min(94vw,780px)}
+  #relicCards{flex-direction:row;justify-content:center;align-items:stretch;gap:18px}
+  .relicCard{
+    flex:1;max-width:220px;flex-direction:column;text-align:center;
+    padding:26px 16px 20px;gap:12px;
+  }
+  .relicCard:hover{transform:translateY(-10px) scale(1.05)}
+  .relicCard .remoji{font-size:54px}
+  .relicCard .rname{font-size:20px}
+  .relicCard .rtier{display:block;margin:6px auto 0;width:max-content}
+  .relicCard .rdesc{font-size:12.5px}
+
+  #ovStart .panelBox{width:min(92vw,560px)}
+  #ovEnd .panelBox,#ovWin .panelBox{width:min(92vw,520px)}
+  .statgrid{grid-template-columns:repeat(4,1fr)}
+
+  #banner .b1{font-size:56px}
+  #banner .b2{font-size:20px}
+}
+@media (min-width:960px) and (max-height:760px){
+  #spriteRing{width:110px;height:110px}
+  #enemySprite{width:76px;height:76px;font-size:64px}
+  #enemySprite.boss{width:88px;height:88px}
+  #enemyName{font-size:22px}
+  #board{width:min(560px,44vw,calc(100vh - 190px))}
+}
+</style>
+</head>
+<body>
+
+<div id="bg"></div>
+<div id="bgVeil"></div>
+
+<div id="app">
+  <header>
+    <div class="title">灵渊问道</div>
+    <div class="hspace"></div>
+    <div class="stat">层 <b id="hFloor">1</b></div>
+    <div class="stat">⚔ <b id="hScore">0</b></div>
+    <button class="iconbtn" id="btnMusic" title="音乐开关">♪</button>
+    <button class="iconbtn" id="btnSound" title="音效开关">🔊</button>
+    <button class="iconbtn" id="btnRestart" title="重新开始">↺</button>
+  </header>
+
+  <section id="enemyPanel">
+    <div id="spriteRing"><div id="enemySprite">🗿</div></div>
+    <div class="einfo">
+      <div class="erow1">
+        <span id="enemyName">——</span>
+        <span id="enemyTag">第1层</span>
+      </div>
+      <div class="bar ebar" id="eBar">
+        <div class="ghost" id="eGhost"></div>
+        <div class="fill" id="eFill"></div>
+        <span class="bartext" id="eText">0/0</span>
+      </div>
+      <div class="erow2">
+        <span>⚔ 攻击 <b id="atkVal">0</b></span>
+        <span>⏳ <b id="atkCnt">5</b> 步后攻击</span>
+        <span id="abInfo"></span>
+      </div>
+      <div class="edesc" id="enemyDesc"></div>
+    </div>
+    <div id="dmgLayer"></div>
+  </section>
+
+  <section id="boardWrap">
+    <div id="board">
+      <div id="gridbg"></div>
+      <div id="tilesLayer"></div>
+      <div id="boardFloat"></div>
+    </div>
+  </section>
+
+  <section id="playerPanel">
+    <div class="prow">
+      <span class="plabel">道躯</span>
+      <div class="bar pbar" id="pBar">
+        <div class="ghost" id="pGhost"></div>
+        <div class="fill" id="pFill"></div>
+        <span class="bartext" id="pText">100/100</span>
+      </div>
+      <span id="shieldChip">🛡 0</span>
+    </div>
+    <div id="relicRow"><span class="hint">尚未获得遗物 · 击败层主可三选一</span></div>
+    <div id="pFxLayer"></div>
+  </section>
+  <div class="hintline">方向键 / WASD / 鼠标拖拽 / 触屏滑动 —— 合并灵核，剑气自会斩向层主</div>
+</div>
+
+<canvas id="fx"></canvas>
+<div id="vignette"></div>
+<div id="banner"><div class="b1"></div><div class="b2"></div></div>
+<div id="toast"></div>
+<audio id="bgm" loop preload="none"></audio>
+
+<!-- 开始界面 -->
+<div class="overlay show" id="ovStart">
+  <div class="panelBox">
+    <div class="gtitle">灵渊问道</div>
+    <div class="gsub">2048 × ROGUELIKE · 御核斩渊</div>
+    <div class="rulebox">
+      <b>◆ 合并即攻击</b>：滑动合并灵核，合并值化作剑气斩向层主，连击有加成。<br>
+      <b>◆ 层主反扑</b>：每位层主招式各异——凝岩封路、寒冰锁核、噬灵降阶……倒计时归零即挥击你的道躯。<br>
+      <b>◆ 构筑流派</b>：击破层主后三选一遗物，嗜血、连环、湮灭……随机成就每一局独一无二的 Build。<br>
+      <b>◆ 死则轮回</b>：道躯耗尽或灵路断绝即身死道消。第十层渊主镇守，问道功成方为圆满。
+    </div>
+    <div class="credits">
+      素材致谢：怪物图腾 © game-icons.net (CC BY 3.0) · 星空摄影 © Unsplash / V. Solomon<br>
+      背景古琴曲《阳关三叠》《醉渔唱晚》© Wikimedia Commons (CC BY-SA) · 书法字体 © Google Fonts
+    </div>
+    <button class="bigbtn" id="btnStart">入 渊</button>
+  </div>
+</div>
+
+<!-- 遗物三选一 -->
+<div class="overlay" id="ovRelic">
+  <div class="panelBox">
+    <div class="gtitle" style="font-size:26px">层主已破</div>
+    <div class="gsub">拾取一件遗物，铸就此行道途</div>
+    <div id="relicCards"></div>
+  </div>
+</div>
+
+<!-- 死亡结算 -->
+<div class="overlay" id="ovEnd">
+  <div class="panelBox">
+    <div class="gtitle" style="font-size:30px;color:#e77a8a;text-shadow:0 0 20px rgba(230,90,110,.5)">身死道消</div>
+    <div class="deathword" id="endReason"></div>
+    <div class="statgrid" id="endStats"></div>
+    <div id="endRelics"></div>
+    <button class="bigbtn" id="btnAgain">再入轮回</button>
+  </div>
+</div>
+
+<!-- 通关结算 -->
+<div class="overlay" id="ovWin">
+  <div class="panelBox">
+    <div class="gtitle" style="font-size:30px">问道功成</div>
+    <div class="gsub">十层灵渊，尽数斩落</div>
+    <div class="statgrid" id="winStats"></div>
+    <div id="winRelics"></div>
+    <button class="bigbtn" id="btnContinue">继续问道</button><br>
+    <button class="subbtn" id="btnAgain2">再入轮回</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ================= 基础工具 ================= */
+const $=id=>document.getElementById(id);
+const rand=a=>a[Math.floor(Math.random()*a.length)];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const G=()=>window.gsap||null;
+
+/* ================= 外部素材：game-icons.net 图腾 (CC BY 3.0) ================= */
+const ICON_BASE='https://cdn.jsdelivr.net/gh/game-icons/icons/';
+const ICONS={
+  stone:'delapouite/golem-head',
+  frost:'lorc/frozen-orb',
+  flame:'lorc/fire-breath',
+  void:'lorc/third-eye',
+  boss:'lorc/daemon-skull',
+  slash:'lorc/quick-slash',
+};
+const ICON_CACHE={};
+function loadIcon(key){
+  if(ICON_CACHE[key])return Promise.resolve(ICON_CACHE[key]);
+  return fetch(ICON_BASE+ICONS[key]+'.svg')
+    .then(r=>{if(!r.ok)throw 0;return r.text();})
+    .then(txt=>{
+      txt=txt.replace('<path d="M0 0h512v512H0z"/>','')
+             .replace(/fill="#fff"/g,'fill="currentColor"');
+      ICON_CACHE[key]=txt;
+      return txt;
+    })
+    .catch(()=>null);
+}
+
+/* ================= 音乐：Wikimedia Commons 古琴曲 (CC BY-SA) ================= */
+const BGM_TRACKS=[
+  'https://upload.wikimedia.org/wikipedia/commons/6/60/Guqin-Yangguan_Sandie.ogg',
+  'https://upload.wikimedia.org/wikipedia/commons/5/52/Guqin-Zuiyu_Changwan.ogg',
+];
+let musicOn=true,padNodes=null,bgmStarted=false;
+function startMusic(){
+  if(!musicOn)return;
+  const bgm=$('bgm');
+  if(!bgmStarted){
+    bgm.src=rand(BGM_TRACKS);
+    bgm.volume=.32;
+    bgmStarted=true;
+    bgm.onerror=()=>startPad();
+  }
+  const p=bgm.play();
+  if(p&&p.catch)p.catch(()=>startPad());
+}
+function stopMusic(){
+  $('bgm').pause();
+  stopPad();
+}
+function startPad(){ /* 网络音频不可用时的合成氛围备援 */
+  if(padNodes||!musicOn)return;
+  const a=ac();if(!a)return;
+  const g=a.createGain();g.gain.value=.05;g.connect(a.destination);
+  const o1=a.createOscillator(),o2=a.createOscillator();
+  o1.type='sine';o1.frequency.value=110;
+  o2.type='sine';o2.frequency.value=165.2;
+  const lfo=a.createOscillator(),lg=a.createGain();
+  lfo.frequency.value=.08;lg.gain.value=.03;
+  lfo.connect(lg);lg.connect(g.gain);
+  o1.connect(g);o2.connect(g);
+  o1.start();o2.start();lfo.start();
+  padNodes={o1,o2,lfo,g};
+}
+function stopPad(){
+  if(!padNodes)return;
+  try{padNodes.o1.stop();padNodes.o2.stop();padNodes.lfo.stop();padNodes.g.disconnect();}catch(e){}
+  padNodes=null;
+}
+
+/* ================= 音效 (WebAudio 合成) ================= */
+let actx=null,soundOn=true;
+function ac(){
+  if(!actx){const AC=window.AudioContext||window.webkitAudioContext;if(AC)actx=new AC();}
+  if(actx&&actx.state==='suspended')actx.resume();
+  return actx;
+}
+function tone(f,dur,type,vol,slideTo,delay){
+  if(!soundOn)return;
+  try{
+    const a=ac();if(!a)return;
+    const t0=a.currentTime+(delay||0);
+    const o=a.createOscillator(),g=a.createGain();
+    o.type=type||'sine';o.frequency.setValueAtTime(f,t0);
+    if(slideTo)o.frequency.exponentialRampToValueAtTime(Math.max(20,slideTo),t0+dur);
+    g.gain.setValueAtTime(vol||.15,t0);
+    g.gain.exponentialRampToValueAtTime(.001,t0+dur);
+    o.connect(g);g.connect(a.destination);
+    o.start(t0);o.stop(t0+dur+.03);
+  }catch(e){}
+}
+function noiseSwoosh(){
+  if(!soundOn)return;
+  try{
+    const a=ac();if(!a)return;
+    const len=Math.floor(a.sampleRate*.09);
+    const buf=a.createBuffer(1,len,a.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*(1-i/len);
+    const src=a.createBufferSource();src.buffer=buf;
+    const f=a.createBiquadFilter();f.type='bandpass';f.frequency.value=700;f.Q.value=.8;
+    const g=a.createGain();g.gain.value=.09;
+    src.connect(f);f.connect(g);g.connect(a.destination);
+    src.start();
+  }catch(e){}
+}
+const sSlide=()=>noiseSwoosh();
+const sMerge=(v,i)=>{const b=240+Math.log2(v)*46+i*55;tone(b,.16,'sine',.14,b*1.6);};
+const sHurt=()=>{tone(130,.28,'sawtooth',.16,50);tone(70,.3,'square',.08,40,.02);};
+const sRelic=()=>{tone(523,.22,'sine',.13,784);tone(659,.26,'sine',.11,988,.09);tone(784,.34,'sine',.1,1175,.18);};
+const sDeath=()=>{tone(220,.9,'sawtooth',.16,38);tone(110,1,'triangle',.12,30,.1);};
+const sWin=()=>{[523,659,784,1047].forEach((f,i)=>tone(f,.3,'sine',.12,f*1.02,i*.12));};
+const sTick=()=>tone(880,.06,'square',.05);
+const sCrush=()=>tone(90,.18,'square',.14,45);
+
+/* ================= 粒子系统 ================= */
+const fxc=$('fx'),fctx=fxc.getContext('2d');
+let parts=[];
+function fitFx(){
+  const d=window.devicePixelRatio||1;
+  fxc.width=innerWidth*d;fxc.height=innerHeight*d;
+  fxc.style.width=innerWidth+'px';fxc.style.height=innerHeight+'px';
+  fctx.setTransform(d,0,0,d,0,0);
+}
+function burst(x,y,color,n,spd,size){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2,s=(Math.random()*.7+.3)*(spd||4);
+    parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1,
+      life:1,decay:.018+Math.random()*.025,
+      size:(size||4)*(Math.random()*.7+.4),color,g:.09});
+  }
+}
+(function loop(){
+  requestAnimationFrame(loop);
+  fctx.clearRect(0,0,innerWidth,innerHeight);
+  if(!parts.length)return;
+  const next=[];
+  for(const p of parts){
+    p.x+=p.vx;p.y+=p.vy;p.vy+=p.g;p.vx*=.985;p.life-=p.decay;
+    if(p.life<=0)continue;
+    fctx.globalAlpha=Math.max(0,p.life);
+    fctx.fillStyle=p.color;
+    fctx.beginPath();fctx.arc(p.x,p.y,p.size*p.life,0,6.283);fctx.fill();
+    next.push(p);
+  }
+  fctx.globalAlpha=1;parts=next;
+})();
+
+/* ================= 数据表 ================= */
+const RANKS={2:'聚气',4:'筑基',8:'金丹',16:'元婴',32:'化神',64:'炼虚',128:'合体',256:'大乘',512:'渡劫',1024:'真仙',2048:'金仙',4096:'大罗'};
+const TILE_COLORS={2:'#8ea2c8',4:'#7ec8a5',8:'#3fd2b4',16:'#3fc0e8',32:'#5b93f5',64:'#8683ff',128:'#ab6bff',256:'#d566f0',512:'#ff6ba0',1024:'#ff9459',2048:'#ffd25e',4096:'#fff0b0'};
+const tileColor=v=>TILE_COLORS[v]||'#ffffff';
+
+const ENEMIES=[
+  {id:'stone',name:'石像守卫',emoji:'🗿',color:'#d8c8a0',desc:'技法·凝岩：周期性在棋盘凝出岩石封路(岩石8步后崩碎)',interval:5,atkMul:1.0,abilityEvery:6,ability:'rock'},
+  {id:'frost',name:'寒渊冰灵',emoji:'🧊',color:'#9adcff',desc:'技法·封核：周期性冻结你的一枚灵核(3步无法移动/合并)',interval:5,atkMul:0.9,abilityEvery:5,ability:'freeze'},
+  {id:'flame',name:'炎狱魔将',emoji:'🔥',color:'#ff9459',desc:'技法·重击：攻势沉重(+70%伤害)但间隔更长',interval:7,atkMul:1.7,abilityEvery:0,ability:null},
+  {id:'void', name:'噬灵虚影',emoji:'👁️',color:'#d59aff',desc:'技法·噬灵：周期性将你的一枚灵核吞噬降阶',interval:4,atkMul:0.75,abilityEvery:7,ability:'degrade'},
+];
+const BOSS={id:'boss',name:'渊主·墟',emoji:'👹',color:'#ff5f6d',desc:'首领技法：凝岩与封核交替降临，攻势凶猛',interval:5,atkMul:1.25,abilityEvery:5,ability:'both'};
+
+const RELICS=[
+  {id:'flame', n:'烈焰核心',e:'🔥', r:0,d:'所有合并伤害 +25%'},
+  {id:'alch',  n:'贤者之尘',e:'⚗️', r:0,d:'合并值 ≤8 时，伤害 ×3（小核亦可伤敌）'},
+  {id:'dice',  n:'幸运骰',  e:'🎲', r:0,d:'新灵核更易高阶：20% 出 4，5% 出 8'},
+  {id:'shield',n:'玄龟甲',  e:'🛡️', r:0,d:'每层开始时获得 25 点护盾（优先抵挡伤害）'},
+  {id:'leech', n:'嗜血珠',  e:'🩸', r:1,d:'每次合并回复合并值 8% 的道躯'},
+  {id:'combo', n:'连环诀',  e:'⛓️', r:1,d:'连击伤害加成翻倍（每段 +60%）'},
+  {id:'sand',  n:'时之沙',  e:'⏳', r:1,d:'层主攻击间隔 +1 步'},
+  {id:'thorn', n:'荆棘甲',  e:'🌵', r:1,d:'受击时向层主反弹 40% 伤害'},
+  {id:'pick',  n:'破岩锥',  e:'⛏️', r:1,d:'合并时震碎相邻岩石，每块额外造成 15 伤害'},
+  {id:'watch', n:'静滞怀表',e:'🕰️', r:1,d:'层主攻击有 25% 概率被时滞抹消'},
+  {id:'first', n:'先手印',  e:'☝️', r:1,d:'每次滑动的首次合并伤害 ×2'},
+  {id:'sage',  n:'贤者石',  e:'💎', r:2,d:'每层开始时在棋盘凝出一枚 64 灵核'},
+  {id:'giant', n:'巨人之核',e:'🌋', r:2,d:'合并值 ≥64 时，伤害额外 +75%'},
+  {id:'annih', n:'湮灭符',  e:'☄️', r:2,d:'合成 ≥256 时清除全部岩石/冰封，并造成 200 额外伤害'},
+  {id:'greed', n:'贪婪之手',e:'🤲', r:2,d:'击败层主时额外回复 30 道躯'},
+  {id:'twin',  n:'双生阵',  e:'♊', r:2,d:'每次合并有 10% 概率触发双生，伤害翻倍'},
+  {id:'fount', n:'生命之泉',e:'⛲', r:2,d:'最大道躯 +40，并完全回复',instant:true,
+    apply(){state.maxhp+=40;state.hp=state.maxhp;updatePlayerUI();}},
+];
+const FILLERS=[
+  {id:'_heal',n:'灵息',e:'🍃',r:0,d:'回复 45 道躯',instant:true,repeat:true,
+    apply(){heal(45);}},
+  {id:'_max',n:'淬体',e:'💪',r:0,d:'最大道躯 +20，并回复 20',instant:true,repeat:true,
+    apply(){state.maxhp+=20;heal(20);}},
+];
+const RTIER=['凡品','灵品','仙品'];
+
+/* ================= 状态 ================= */
+const SIZE=4,GAP=10,ANIM=125;
+let cell=88;
+let grid=[],tiles=new Map(),tid=1,locked=false,pending=null;
+const state={
+  phase:'menu', // menu | play | relic | transition | over | win
+  floor:1,hp:100,maxhp:100,shield:0,
+  totalDmg:0,mergeCount:0,maxTile:0,moveCount:0,
+  relics:[],enemy:null,bossToggle:false,
+};
+const has=id=>state.relics.includes(id);
+
+/* ================= DOM 引用 ================= */
+const boardEl=$('board'),tilesLayer=$('tilesLayer'),gridbg=$('gridbg'),boardFloat=$('boardFloat'),bgEl=$('bg');
+for(let i=0;i<16;i++){const d=document.createElement('div');d.className='cell';gridbg.appendChild(d);}
+Object.keys(ICONS).forEach(k=>loadIcon(k).then(()=>{if(state.enemy)renderEnemySprite();}));
+
+/* ================= 棋盘几何 ================= */
+function metrics(){cell=(boardEl.clientWidth-GAP*(SIZE+1))/SIZE;}
+function xy(r,c){return [GAP+c*(cell+GAP),GAP+r*(cell+GAP)];}
+function updateTransform(t){
+  const [x,y]=xy(t.r,t.c);
+  t.el.style.transform='translate3d('+x+'px,'+y+'px,0)';
+}
+function tileScreenCenter(t){
+  const rect=boardEl.getBoundingClientRect();
+  const [x,y]=xy(t.r,t.c);
+  return [rect.left+x+cell/2,rect.top+y+cell/2];
+}
+window.addEventListener('resize',()=>{
+  fitFx();metrics();
+  tilesLayer.classList.add('noanim');
+  for(const t of tiles.values()){
+    t.el.style.width=cell+'px';t.el.style.height=cell+'px';updateTransform(t);
+  }
+  requestAnimationFrame(()=>requestAnimationFrame(()=>tilesLayer.classList.remove('noanim')));
+});
+
+/* ================= 方块 ================= */
+function emptyGrid(){return Array.from({length:SIZE},()=>Array(SIZE).fill(null));}
+function emptyCells(){
+  const a=[];
+  for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++)if(!grid[r][c])a.push([r,c]);
+  return a;
+}
+function makeTile(r,c,val,type){
+  type=type||'normal';
+  const t={id:tid++,r,c,val,type,frozen:0,life:0,merging:false,el:null,inner:null,iceEl:null};
+  const el=document.createElement('div');
+  const inner=document.createElement('div');inner.className='tile-inner spawn';
+  el.appendChild(inner);
+  t.el=el;t.inner=inner;
+  el.style.width=cell+'px';el.style.height=cell+'px';
+  if(type==='rock'){
+    t.life=8;el.className='tile tile-rock';
+    inner.innerHTML='<div class="num">🪨</div><div class="life">'+t.life+'</div>';
+  }else{
+    updateTileEl(t);
+  }
+  updateTransform(t);
+  tilesLayer.appendChild(el);
+  tiles.set(t.id,t);grid[r][c]=t;
+  return t;
+}
+function updateTileEl(t){
+  const v=t.val;
+  t.el.className='tile '+(v<=4096?'tile-v'+v:'tile-super')+(t.frozen>0?' is-frozen':'');
+  const len=String(v).length;
+  t.inner.innerHTML='<div class="num n'+Math.min(len,5)+'">'+v+'</div><div class="rank">'+(RANKS[v]||'太乙')+'</div>';
+}
+function removeTile(t){
+  if(t.el)t.el.remove();
+  tiles.delete(t.id);
+  if(grid[t.r]&&grid[t.r][t.c]===t)grid[t.r][t.c]=null;
+}
+function popTile(t,cls){
+  const g=G();
+  if(g&&cls!=='zap'){
+    g.killTweensOf(t.inner);
+    g.fromTo(t.inner,{scale:.55,rotation:-3},
+      {scale:1,rotation:0,duration:.5,ease:'elastic.out(1.15,0.42)',clearProps:'transform'});
+    return;
+  }
+  cls=cls||'pop';
+  t.inner.classList.remove('pop','zap','spawn');
+  void t.inner.offsetWidth;
+  t.inner.classList.add(cls);
+}
+function freezeTile(t,n){
+  t.frozen=n;
+  const ice=document.createElement('div');
+  ice.className='ice';ice.innerHTML='❄<b>'+n+'</b>';
+  t.iceEl=ice;t.el.appendChild(ice);t.el.classList.add('is-frozen');
+  const [x,y]=tileScreenCenter(t);burst(x,y,'#9adcff',14,3,3);
+}
+function unfreezeTile(t){
+  t.frozen=0;
+  if(t.iceEl){t.iceEl.remove();t.iceEl=null;}
+  t.el.classList.remove('is-frozen');
+  const [x,y]=tileScreenCenter(t);burst(x,y,'#c8f0ff',10,2.5,2.5);
+}
+function crumbleRock(t){
+  const [x,y]=tileScreenCenter(t);
+  burst(x,y,'#a89a80',18,3.5,4);
+  sCrush();
+  removeTile(t);
+}
+function spawnRandomTile(){
+  const empt=emptyCells();
+  if(!empt.length)return null;
+  const [r,c]=rand(empt);
+  let v=2;const roll=Math.random();
+  if(has('dice')){v=roll<.05?8:(roll<.25?4:2);}
+  else{v=roll<.1?4:2;}
+  return makeTile(r,c,v);
+}
+
+/* ================= 移动 & 合并 ================= */
+const immovable=t=>t.type==='rock'||t.frozen>0;
+function lineCells(dir,i){
+  const cells=[];
+  for(let k=0;k<SIZE;k++){
+    if(dir==='left')cells.push([i,k]);
+    else if(dir==='right')cells.push([i,SIZE-1-k]);
+    else if(dir==='up')cells.push([k,i]);
+    else cells.push([SIZE-1-k,i]);
+  }
+  return cells;
+}
+function computeMove(dir){
+  const merges=[];let moved=false;
+  const ng=emptyGrid();
+  for(let i=0;i<SIZE;i++){
+    const cells=lineCells(dir,i);
+    let slot=0,last=null,lastSlot=-1;
+    for(let k=0;k<SIZE;k++){
+      const [r,c]=cells[k];const t=grid[r][c];
+      if(!t)continue;
+      if(immovable(t)){ng[r][c]=t;slot=k+1;last=null;continue;}
+      if(last&&last.val===t.val&&!last.merging){
+        last.merging=true;
+        merges.push({target:last,mover:t});
+        t.el.classList.add('under');
+        t.r=cells[lastSlot][0];t.c=cells[lastSlot][1];
+        updateTransform(t);
+        moved=true;last=null;
+      }else{
+        const [nr,nc]=cells[slot];
+        if(nr!==t.r||nc!==t.c){moved=true;t.r=nr;t.c=nc;updateTransform(t);}
+        ng[nr][nc]=t;last=t;lastSlot=slot;slot++;
+      }
+    }
+  }
+  if(moved)grid=ng;
+  else merges.forEach(m=>m.target.merging=false);
+  return {moved,merges};
+}
+function isDeadlocked(){
+  if(emptyCells().length>0)return false;
+  for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){
+    const t=grid[r][c];
+    if(!t||immovable(t))continue;
+    const right=c<SIZE-1?grid[r][c+1]:null;
+    const down=r<SIZE-1?grid[r+1][c]:null;
+    if(right&&!immovable(right)&&right.val===t.val)return false;
+    if(down&&!immovable(down)&&down.val===t.val)return false;
+  }
+  return true;
+}
+
+/* ================= 伤害计算 ================= */
+function mergeDamage(val,i){
+  let d=val,crit=false;
+  if(has('alch')&&val<=8)d*=3;
+  if(has('giant')&&val>=64)d*=1.75;
+  if(has('flame'))d*=1.25;
+  if(has('first')&&i===0)d*=2;
+  d*=1+(has('combo')?0.6:0.3)*i;
+  if(has('twin')&&Math.random()<0.10){d*=2;crit=true;}
+  return {dmg:Math.round(d),crit};
+}
+function crushAdjacentRocks(t){
+  let n=0;
+  const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+  for(const [dr,dc] of dirs){
+    const r=t.r+dr,c=t.c+dc;
+    if(r<0||r>=SIZE||c<0||c>=SIZE)continue;
+    const u=grid[r][c];
+    if(u&&u.type==='rock'){crumbleRock(u);n++;}
+  }
+  return n;
+}
+
+/* ================= 移动主流程 ================= */
+const BG_SHIFT={left:[9,0],right:[-9,0],up:[0,9],down:[0,-9]};
+function parallax(dir){
+  const [dx,dy]=BG_SHIFT[dir];
+  bgEl.style.transform='translate3d('+dx+'px,'+dy+'px,0) scale(1.05)';
+  setTimeout(()=>{bgEl.style.transform='translate3d(0,0,0) scale(1.05)';},220);
+}
+function doMove(dir){
+  if(state.phase!=='play')return;
+  if(locked){pending=dir;return;}
+  const res=computeMove(dir);
+  if(!res.moved){retrig(boardEl,'nudge-'+dir);return;}
+  locked=true;
+  retrig(boardEl,'tilt-'+dir);
+  parallax(dir);
+  sSlide();
+  setTimeout(()=>finalizeMove(res),ANIM+10);
+}
+function finalizeMove(res){
+  let total=0,healSum=0,crushBonus=0,bigMerge=0,annihHit=false;
+  res.merges.forEach((m,i)=>{
+    removeTile(m.mover);
+    const tg=m.target;
+    tg.val*=2;tg.merging=false;
+    state.mergeCount++;
+    if(tg.val>state.maxTile)state.maxTile=tg.val;
+    updateTileEl(tg);popTile(tg);
+    const {dmg,crit}=mergeDamage(tg.val,i);
+    total+=dmg;
+    spawnEnemyDmg(dmg,crit);
+    const [x,y]=tileScreenCenter(tg);
+    burst(x,y,tileColor(tg.val),12+Math.min(26,Math.log2(tg.val)*3),3.5+Math.log2(tg.val)*.3,4);
+    if(tg.val>=64)shockwave(tg);
+    if(has('leech'))healSum+=tg.val*.08;
+    if(has('annih')&&tg.val>=256)annihHit=true;
+    if(has('pick'))crushBonus+=crushAdjacentRocks(tg)*15;
+    if(tg.val>bigMerge)bigMerge=tg.val;
+    sMerge(tg.val,i);
+  });
+  if(res.merges.length>=2){
+    comboFx(res.merges.length);
+  }
+  if(bigMerge>=128)shake('l');
+  else if(bigMerge>=32)shake('m');
+  else if(bigMerge>0)shake('s');
+  if(annihHit){
+    for(const t of [...tiles.values()]){
+      if(t.type==='rock')crumbleRock(t);
+      else if(t.frozen>0)unfreezeTile(t);
+    }
+    total+=200;
+    floatBoardText('☄ 湮灭！+200','#ffce54');
+    shake('l');
+  }
+  if(healSum>=1)heal(Math.round(healSum));
+  spawnRandomTile();
+  tickSpecials();
+  state.moveCount++;
+  total+=crushBonus;
+  if(crushBonus>0)floatBoardText('⛏ 碎岩 +'+crushBonus,'#e8ddc8');
+  if(total>0)damageEnemy(total,true);
+  if(state.phase!=='play'){locked=false;pending=null;return;}
+  enemyTick();
+  if(state.phase!=='play'){locked=false;pending=null;return;}
+  if(isDeadlocked()){gameOver('deadlock');locked=false;pending=null;return;}
+  locked=false;
+  if(pending){const p=pending;pending=null;doMove(p);}
+}
+function tickSpecials(){
+  for(const t of [...tiles.values()]){
+    if(t.type==='rock'){
+      t.life--;
+      const lifeEl=t.inner.querySelector('.life');
+      if(t.life<=0)crumbleRock(t);
+      else if(lifeEl)lifeEl.textContent=t.life;
+    }else if(t.frozen>0){
+      t.frozen--;
+      if(t.frozen<=0)unfreezeTile(t);
+      else if(t.iceEl)t.iceEl.querySelector('b').textContent=t.frozen;
+    }
+  }
+}
+
+/* ================= 敌人 ================= */
+function makeEnemy(n){
+  const isBoss=n%5===0;
+  const def=isBoss?BOSS:rand(ENEMIES);
+  const hp=Math.round((65+55*(n-1)+6*(n-1)*(n-1))*(isBoss?1.6:1));
+  const atk=Math.round((6+3*n)*def.atkMul);
+  return {
+    def,isBoss,hp,maxhp:hp,atk,
+    interval:def.interval,
+    atkCnt:def.interval+(has('sand')?1:0),
+    abilityEvery:def.abilityEvery,
+    abCnt:def.abilityEvery,
+  };
+}
+function enemyTick(){
+  const e=state.enemy;
+  if(e.abilityEvery>0){
+    e.abCnt--;
+    if(e.abCnt<=0){doAbility(e);e.abCnt=e.abilityEvery;}
+  }
+  e.atkCnt--;
+  if(e.atkCnt<=0){
+    enemyAttack();
+    e.atkCnt=e.interval+(has('sand')?1:0);
+  }
+  updateEnemyUI();
+}
+function doAbility(e){
+  let ab=e.def.ability;
+  if(ab==='both'){ab=state.bossToggle?'freeze':'rock';state.bossToggle=!state.bossToggle;}
+  if(ab==='rock'){
+    const empt=emptyCells();
+    const rocks=[...tiles.values()].filter(t=>t.type==='rock');
+    if(empt.length>=6&&rocks.length<2){
+      const [r,c]=rand(empt);
+      makeTile(r,c,0,'rock');
+      floatBoardText('岩石凝聚！','#d8c8a8');
+      tone(110,.2,'square',.12,60);
+    }
+  }else if(ab==='freeze'){
+    const cands=[...tiles.values()].filter(t=>t.type==='normal'&&t.frozen<=0);
+    if(cands.length&&emptyCells().length>=2){
+      freezeTile(rand(cands),3);
+      floatBoardText('寒气侵蚀！','#9adcff');
+      tone(1200,.25,'sine',.1,400);
+    }
+  }else if(ab==='degrade'){
+    const cands=[...tiles.values()].filter(t=>t.type==='normal'&&t.val>=4);
+    if(cands.length){
+      const t=rand(cands);
+      t.val/=2;updateTileEl(t);popTile(t,'zap');
+      const [x,y]=tileScreenCenter(t);burst(x,y,'#c58aff',14,3,3.5);
+      floatBoardText('灵核被噬！','#d59aff');
+      tone(500,.25,'sawtooth',.1,120);
+    }
+  }
+}
+function enemyAttack(){
+  const e=state.enemy;
+  if(has('watch')&&Math.random()<0.25){
+    floatBoardText('🕰 时滞 · 攻击失效','#8fd8ff');
+    sTick();
+    return;
+  }
+  const sprite=$('enemySprite');
+  retrig(sprite,'lunge');
+  let d=e.atk;
+  if(state.shield>0){
+    const ab=Math.min(state.shield,d);
+    state.shield-=ab;d-=ab;
+    if(ab>0)spawnPlayerFx('🛡 -'+ab,'player');
+  }
+  if(d>0){
+    state.hp=Math.max(0,state.hp-d);
+    spawnPlayerFx('-'+d,'player');
+  }
+  retrig($('vignette'),'flash');
+  retrig($('pBar'),'hurt');
+  shake('l');
+  sHurt();
+  updatePlayerUI();
+  if(has('thorn')){
+    const rf=Math.round(e.atk*.4);
+    floatBoardText('🌵 反伤 '+rf,'#a3e635');
+    setTimeout(()=>{if(state.phase==='play')damageEnemy(rf,false);},180);
+  }
+  if(state.hp<=0)gameOver('slain');
+}
+function damageEnemy(n,withSlash){
+  const e=state.enemy;
+  if(!e||e.hp<=0)return;
+  e.hp=Math.max(0,e.hp-n);
+  state.totalDmg+=n;
+  bumpScore();
+  const sprite=$('enemySprite');
+  enemyHitFx(sprite);
+  if(withSlash)slashFx();
+  const rc=sprite.getBoundingClientRect();
+  burst(rc.left+rc.width/2,rc.top+rc.height/2,'#ff8f9a',10,3.5,3.5);
+  updateEnemyUI();
+  if(e.hp<=0)floorCleared();
+}
+function enemyHitFx(sprite){
+  const g=G();
+  if(g){
+    g.killTweensOf(sprite);
+    g.fromTo(sprite,{x:0},{x:()=>g.utils.random(-9,9),duration:.05,repeat:4,yoyo:true,clearProps:'x'});
+    g.fromTo(sprite,{filter:'brightness(3) drop-shadow(0 0 18px #fff)'},
+      {filter:'brightness(1) drop-shadow(0 0 12px currentColor)',duration:.35,clearProps:'filter'});
+  }else{
+    retrig(sprite,'hit');
+  }
+}
+function slashFx(){
+  const panel=$('enemyPanel');
+  const el=document.createElement('div');
+  el.className='slashfx';
+  const svg=ICON_CACHE.slash;
+  if(svg)el.innerHTML=svg;else el.textContent='⚔';
+  panel.appendChild(el);
+  const line=document.createElement('div');
+  line.className='sweepline';
+  panel.appendChild(line);
+  line.addEventListener('animationend',()=>line.remove());
+  const g=G();
+  if(g){
+    g.fromTo(el,{scale:.3,rotation:-40,opacity:0},
+      {scale:1.45,rotation:8,opacity:1,duration:.12,ease:'power3.out',
+       onComplete(){g.to(el,{scale:1.9,rotation:16,opacity:0,duration:.26,ease:'power1.in',onComplete:()=>el.remove()});}});
+  }else{
+    el.classList.add('cssanim');
+    el.addEventListener('animationend',()=>el.remove());
+  }
+}
+function shockwave(t){
+  const [x,y]=xy(t.r,t.c);
+  const el=document.createElement('div');
+  el.className='shockwave';
+  el.style.width=cell+'px';el.style.height=cell+'px';
+  el.style.left=x+'px';el.style.top=y+'px';
+  boardFloat.appendChild(el);
+  const g=G();
+  if(g){
+    g.fromTo(el,{scale:.25,opacity:1},{scale:3,opacity:0,duration:.55,ease:'power2.out',onComplete:()=>el.remove()});
+  }else{
+    el.classList.add('cssanim');
+    el.addEventListener('animationend',()=>el.remove());
+  }
+}
+function bumpScore(){
+  const el=$('hScore');
+  el.textContent=state.totalDmg;
+  const g=G();
+  if(g){
+    g.killTweensOf(el);
+    g.fromTo(el,{scale:1.4,color:'#ffd76a'},{scale:1,color:'#dbe4f5',duration:.3,clearProps:'all'});
+  }
+}
+function renderEnemySprite(){
+  const e=state.enemy;if(!e)return;
+  const sprite=$('enemySprite');
+  const svg=ICON_CACHE[e.def.id];
+  if(svg)sprite.innerHTML=svg;
+  else sprite.textContent=e.def.emoji;
+  sprite.style.color=e.def.color;
+  sprite.classList.toggle('boss',!!e.isBoss);
+}
+
+/* ================= 楼层流程 ================= */
+function startFloor(n){
+  state.floor=n;
+  for(const t of [...tiles.values()]){
+    if(t.type==='rock')removeTile(t);
+    else if(t.frozen>0)unfreezeTile(t);
+  }
+  state.enemy=makeEnemy(n);
+  state.bossToggle=false;
+  if(has('shield'))state.shield=Math.max(state.shield,25);
+  if(has('sage')&&emptyCells().length>=3){
+    const [r,c]=rand(emptyCells());
+    const t=makeTile(r,c,64);
+    if(t.val>state.maxTile)state.maxTile=t.val;
+    floatBoardText('💎 贤者石显化','#9fd4ff');
+  }
+  $('hFloor').textContent=n;
+  const sprite=$('enemySprite');
+  sprite.classList.remove('die','hit','lunge');
+  sprite.style.opacity=1;
+  const gg=G();if(gg){gg.killTweensOf(sprite);gg.set(sprite,{clearProps:'all'});}
+  renderEnemySprite();
+  setBar('eFill','eGhost',1,true);
+  updateEnemyUI();
+  updatePlayerUI();
+  banner('第 '+n+' 层',(state.enemy.isBoss?'⚠ 首领 · ':'')+state.enemy.def.name);
+  tone(300,.3,'sine',.1,600);
+  state.phase='play';
+}
+function floorCleared(){
+  state.phase='transition';
+  pending=null;
+  const sprite=$('enemySprite');
+  sprite.classList.remove('hit','lunge');
+  void sprite.offsetWidth;
+  sprite.classList.add('die');
+  const rc=sprite.getBoundingClientRect();
+  burst(rc.left+rc.width/2,rc.top+rc.height/2,'#ffd76a',36,6,5);
+  burst(rc.left+rc.width/2,rc.top+rc.height/2,'#ff8f9a',24,4.5,4);
+  shake('l');
+  sWin();
+  let h=15+(has('greed')?30:0);
+  setTimeout(()=>heal(h),350);
+  setTimeout(()=>{
+    if(state.floor%10===0)showWin();
+    else showRelicChoice();
+  },950);
+}
+
+/* ================= 遗物 ================= */
+function weightedPick(w){
+  const s=w[0]+w[1]+w[2];let r=Math.random()*s;
+  if(r<w[0])return 0;if(r<w[0]+w[1])return 1;return 2;
+}
+function rollRelics(isBoss){
+  const owned=new Set(state.relics);
+  const pool=RELICS.filter(r=>!owned.has(r.id));
+  const picks=[];
+  for(let s=0;s<3;s++){
+    const w=isBoss?[0,58,42]:[55,33,12];
+    const rar=weightedPick(w);
+    let cands=pool.filter(r=>r.r===rar&&!picks.includes(r));
+    if(!cands.length)cands=pool.filter(r=>!picks.includes(r));
+    if(!cands.length)cands=FILLERS.filter(r=>!picks.includes(r));
+    if(!cands.length)break;
+    picks.push(rand(cands));
+  }
+  let fi=0;
+  while(picks.length<3&&fi<FILLERS.length){
+    if(!picks.includes(FILLERS[fi]))picks.push(FILLERS[fi]);
+    fi++;
+  }
+  return picks;
+}
+function showRelicChoice(){
+  state.phase='relic';
+  const box=$('relicCards');
+  box.innerHTML='';
+  const picks=rollRelics(state.enemy.isBoss);
+  picks.forEach(def=>{
+    const card=document.createElement('div');
+    card.className='relicCard r'+def.r;
+    card.innerHTML='<div class="remoji">'+def.e+'</div><div><div class="rname">'+def.n+
+      '<span class="rtier">'+RTIER[def.r]+'</span></div><div class="rdesc">'+def.d+'</div></div>';
+    card.onclick=()=>pickRelic(def);
+    box.appendChild(card);
+  });
+  $('ovRelic').classList.add('show');
+}
+function pickRelic(def){
+  $('ovRelic').classList.remove('show');
+  if(def.instant)def.apply();
+  if(!def.repeat)state.relics.push(def.id);
+  renderRelics();
+  sRelic();
+  toast('获得「'+def.n+'」· '+def.d);
+  setTimeout(()=>startFloor(state.floor+1),350);
+}
+function relicDefById(id){return RELICS.find(r=>r.id===id);}
+function renderRelics(){
+  const row=$('relicRow');
+  row.innerHTML='';
+  if(!state.relics.length){
+    row.innerHTML='<span class="hint">尚未获得遗物 · 击败层主可三选一</span>';
+    return;
+  }
+  state.relics.forEach(id=>{
+    const def=relicDefById(id);
+    if(!def)return;
+    const chip=document.createElement('div');
+    chip.className='relicChip rr'+def.r;
+    chip.innerHTML='<span class="ce">'+def.e+'</span><span class="cn">'+def.n+'</span>';
+    chip.title=def.n+'：'+def.d;
+    chip.onclick=()=>toast('「'+def.n+'」'+def.d);
+    row.appendChild(chip);
+  });
+}
+
+/* ================= 生命 / UI ================= */
+function heal(x){
+  if(x<=0)return;
+  const before=state.hp;
+  state.hp=Math.min(state.maxhp,state.hp+x);
+  const got=state.hp-before;
+  if(got>0)spawnPlayerFx('+'+got,'heal');
+  updatePlayerUI();
+}
+function setBar(fillId,ghostId,pct,instant){
+  const f=$(fillId),g=$(ghostId);
+  const bar=f.parentElement;
+  if(instant){
+    bar.classList.add('noanim');
+    f.style.width=g.style.width=(pct*100)+'%';
+    void bar.offsetWidth;
+    requestAnimationFrame(()=>bar.classList.remove('noanim'));
+  }else{
+    f.style.width=g.style.width=(pct*100)+'%';
+  }
+}
+function updatePlayerUI(){
+  setBar('pFill','pGhost',clamp(state.hp/state.maxhp,0,1));
+  $('pText').textContent=state.hp+'/'+state.maxhp;
+  const sc=$('shieldChip');
+  if(state.shield>0){sc.style.display='inline-block';sc.textContent='🛡 '+state.shield;}
+  else sc.style.display='none';
+}
+function updateEnemyUI(){
+  const e=state.enemy;if(!e)return;
+  setBar('eFill','eGhost',clamp(e.hp/e.maxhp,0,1));
+  $('eText').textContent=Math.max(0,e.hp)+'/'+e.maxhp;
+  $('enemyName').textContent=e.def.name;
+  $('enemyTag').textContent='第'+state.floor+'层'+(e.isBoss?' · 首领':'');
+  $('atkVal').textContent=e.atk;
+  const ac2=$('atkCnt');
+  ac2.textContent=Math.max(0,e.atkCnt);
+  ac2.classList.toggle('danger',e.atkCnt<=1);
+  $('abInfo').textContent=e.abilityEvery>0?('✦ 技法 '+Math.max(0,e.abCnt)+' 步'):'';
+  $('enemyDesc').textContent=e.def.desc;
+}
+
+/* ================= 特效辅助 ================= */
+function retrig(el,cls){
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+  const onEnd=()=>{el.classList.remove(cls);el.removeEventListener('animationend',onEnd);};
+  el.addEventListener('animationend',onEnd);
+}
+function shake(level){
+  retrig($('app'),'shake-'+(level==='l'?'l':level==='m'?'m':'s'));
+}
+function animNum(el,crit){
+  const g=G();
+  if(g){
+    const dx=g.utils.random(-22,22);
+    g.fromTo(el,{y:14,scale:.4,opacity:0},
+      {y:0,scale:crit?1.5:1.1,opacity:1,duration:.16,ease:'back.out(2.5)',
+       onComplete(){g.to(el,{y:-48,x:dx,opacity:0,duration:.72,ease:'power1.in',onComplete:()=>el.remove()});}});
+  }else{
+    el.classList.add('cssanim');
+    el.addEventListener('animationend',()=>el.remove());
+  }
+}
+function spawnEnemyDmg(n,crit){
+  const layer=$('dmgLayer');
+  const el=document.createElement('div');
+  el.className='dmgnum'+(crit?' crit':'');
+  el.textContent=(crit?'♊ ':'')+'-'+n;
+  el.style.left=(20+Math.random()*55)+'%';
+  el.style.top=(15+Math.random()*35)+'%';
+  layer.appendChild(el);
+  animNum(el,crit);
+}
+function spawnPlayerFx(text,cls){
+  const layer=$('pFxLayer');
+  const el=document.createElement('div');
+  el.className='dmgnum '+cls;
+  el.textContent=text;
+  el.style.left=(25+Math.random()*45)+'%';
+  el.style.top='20%';
+  layer.appendChild(el);
+  animNum(el,false);
+}
+function floatBoardText(text,color){
+  const el=document.createElement('div');
+  el.className='bfloat';
+  el.style.color=color||'#ffd76a';
+  el.textContent=text;
+  el.style.top=(30+Math.random()*30)+'%';
+  boardFloat.appendChild(el);
+  el.addEventListener('animationend',()=>el.remove());
+}
+function comboFx(n){
+  const el=document.createElement('div');
+  el.className='combofx';
+  el.textContent=n+' 连击！';
+  boardFloat.appendChild(el);
+  el.addEventListener('animationend',()=>el.remove());
+}
+function banner(t1,t2){
+  const b=$('banner');
+  b.querySelector('.b1').textContent=t1;
+  b.querySelector('.b2').textContent=t2;
+  b.classList.remove('go');
+  void b.offsetWidth;
+  b.classList.add('go');
+}
+let toastTimer=null;
+function toast(msg){
+  const t=$('toast');
+  t.textContent=msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+/* ================= 结算 ================= */
+function statsHTML(){
+  return '<div class="statitem"><div class="sv">'+state.floor+'</div><div class="sk">抵达层数</div></div>'+
+    '<div class="statitem"><div class="sv">'+state.totalDmg+'</div><div class="sk">总计伤害</div></div>'+
+    '<div class="statitem"><div class="sv">'+state.mergeCount+'</div><div class="sk">合并次数</div></div>'+
+    '<div class="statitem"><div class="sv">'+(state.maxTile||0)+'</div><div class="sk">最高灵核</div></div>';
+}
+function relicEmojis(){
+  return state.relics.map(id=>{const d=relicDefById(id);return d?d.e:'';}).join(' ')||'—';
+}
+function gameOver(reason){
+  if(state.phase==='over')return;
+  state.phase='over';
+  sDeath();
+  shake('l');
+  $('endReason').textContent=reason==='deadlock'
+    ?'「灵路断绝」—— 棋盘之上，再无一子可动。'
+    :'「道躯崩解」—— '+state.enemy.def.name+' 的攻势撕裂了你的躯壳。';
+  $('endStats').innerHTML=statsHTML();
+  $('endRelics').textContent=relicEmojis();
+  setTimeout(()=>$('ovEnd').classList.add('show'),650);
+}
+function showWin(){
+  state.phase='win';
+  sWin();
+  $('winStats').innerHTML=statsHTML();
+  $('winRelics').textContent=relicEmojis();
+  $('ovWin').classList.add('show');
+}
+
+/* ================= 开局 / 重开 ================= */
+function startRun(){
+  ['ovStart','ovRelic','ovEnd','ovWin'].forEach(id=>$(id).classList.remove('show'));
+  for(const t of [...tiles.values()])t.el.remove();
+  tiles.clear();
+  grid=emptyGrid();
+  parts=[];
+  locked=false;pending=null;
+  state.hp=100;state.maxhp=100;state.shield=0;
+  state.totalDmg=0;state.mergeCount=0;state.maxTile=0;state.moveCount=0;
+  state.relics=[];state.bossToggle=false;
+  $('hScore').textContent='0';
+  renderRelics();
+  metrics();
+  spawnRandomTile();spawnRandomTile();
+  startFloor(1);
+}
+
+/* ================= 输入 ================= */
+const KEYMAP={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',
+  a:'left',d:'right',w:'up',s:'down',A:'left',D:'right',W:'up',S:'down'};
+window.addEventListener('keydown',e=>{
+  const d=KEYMAP[e.key];
+  if(d){e.preventDefault();doMove(d);}
+});
+let touchSX=0,touchSY=0,touching=false;
+document.addEventListener('touchstart',e=>{
+  if(e.touches.length!==1)return;
+  touching=true;
+  touchSX=e.touches[0].clientX;touchSY=e.touches[0].clientY;
+},{passive:true});
+document.addEventListener('touchmove',e=>{
+  if(state.phase==='play')e.preventDefault();
+},{passive:false});
+document.addEventListener('touchend',e=>{
+  if(!touching)return;
+  touching=false;
+  const t=e.changedTouches[0];
+  const dx=t.clientX-touchSX,dy=t.clientY-touchSY;
+  if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;
+  if(Math.abs(dx)>Math.abs(dy))doMove(dx>0?'right':'left');
+  else doMove(dy>0?'down':'up');
+});
+let mDown=false,mSX=0,mSY=0;
+boardEl.addEventListener('pointerdown',e=>{
+  if(e.pointerType!=='mouse')return;
+  mDown=true;mSX=e.clientX;mSY=e.clientY;
+});
+window.addEventListener('pointerup',e=>{
+  if(!mDown||e.pointerType!=='mouse')return;
+  mDown=false;
+  const dx=e.clientX-mSX,dy=e.clientY-mSY;
+  if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;
+  if(Math.abs(dx)>Math.abs(dy))doMove(dx>0?'right':'left');
+  else doMove(dy>0?'down':'up');
+});
+
+/* ================= 按钮 ================= */
+$('btnStart').onclick=()=>{ac();startMusic();startRun();};
+$('btnAgain').onclick=()=>startRun();
+$('btnAgain2').onclick=()=>startRun();
+$('btnContinue').onclick=()=>{
+  $('ovWin').classList.remove('show');
+  setTimeout(()=>showRelicChoice(),300);
+};
+$('btnMusic').onclick=()=>{
+  musicOn=!musicOn;
+  $('btnMusic').classList.toggle('off',!musicOn);
+  if(musicOn){ac();startMusic();toast('琴音起 · 古琴《阳关三叠/醉渔唱晚》');}
+  else stopMusic();
+};
+$('btnSound').onclick=()=>{
+  soundOn=!soundOn;
+  $('btnSound').textContent=soundOn?'🔊':'🔇';
+  if(soundOn){ac();sTick();}
+};
+let restartArm=0;
+$('btnRestart').onclick=()=>{
+  if(state.phase==='menu')return;
+  const now=Date.now();
+  if(now-restartArm<2000){restartArm=0;startRun();}
+  else{restartArm=now;toast('再次点击 ↺ 确认重入轮回');}
+};
+
+/* ================= 初始化 ================= */
+fitFx();
+metrics();
+grid=emptyGrid();
+</script>
+</body>
+</html>

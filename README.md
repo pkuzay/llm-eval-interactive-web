@@ -18,3 +18,9 @@
 - 模型生成的原始单文件答案保存在 `answers/<model>/`，不修改模型输出。
 - 运行截图、录屏或其他证据保存在 `artifacts/<model>/`。
 - 每个答案文件沿用题目编号和指定的产物类型，例如 `answers/<model>/01-2048-roguelike.html` 或 `answers/<model>/03-racing-telemetry-analyzer.py`。
+
+## 模型答案
+
+| 模型 | 答案目录 | 收录题目 |
+| --- | --- | --- |
+| DeepSeek | [`answers/deepseek/`](answers/deepseek/) | 01-05 |
