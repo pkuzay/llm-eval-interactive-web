@@ -16,7 +16,8 @@ answers/
 ├── 03-racing-telemetry-analyzer/
 │   ├── deepseek/
 │   ├── kimi-k3/
-│   └── glm-5.2/
+│   ├── glm-5.2/
+│   └── qwen-3.8-max-preview/
 ├── 04-balatro-web/
 │   ├── deepseek/
 │   ├── kimi-k3/
