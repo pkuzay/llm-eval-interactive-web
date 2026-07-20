@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SO(3) FPV · Freestyle Simulator</title>
+<style>
+  :root {
+    --bg: #050809;
+    --fg: #d4f5ee;
+    --accent: #00ffe5;
+    --accent2: #ff2e9a;
+    --warn: #ffa629;
+    --danger: #ff3838;
+    --panel: rgba(8, 18, 22, 0.78);
+    --border: rgba(0, 255, 229, 0.28);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--fg);
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    user-select: none;
+  }
+  #canvas-container { position: fixed; inset: 0; }
+  canvas { display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+  .hud-panel {
+    position: absolute; background: var(--panel);
+    border: 1px solid var(--border); backdrop-filter: blur(8px);
+    padding: 12px 16px; border-radius: 4px;
+    font-size: 12px; line-height: 1.6; pointer-events: auto;
+  }
+  #panel-tl { top: 16px; left: 16px; min-width: 230px; }
+  #panel-tr { top: 16px; right: 16px; min-width: 230px; }
+  #panel-br { bottom: 16px; right: 16px; width: 290px; }
+  #panel-bl { bottom: 16px; left: 16px; width: 290px; }
+  .panel-title {
+    font-size: 11px; letter-spacing: 0.18em;
+    color: var(--accent); margin-bottom: 8px;
+    border-bottom: 1px solid var(--border); padding-bottom: 5px;
+    text-transform: uppercase;
+  }
+  .stat-row { display: flex; justify-content: space-between; align-items: baseline; margin: 3px 0; }
+  .stat-label { color: rgba(212, 245, 238, 0.55); font-size: 11px; letter-spacing: 0.05em; }
+  .stat-value { color: var(--accent); font-weight: bold; font-variant-numeric: tabular-nums; }
+  .stat-value.warn { color: var(--warn); }
+  .stat-value.danger { color: var(--danger); }
+  #crosshair {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80px; height: 80px; pointer-events: none;
+  }
+  #crosshair::before, #crosshair::after { content: ''; position: absolute; }
+  #crosshair::before {
+    top: 50%; left: 0; right: 0; height: 1px; transform: translateY(-50%);
+    background: linear-gradient(90deg, transparent, var(--accent) 15%, transparent 38%, transparent 62%, var(--accent) 85%, transparent);
+    box-shadow: 0 0 6px rgba(0,255,229,0.5);
+  }
+  #crosshair::after {
+    left: 50%; top: 0; bottom: 0; width: 1px; transform: translateX(-50%);
+    background: linear-gradient(180deg, transparent, var(--accent) 15%, transparent 38%, transparent 62%, var(--accent) 85%, transparent);
+    box-shadow: 0 0 6px rgba(0,255,229,0.5);
+  }
+  .crosshair-center {
+    position: absolute; top: 50%; left: 50%;
+    width: 6px; height: 6px; transform: translate(-50%, -50%);
+    border: 1px solid var(--accent); border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .stick-pair { display: flex; gap: 14px; justify-content: space-between; margin-top: 6px; }
+  .stick {
+    width: 116px; height: 116px; border: 1px solid var(--border);
+    border-radius: 4px; position: relative;
+    background: radial-gradient(circle, rgba(0,255,229,0.06), rgba(0,0,0,0.2));
+  }
+  .stick::before, .stick::after { content: ''; position: absolute; background: rgba(0,255,229,0.18); }
+  .stick::before { top: 50%; left: 4px; right: 4px; height: 1px; }
+  .stick::after { left: 50%; top: 4px; bottom: 4px; width: 1px; }
+  .stick-dot {
+    position: absolute; width: 10px; height: 10px;
+    background: var(--accent); border-radius: 50%;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    box-shadow: 0 0 10px var(--accent);
+    transition: top 0.04s linear, left 0.04s linear;
+  }
+  .stick-label {
+    text-align: center; font-size: 10px;
+    color: rgba(212, 245, 238, 0.55); margin-top: 5px; letter-spacing: 0.1em;
+  }
+  .signal-bar {
+    width: 100%; height: 6px; background: rgba(255,255,255,0.08);
+    border-radius: 3px; overflow: hidden; margin-top: 4px;
+  }
+  .signal-fill {
+    height: 100%; transition: width 0.1s linear;
+    background: linear-gradient(90deg, var(--danger) 0%, var(--warn) 35%, var(--accent) 65%);
+  }
+  #center-msg {
+    position: absolute; top: 62%; left: 50%;
+    transform: translate(-50%, -50%); text-align: center;
+    font-size: 18px; color: var(--accent);
+    text-shadow: 0 0 14px var(--accent);
+    pointer-events: none; opacity: 0; transition: opacity 0.3s;
+    letter-spacing: 0.1em;
+  }
+  #center-msg.show { opacity: 1; }
+  #center-msg.danger { color: var(--danger); text-shadow: 0 0 14px var(--danger); }
+  .btn {
+    background: transparent; border: 1px solid var(--accent);
+    color: var(--accent); padding: 8px 16px;
+    font-family: inherit; font-size: 11px; letter-spacing: 0.15em;
+    cursor: pointer; border-radius: 3px; transition: all 0.2s;
+    text-transform: uppercase; pointer-events: auto;
+  }
+  .btn:hover { background: var(--accent); color: var(--bg); box-shadow: 0 0 18px rgba(0,255,229,0.55); }
+  .btn.warn { border-color: var(--warn); color: var(--warn); }
+  .btn.warn:hover { background: var(--warn); color: var(--bg); box-shadow: 0 0 18px rgba(255,166,41,0.55); }
+  .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+  #boot-overlay {
+    position: fixed; inset: 0; background: var(--bg); z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; text-align: center; padding: 30px; overflow-y: auto;
+  }
+  #boot-overlay.hidden { display: none; }
+  .boot-title {
+    font-size: 46px; font-weight: 900; letter-spacing: 0.05em;
+    color: var(--accent);
+    text-shadow: 0 0 36px rgba(0,255,229,0.7), 0 0 12px rgba(0,255,229,0.4);
+    margin-bottom: 6px;
+  }
+  .boot-subtitle {
+    font-size: 13px; color: rgba(212, 245, 238, 0.55);
+    letter-spacing: 0.35em; margin-bottom: 28px;
+  }
+  .boot-section {
+    max-width: 620px; margin: 12px 0; text-align: left;
+    background: var(--panel); border: 1px solid var(--border);
+    padding: 18px 24px; border-radius: 4px;
+  }
+  .boot-section h3 {
+    color: var(--accent); font-size: 12px; letter-spacing: 0.2em;
+    margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 7px;
+    text-transform: uppercase;
+  }
+  .boot-section p, .boot-section li { font-size: 13px; line-height: 1.75; color: var(--fg); }
+  .boot-section code {
+    background: rgba(0,255,229,0.1); padding: 1px 6px; border-radius: 3px;
+    color: var(--accent); font-size: 12px;
+  }
+  .boot-section ul { list-style: none; padding: 0; }
+  .boot-section li::before { content: '▸ '; color: var(--accent); }
+  .key {
+    display: inline-block; background: rgba(0,255,229,0.1);
+    border: 1px solid var(--border); padding: 2px 8px;
+    border-radius: 3px; font-size: 11px; color: var(--accent); margin: 0 2px;
+  }
+  #gamepad-status {
+    margin: 14px 0; font-size: 13px; padding: 10px 18px; border-radius: 3px;
+    background: rgba(255,166,41,0.1); border: 1px solid rgba(255,166,41,0.4);
+    color: var(--warn);
+  }
+  #gamepad-status.connected {
+    background: rgba(0,255,229,0.1); border: 1px solid var(--accent); color: var(--accent);
+  }
+  .scanlines {
+    position: fixed; inset: 0; pointer-events: none; z-index: 5;
+    background: repeating-linear-gradient(0deg,
+      rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px,
+      rgba(0,0,0,0.12) 3px, rgba(0,0,0,0) 4px);
+    opacity: 0.4; mix-blend-mode: multiply;
+  }
+  .axis-monitor {
+    margin-top: 10px; font-size: 10px; color: rgba(212,245,238,0.5);
+    font-variant-numeric: tabular-nums; line-height: 1.5;
+  }
+  .axis-monitor span { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+<div class="scanlines"></div>
+
+<div id="hud">
+  <div id="crosshair"><div class="crosshair-center"></div></div>
+
+  <div id="panel-tl" class="hud-panel">
+    <div class="panel-title">Flight Telemetry</div>
+    <div class="stat-row"><span class="stat-label">ALT</span><span class="stat-value" id="stat-alt">0.0 m</span></div>
+    <div class="stat-row"><span class="stat-label">SPD</span><span class="stat-value" id="stat-spd">0.0 m/s</span></div>
+    <div class="stat-row"><span class="stat-label">DIST</span><span class="stat-value" id="stat-dist">0.0 m</span></div>
+    <div class="stat-row"><span class="stat-label">VBAT</span><span class="stat-value" id="stat-vbat">16.8 V</span></div>
+    <div class="stat-row"><span class="stat-label">ARM</span><span class="stat-value warn" id="stat-arm">DISARMED</span></div>
+    <div class="axis-monitor" id="axis-monitor">AXIS — / — / — / —</div>
+  </div>
+
+  <div id="panel-tr" class="hud-panel">
+    <div class="panel-title">VTX 5.8GHz</div>
+    <div class="stat-row"><span class="stat-label">SIGNAL</span><span class="stat-value" id="stat-signal">100%</span></div>
+    <div class="signal-bar"><div class="signal-fill" id="signal-fill" style="width: 100%"></div></div>
+    <div class="stat-row" style="margin-top:8px"><span class="stat-label">CH</span><span class="stat-value">R1 · 5800</span></div>
+    <div class="stat-row"><span class="stat-label">PWR</span><span class="stat-value">25 mW</span></div>
+    <div class="stat-row"><span class="stat-label">MODE</span><span class="stat-value">ACRO</span></div>
+  </div>
+
+  <div id="panel-bl" class="hud-panel">
+    <div class="panel-title">RC Input</div>
+    <div class="stick-pair">
+      <div>
+        <div class="stick" id="stick-left"><div class="stick-dot" id="dot-left"></div></div>
+        <div class="stick-label">THRO · YAW</div>
+      </div>
+      <div>
+        <div class="stick" id="stick-right"><div class="stick-dot" id="dot-right"></div></div>
+        <div class="stick-label">PITCH · ROLL</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-br" class="hud-panel">
+    <div class="panel-title">Controls</div>
+    <div style="font-size: 11px; line-height: 1.85; color: rgba(212,245,238,0.85)">
+      <div><span class="key">W</span><span class="key">S</span> Pitch &nbsp; <span class="key">A</span><span class="key">D</span> Roll</div>
+      <div><span class="key">Q</span><span class="key">E</span> Yaw &nbsp; <span class="key">↑</span><span class="key">↓</span> Throttle</div>
+      <div><span class="key">Space</span> Arm / Disarm</div>
+      <div><span class="key">R</span> Reset</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-arm">ARM</button>
+      <button class="btn warn" id="btn-reset">RESET</button>
+    </div>
+  </div>
+
+  <div id="center-msg"></div>
+</div>
+
+<div id="boot-overlay">
+  <div class="boot-title">SO(3) FPV</div>
+  <div class="boot-subtitle">FREESTYLE SIMULATOR · LIE GROUP DYNAMICS</div>
+
+  <div class="boot-section">
+    <h3>飞行系统</h3>
+    <p>本模拟器使用三维旋转群 <code>SO(3)</code> 与李代数 <code>so(3)</code> 的指数映射进行精确姿态积分（Rodrigues 公式 <code>R(t+Δt) = R(t)·exp(ω̂·Δt)</code>），彻底避免欧拉角万向节死锁。耦合欧拉方程完整建模陀螺力矩 <code>I·ω̇ = τ − ω×(Iω)</code>。Acro 模式下摇杆输入直接映射为目标角速度，三轴 PID 闭环输出力矩。</p>
+  </div>
+
+  <div class="boot-section">
+    <h3>遥控器接入</h3>
+    <p>支持 Web Gamepad API（OpenTX/EdgeTX 遥控器 USB HID 模式）。将遥控器通过 USB 连接至电脑，浏览器识别为 Gamepad 设备即可。默认通道映射：Axes[0]=Roll, [1]=Pitch, [2]=Throttle, [3]=Yaw。若设备映射不同，请参考 HUD 左下角的实时 AXIS 监测值自行调换。</p>
+    <p>无遥控器时可使用键盘：<span class="key">WASD</span> Pitch/Roll，<span class="key">QE</span> Yaw，<span class="key">↑↓</span> 油门。</p>
+  </div>
+
+  <div class="boot-section">
+    <h3>VTX 图传衰弱</h3>
+    <p>5.8GHz 模拟图传效果根据距离起飞原点衰减：信号弱时出现雪花纹与色彩饱和度降低；接近极限距离时画面横向撕裂、滚动黑条、色度分离；超出范围将完全失联，无人机失去推力坠毁。</p>
+  </div>
+
+  <div id="gamepad-status">⏳ 等待遥控器连接（也可使用键盘）</div>
+
+  <button class="btn" id="btn-start" style="font-size: 14px; padding: 12px 36px; margin-top: 12px">Enter Simulator</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+// =================================================================
+// SO(3) 李群 / so(3) 李代数 数学库
+// 旋转矩阵 R 以行主序 Float32Array 存储, 列向量为机体基向量在世界坐标系中的表示
+// v_world = R · v_body
+// =================================================================
+const SO3 = {
+  // hat: R³ → so(3), 构造反对称矩阵
+  hat(ω) {
+    return [
+      0,   -ω[2],  ω[1],
+      ω[2],  0,   -ω[0],
+     -ω[1],  ω[0], 0
+    ];
+  },
+
+  // 指数映射 exp: so(3) → SO(3) (Rodrigues 公式)
+  // exp(ω̂) = I + (sin θ / θ) · ω̂ + ((1 - cos θ) / θ²) · ω̂²
+  exp(ω) {
+    const x = ω[0], y = ω[1], z = ω[2];
+    const θ2 = x*x + y*y + z*z;
+    const θ = Math.sqrt(θ2);
+    const K = SO3.hat(ω);
+    const K2 = SO3.mul(K, K);
+    const out = new Array(9);
+    if (θ < 1e-8) {
+      // 小角度泰勒展开: I + K + K²/2
+      for (let i = 0; i < 9; i++) out[i] = (i===0||i===4||i===8?1:0) + K[i] + 0.5*K2[i];
+    } else {
+      const a = Math.sin(θ) / θ;
+      const b = (1 - Math.cos(θ)) / θ2;
+      for (let i = 0; i < 9; i++) out[i] = (i===0||i===4||i===8?1:0) + a*K[i] + b*K2[i];
+    }
+    return out;
+  },
+
+  // 3×3 矩阵乘法 (行主序)
+  mul(A, B) {
+    const C = new Array(9);
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        C[i*3+j] = A[i*3]*B[j] + A[i*3+1]*B[3+j] + A[i*3+2]*B[6+j];
+      }
+    }
+    return C;
+  },
+
+  // 矩阵 × 向量
+  apply(M, v) {
+    return [
+      M[0]*v[0] + M[1]*v[1] + M[2]*v[2],
+      M[3]*v[0] + M[4]*v[1] + M[5]*v[2],
+      M[6]*v[0] + M[7]*v[1] + M[8]*v[2]
+    ];
+  },
+
+  // SO(3) → 四元数 (Three.js 约定: x, y, z, w)
+  toQuat(M) {
+    const m00=M[0], m01=M[1], m02=M[2];
+    const m10=M[3], m11=M[4], m12=M[5];
+    const m20=M[6], m21=M[7], m22=M[8];
+    const trace = m00 + m11 + m22;
+    let x, y, z, w;
+    if (trace > 0) {
+      const S = 2 * Math.sqrt(trace + 1);
+      w = 0.25 * S;
+      x = (m21 - m12) / S;
+      y = (m02 - m20) / S;
+      z = (m10 - m01) / S;
+    } else if (m00 > m11 && m00 > m22) {
+      const S = 2 * Math.sqrt(1 + m00 - m11 - m22);
+      x = 0.25 * S;
+      y = (m01 + m10) / S;
+      z = (m02 + m20) / S;
+      w = (m21 - m12) / S;
+    } else if (m11 > m22) {
+      const S = 2 * Math.sqrt(1 + m11 - m00 - m22);
+      x = (m01 + m10) / S;
+      y = 0.25 * S;
+      z = (m12 + m21) / S;
+      w = (m02 - m20) / S;
+    } else {
+      const S = 2 * Math.sqrt(1 + m22 - m00 - m11);
+      x = (m02 + m20) / S;
+      y = (m12 + m21) / S;
+      z = 0.25 * S;
+      w = (m10 - m01) / S;
+    }
+    return new THREE.Quaternion(x, y, z, w);
+  },
+
+  // 列向量 Gram-Schmidt 正交化, 保持数值稳定性
+  normalize(R) {
+    let c0 = [R[0], R[3], R[6]];
+    let c1 = [R[1], R[4], R[7]];
+    let n = Math.hypot(c0[0], c0[1], c0[2]);
+    c0[0]/=n; c0[1]/=n; c0[2]/=n;
+    const d = c1[0]*c0[0] + c1[1]*c0[1] + c1[2]*c0[2];
+    c1[0]-=d*c0[0]; c1[1]-=d*c0[1]; c1[2]-=d*c0[2];
+    n = Math.hypot(c1[0], c1[1], c1[2]);
+    c1[0]/=n; c1[1]/=n; c1[2]/=n;
+    const c2 = [
+      c0[1]*c1[2] - c0[2]*c1[1],
+      c0[2]*c1[0] - c0[0]*c1[2],
+      c0[0]*c1[1] - c0[1]*c1[0]
+    ];
+    return [
+      c0[0], c1[0], c2[0],
+      c0[1], c1[1], c2[1],
+      c0[2], c1[2], c2[2]
+    ];
+  }
+};
+
+// =================================================================
+// 无人机刚体动力学
+// 坐标系约定 (右手系):
+//   机体坐标系: X=前, Y=左, Z=上
+//   世界坐标系: X=右, Y=上, Z=前  (Three.js 标准)
+//   R 列 j = 机体第 j 轴在世界坐标系中的方向
+// =================================================================
+class Drone {
+  constructor() {
+    this.pos = new THREE.Vector3(0, 1.6, 0);
+    this.vel = new THREE.Vector3();
+    // 初始姿态: 机头朝 -Z (场景深处), 机体上朝 +Y
+    // R 列0 (机体X/前) = [0,0,-1], 列1 (机体Y/左) = [-1,0,0], 列2 (机体Z/上) = [0,1,0]
+    this.R = [
+      0, -1, 0,
+      0,  0, 1,
+     -1,  0, 0
+    ];
+    this.ω = [0, 0, 0]; // 机体系角速度
+
+    // 物理参数 (5 寸 FPV 机典型值)
+    this.mass = 0.55;       // kg
+    this.g = 9.81;
+    this.maxThrust = 18;    // N (推重比 ≈ 3.3)
+    this.dragCoeff = 0.022; // 平动阻力 (与 v² 成正比)
+    this.angDrag = 0.08;    // 角阻尼
+
+    // 转动惯量
+    this.Ixx = 0.005;
+    this.Iyy = 0.005;
+    this.Izz = 0.009;
+
+    // PID 增益
+    this.pidP = [0.22, 0.22, 0.13];
+    this.pidI = [0.018, 0.018, 0.010];
+    this.pidD = [0.0010, 0.0010, 0.0005];
+    this.pidIntegral = [0, 0, 0];
+    this.pidPrevErr = [0, 0, 0];
+    this.pidIntLimit = 35;
+
+    // 角速度上限
+    this.maxRate = [16, 16, 11]; // rad/s
+
+    this.input = { roll: 0, pitch: 0, yaw: 0, throttle: 0 };
+    this.armed = false;
+    this.crashed = false;
+    this.vtxRange = 180;
+    this.battery = 16.8;
+    this.flightTime = 0;
+    this._orthoCount = 0;
+  }
+
+  reset() {
+    this.pos.set(0, 1.6, 0);
+    this.vel.set(0, 0, 0);
+    this.R = [0,-1,0, 0,0,1, -1,0,0];
+    this.ω = [0, 0, 0];
+    this.pidIntegral = [0, 0, 0];
+    this.pidPrevErr = [0, 0, 0];
+    this.crashed = false;
+    this.armed = false;
+    this.flightTime = 0;
+    this.battery = 16.8;
+  }
+
+  // 输入 → 目标角速度
+  // 控制符号:
+  //   roll > 0 (右滚) → ωx < 0  (因为 +ωx 为左滚)
+  //   pitch > 0 (前推/下俯) → ωy < 0  (因为 +ωy 为抬头)
+  //   yaw > 0 (右偏航) → ωz < 0  (因为 +ωz 为左偏航)
+  targetOmega() {
+    return [
+      -this.input.roll  * this.maxRate[0],
+      -this.input.pitch * this.maxRate[1],
+      -this.input.yaw   * this.maxRate[2]
+    ];
+  }
+
+  // PID 闭环 → 力矩 (机体系)
+  computeTorque(dt) {
+    const tgt = this.targetOmega();
+    const err = [tgt[0]-this.ω[0], tgt[1]-this.ω[1], tgt[2]-this.ω[2]];
+    const τ = [0, 0, 0];
+    for (let i = 0; i < 3; i++) {
+      this.pidIntegral[i] = THREE.MathUtils.clamp(
+        this.pidIntegral[i] + err[i] * dt, -this.pidIntLimit, this.pidIntLimit
+      );
+      const d = (err[i] - this.pidPrevErr[i]) / Math.max(dt, 1e-6);
+      this.pidPrevErr[i] = err[i];
+      τ[i] = this.pidP[i]*err[i] + this.pidI[i]*this.pidIntegral[i] + this.pidD[i]*d;
+    }
+    return τ;
+  }
+
+  step(dt) {
+    // 坠毁状态: 自由落体
+    if (this.crashed) {
+      this.vel.y -= this.g * dt;
+      this.vel.multiplyScalar(0.985);
+      this.pos.addScaledVector(this.vel, dt);
+      if (this.pos.y < 0.05) {
+        this.pos.y = 0.05;
+        this.vel.set(0, 0, 0);
+        this.ω = [0, 0, 0];
+      }
+      return;
+    }
+
+    // 未解锁: 静止
+    if (!this.armed) {
+      if (this.pos.y > 0.15) {
+        this.vel.y -= this.g * dt * 0.3;
+        this.pos.addScaledVector(this.vel, dt);
+        if (this.pos.y < 0.15) {
+          this.pos.y = 0.15;
+          this.vel.set(0, 0, 0);
+        }
+      }
+      return;
+    }
+
+    this.flightTime += dt;
+
+    // ============== 角速度环 PID ==============
+    const τ = this.computeTorque(dt);
+
+    // 欧拉方程: I·dω/dt = τ - ω × (I·ω)
+    const Iω = [this.Ixx*this.ω[0], this.Iyy*this.ω[1], this.Izz*this.ω[2]];
+    const gyro = [
+      this.ω[1]*Iω[2] - this.ω[2]*Iω[1],
+      this.ω[2]*Iω[0] - this.ω[0]*Iω[2],
+      this.ω[0]*Iω[1] - this.ω[1]*Iω[0]
+    ];
+    let dω = [
+      (τ[0] - gyro[0]) / this.Ixx - this.angDrag * this.ω[0],
+      (τ[1] - gyro[1]) / this.Iyy - this.angDrag * this.ω[1],
+      (τ[2] - gyro[2]) / this.Izz - this.angDrag * this.ω[2]
+    ];
+
+    this.ω[0] += dω[0] * dt;
+    this.ω[1] += dω[1] * dt;
+    this.ω[2] += dω[2] * dt;
+
+    // ============== SO(3) 姿态积分 ==============
+    // R(t+Δt) = R(t) · exp(ω̂ · Δt)
+    const ωdt = [this.ω[0]*dt, this.ω[1]*dt, this.ω[2]*dt];
+    const dR = SO3.exp(ωdt);
+    this.R = SO3.mul(this.R, dR);
+
+    // 周期性正交化保持数值稳定
+    if ((++this._orthoCount) % 8 === 0) {
+      this.R = SO3.normalize(this.R);
+    }
+
+    // ============== 平动动力学 ==============
+    // 推力沿机体 Z 轴 (上)
+    const T = this.input.throttle * this.maxThrust;
+    const FthrustWorld = SO3.apply(this.R, [0, 0, T]);
+
+    // 重力 (世界 -Y)
+    const Fgrav = [0, -this.g * this.mass, 0];
+
+    // 空气阻力 (与 v² 成正比, 反向)
+    const sp = this.vel.length();
+    let Fdrag = [0, 0, 0];
+    if (sp > 1e-3) {
+      const dm = this.dragCoeff * sp * sp;
+      Fdrag = [
+        -dm * this.vel.x / sp,
+        -dm * this.vel.y / sp,
+        -dm * this.vel.z / sp
+      ];
+    }
+
+    const F = [
+      FthrustWorld[0] + Fgrav[0] + Fdrag[0],
+      FthrustWorld[1] + Fgrav[1] + Fdrag[1],
+      FthrustWorld[2] + Fgrav[2] + Fdrag[2]
+    ];
+
+    this.vel.x += (F[0] / this.mass) * dt;
+    this.vel.y += (F[1] / this.mass) * dt;
+    this.vel.z += (F[2] / this.mass) * dt;
+
+    this.pos.x += this.vel.x * dt;
+    this.pos.y += this.vel.y * dt;
+    this.pos.z += this.vel.z * dt;
+
+    // ============== 地面碰撞 ==============
+    if (this.pos.y < 0.12) {
+      this.pos.y = 0.12;
+      const up = [this.R[2], this.R[5], this.R[8]]; // 机体 Z (上) 在世界
+      const tilt = up[1]; // 与世界 Y 的点积
+      const vs = this.vel.y;
+      if (tilt < 0.35 || vs < -10) {
+        this.crashed = true;
+        this.armed = false;
+      } else {
+        this.vel.y = Math.max(0, this.vel.y * -0.1);
+        this.vel.x *= 0.7;
+        this.vel.z *= 0.7;
+        this.ω[0] *= 0.5;
+        this.ω[1] *= 0.5;
+      }
+    }
+
+    // ============== VTX 失联 ==============
+    const dist = Math.hypot(this.pos.x, this.pos.y - 1.6, this.pos.z);
+    if (dist > this.vtxRange) {
+      this.crashed = true;
+      this.armed = false;
+    }
+
+    // 电池消耗
+    this.battery = Math.max(0, 16.8 - this.flightTime * 0.012 - this.input.throttle * 0.0008 * dt * 60);
+    if (this.battery < 9.0) {
+      this.crashed = true;
+      this.armed = false;
+    }
+  }
+
+  getQuaternion() { return SO3.toQuat(this.R); }
+}
+
+// =================================================================
+// 输入控制器
+// =================================================================
+class InputController {
+  constructor(drone) {
+    this.drone = drone;
+    this.gpIndex = null;
+    this.keys = {};
+    this.deadzone = 0.05;
+    this.expo = 0.65;
+    this.kbThrottle = 0;
+    this.lastAxes = [0, 0, 0, 0];
+
+    window.addEventListener('gamepadconnected', (e) => {
+      console.log('Gamepad:', e.gamepad.id, 'axes:', e.gamepad.axes.length);
+      this.gpIndex = e.gamepad.index;
+      const st = document.getElementById('gamepad-status');
+      st.textContent = '✓ 遥控器已连接: ' + e.gamepad.id;
+      st.classList.add('connected');
+    });
+    window.addEventListener('gamepaddisconnected', (e) => {
+      if (e.gamepad.index === this.gpIndex) {
+        this.gpIndex = null;
+        const st = document.getElementById('gamepad-status');
+        st.textContent = '⚠ 遥控器已断开 (使用键盘)';
+        st.classList.remove('connected');
+      }
+    });
+    window.addEventListener('keydown', (e) => {
+      this.keys[e.code] = true;
+      if (e.code === 'Space') { e.preventDefault(); this.toggleArm(); }
+      if (e.code === 'KeyR') this.reset();
+    });
+    window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
+  }
+
+  toggleArm() {
+    if (this.drone.crashed) return;
+    this.drone.armed = !this.drone.armed;
+    if (this.drone.armed) {
+      this.drone.pidIntegral = [0, 0, 0];
+      this.drone.pidPrevErr = [0, 0, 0];
+    }
+  }
+  reset() { this.drone.reset(); this.kbThrottle = 0; }
+
+  expoF(v) { return Math.sign(v) * Math.pow(Math.abs(v), this.expo); }
+
+  update(dt) {
+    let roll=0, pitch=0, yaw=0, throttle=0;
+
+    if (this.gpIndex !== null) {
+      const pad = navigator.getGamepads()[this.gpIndex];
+      if (pad) {
+        const a = pad.axes;
+        // 通用穿越机遥控器 USB HID 映射 (FrSky/Taranis 风格):
+        // axes[0] = Roll, axes[1] = Pitch (前推为负), axes[2] = Throttle, axes[3] = Yaw
+        this.lastAxes = [a[0]||0, a[1]||0, a[2]||0, a[3]||0];
+        roll = a[0] || 0;
+        pitch = -(a[1] || 0); // 反向: 前推为正
+        const thr = a[2] || 0;
+        throttle = (thr + 1) * 0.5;
+        yaw = a[3] || 0;
+      }
+    }
+
+    if (this.gpIndex === null) {
+      if (this.keys['ArrowUp']) this.kbThrottle = Math.min(1, this.kbThrottle + dt * 0.8);
+      if (this.keys['ArrowDown']) this.kbThrottle = Math.max(0, this.kbThrottle - dt * 0.8);
+      throttle = this.kbThrottle;
+      if (this.keys['KeyW']) pitch += 1;
+      if (this.keys['KeyS']) pitch -= 1;
+      if (this.keys['KeyA']) roll -= 1;
+      if (this.keys['KeyD']) roll += 1;
+      if (this.keys['KeyQ']) yaw -= 1;
+      if (this.keys['KeyE']) yaw += 1;
+    }
+
+    // 死区
+    roll  = Math.abs(roll)  < this.deadzone ? 0 : roll;
+    pitch = Math.abs(pitch) < this.deadzone ? 0 : pitch;
+    yaw   = Math.abs(yaw)   < this.deadzone ? 0 : yaw;
+    // Expo 曲线
+    roll  = this.expoF(roll);
+    pitch = this.expoF(pitch);
+    yaw   = this.expoF(yaw);
+    // 限幅
+    roll  = THREE.MathUtils.clamp(roll, -1, 1);
+    pitch = THREE.MathUtils.clamp(pitch, -1, 1);
+    yaw   = THREE.MathUtils.clamp(yaw, -1, 1);
+    throttle = THREE.MathUtils.clamp(throttle, 0, 1);
+
+    this.drone.input.roll = roll;
+    this.drone.input.pitch = pitch;
+    this.drone.input.yaw = yaw;
+    this.drone.input.throttle = throttle;
+    return { roll, pitch, yaw, throttle };
+  }
+}
+
+// =================================================================
+// Three.js 场景
+// =================================================================
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x88aacc);
+scene.fog = new THREE.Fog(0x9ab4cc, 120, 600);
+
+const camera = new THREE.PerspectiveCamera(100, innerWidth / innerHeight, 0.05, 2000);
+camera.position.set(0, 1.6, 5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+// 光照
+scene.add(new THREE.AmbientLight(0x8aa8c8, 0.55));
+const sun = new THREE.DirectionalLight(0xfff2d4, 1.5);
+sun.position.set(80, 120, 40);
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0x88ccff, 0x3a4a2a, 0.55));
+
+// =================================================================
+// 程序化草地纹理
+// =================================================================
+function makeGrassTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const ctx = c.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 512, 512);
+  grad.addColorStop(0, '#2c4a26');
+  grad.addColorStop(0.5, '#1f3819');
+  grad.addColorStop(1, '#2e4a28');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 512, 512);
+  // 草叶
+  for (let i = 0; i < 65000; i++) {
+    const x = Math.random()*512, y = Math.random()*512;
+    const l = 2 + Math.random()*5;
+    const r = 30 + Math.random()*50;
+    const g = 75 + Math.random()*95;
+    const b = 25 + Math.random()*40;
+    ctx.strokeStyle = `rgba(${r|0},${g|0},${b|0},0.65)`;
+    ctx.lineWidth = 0.5 + Math.random()*0.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + (Math.random()-0.5)*2.5, y - l);
+    ctx.stroke();
+  }
+  // 深色斑块
+  for (let i = 0; i < 90; i++) {
+    const x = Math.random()*512, y = Math.random()*512;
+    const r = 20 + Math.random()*70;
+    const grd = ctx.createRadialGradient(x, y, 0, x, y, r);
+    grd.addColorStop(0, `rgba(15,28,12,${0.2+Math.random()*0.25})`);
+    grd.addColorStop(1, 'rgba(15,28,12,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+  }
+  // 小石头
+  for (let i = 0; i < 200; i++) {
+    const x = Math.random()*512, y = Math.random()*512;
+    ctx.fillStyle = `rgba(${100+Math.random()*60},${95+Math.random()*55},${85+Math.random()*45},0.6)`;
+    ctx.beginPath(); ctx.arc(x, y, 0.8 + Math.random()*1.6, 0, Math.PI*2); ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(80, 80);
