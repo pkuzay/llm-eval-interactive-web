@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#090b18" />
+<title>NULLSHIFT · 2048 Roguelike</title>
+<style>
+  :root{
+    --bg:#070914; --panel:rgba(14,17,35,.74); --line:rgba(161,188,255,.16);
+    --text:#eef4ff; --muted:#8e9ab8; --cyan:#64f1ff; --violet:#b47cff;
+    --pink:#ff6fb3; --gold:#ffd66b; --danger:#ff5c7a; --good:#78ffb7;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;overflow-x:hidden;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+  body{min-height:100vh;background:
+    radial-gradient(circle at 15% 10%,rgba(75,69,199,.19),transparent 34%),
+    radial-gradient(circle at 83% 16%,rgba(0,228,255,.10),transparent 30%),
+    radial-gradient(circle at 50% 100%,rgba(255,75,170,.08),transparent 37%),#070914}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.38;background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:34px 34px;mask-image:linear-gradient(to bottom,black,transparent 85%)}
+  body::after{content:"";position:fixed;inset:-100px;pointer-events:none;background:conic-gradient(from 180deg at 50% 50%,transparent,rgba(101,239,255,.03),transparent,rgba(185,100,255,.035),transparent);animation:aurora 18s linear infinite}
+  @keyframes aurora{to{transform:rotate(1turn)}}
+  button{font:inherit;color:inherit}
+  .app{width:min(1160px,100%);margin:0 auto;padding:22px clamp(14px,3vw,34px) 30px;position:relative;z-index:1}
+  .topbar{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:18px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brandmark{width:42px;height:42px;border-radius:13px;background:linear-gradient(145deg,rgba(100,241,255,.22),rgba(180,124,255,.18));border:1px solid rgba(149,233,255,.34);display:grid;place-items:center;box-shadow:0 0 28px rgba(100,241,255,.12),inset 0 0 18px rgba(255,255,255,.05);transform:rotate(-4deg)}
+  .brandmark::before{content:"◈";font-size:24px;color:var(--cyan);text-shadow:0 0 16px var(--cyan)}
+  .title{font-weight:900;letter-spacing:.18em;font-size:clamp(20px,3vw,30px);line-height:1}.title span{color:var(--cyan);text-shadow:0 0 20px rgba(100,241,255,.45)}
+  .subtitle{font-size:11px;letter-spacing:.22em;color:var(--muted);margin-top:7px;text-transform:uppercase}
+  .run-meta{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .chip{border:1px solid var(--line);background:rgba(9,12,27,.62);backdrop-filter:blur(10px);padding:8px 11px;border-radius:999px;color:#b9c5e3;font-size:12px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.015)}
+  .chip b{color:white;font-weight:800}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px;align-items:start}
+  .board-panel,.card{border:1px solid var(--line);background:linear-gradient(145deg,rgba(19,23,48,.78),rgba(9,12,27,.76));box-shadow:0 18px 70px rgba(0,0,0,.31),inset 0 1px rgba(255,255,255,.035);backdrop-filter:blur(16px)}
+  .board-panel{border-radius:28px;padding:clamp(12px,2vw,20px);position:relative;overflow:hidden}
+  .board-panel::before{content:"";position:absolute;inset:-1px;border-radius:inherit;padding:1px;background:linear-gradient(135deg,rgba(100,241,255,.34),transparent 24%,transparent 72%,rgba(180,124,255,.28));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+  .board-head{display:flex;justify-content:space-between;align-items:center;margin:2px 4px 12px;gap:12px}
+  .floor-title{font-size:13px;letter-spacing:.12em;color:#aebad7}.floor-title strong{display:block;font-size:20px;letter-spacing:.04em;color:#fff;margin-top:2px}
+  .combo{min-width:104px;text-align:right;font-weight:900;font-size:18px;color:var(--gold);text-shadow:0 0 18px rgba(255,214,107,.35);opacity:.2;transform:translateY(4px) scale(.9);transition:.2s ease}
+  .combo.show{opacity:1;transform:none}.combo small{display:block;font-size:9px;letter-spacing:.18em;color:#c5b77f}
+  .canvas-wrap{position:relative;aspect-ratio:1;border-radius:22px;overflow:hidden;transform-style:preserve-3d;transition:transform .16s ease-out,filter .2s ease;will-change:transform;box-shadow:0 22px 48px rgba(0,0,0,.35),0 0 0 1px rgba(157,210,255,.12)}
+  canvas{display:block;width:100%;height:100%;touch-action:none;user-select:none;-webkit-user-select:none}
+  .scanline{position:absolute;inset:0;pointer-events:none;opacity:.16;background:repeating-linear-gradient(to bottom,transparent 0 4px,rgba(255,255,255,.03) 5px);mix-blend-mode:overlay}
+  .flash{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle,rgba(255,255,255,.22),transparent 60%);opacity:0;mix-blend-mode:screen}
+  .flash.go{animation:flash .25s ease-out}@keyframes flash{0%{opacity:.8}100%{opacity:0}}
+  .swipe-hint{text-align:center;color:#73809e;font-size:12px;letter-spacing:.06em;margin:12px 2px 0}.key{display:inline-grid;place-items:center;min-width:22px;height:20px;border:1px solid rgba(255,255,255,.13);border-bottom-color:rgba(255,255,255,.25);border-radius:6px;background:rgba(255,255,255,.04);font-size:10px;margin:0 2px}
+  .sidebar{display:grid;gap:12px}
+  .card{border-radius:20px;padding:15px}
+  .section-label{font-size:10px;letter-spacing:.18em;color:#7784a4;text-transform:uppercase;margin-bottom:10px}
+  .player-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}.hp-num{font-size:22px;font-weight:900}.hp-num span{color:#ff89a0}.mini{font-size:11px;color:var(--muted)}
+  .bar{height:9px;border-radius:999px;background:rgba(255,255,255,.055);overflow:hidden;margin-top:9px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+  .bar>i{display:block;height:100%;width:50%;border-radius:inherit;background:linear-gradient(90deg,#ff5c7a,#ff9fbe);box-shadow:0 0 16px rgba(255,92,122,.42);transition:width .35s cubic-bezier(.2,.8,.2,1)}
+  .resource-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.resource{padding:9px 10px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);font-size:11px;color:#9ba8c6}.resource b{display:block;color:#fff;font-size:16px;margin-top:2px}.resource.flux b{color:var(--cyan)}.resource.shield b{color:#b6b7ff}
+  .enemy-card{position:relative;overflow:hidden}.enemy-card::after{content:"";position:absolute;width:170px;height:170px;border-radius:50%;right:-80px;top:-80px;background:radial-gradient(circle,rgba(255,80,137,.13),transparent 70%);pointer-events:none}
+  .enemy-top{display:flex;gap:13px;align-items:center}.enemy-orb{width:54px;height:54px;border-radius:18px;display:grid;place-items:center;font-size:28px;background:linear-gradient(145deg,rgba(255,91,128,.16),rgba(180,124,255,.11));border:1px solid rgba(255,124,162,.22);box-shadow:0 0 24px rgba(255,77,130,.10),inset 0 0 20px rgba(255,255,255,.03);animation:float 3s ease-in-out infinite}.enemy-orb.hurt{animation:hurt .28s ease}.enemy-orb.attack{animation:attack .38s ease}@keyframes float{50%{transform:translateY(-4px) rotate(2deg)}}@keyframes hurt{20%{transform:translateX(-8px) scale(.9);filter:brightness(2)}60%{transform:translateX(5px)}}@keyframes attack{45%{transform:translateX(-10px) scale(1.12) rotate(-8deg);filter:drop-shadow(0 0 10px #ff5c7a)}}
+  .enemy-name{font-weight:900;font-size:17px}.enemy-desc{font-size:11px;color:#929fbd;margin-top:3px}.enemy-hp{height:8px;margin-top:13px}.enemy-hp>i{background:linear-gradient(90deg,#b45cff,#ff5c8b);box-shadow:0 0 14px rgba(207,91,255,.38)}
+  .intent{margin-top:10px;padding:9px 10px;border-radius:12px;background:rgba(255,99,133,.055);border:1px solid rgba(255,99,133,.12);font-size:11px;color:#c8b5c3;display:flex;justify-content:space-between;gap:8px}.intent b{color:#ff8fa7;font-size:12px}
+  .abilities{display:grid;grid-template-columns:1fr 1fr;gap:8px}.ability{position:relative;border:1px solid rgba(125,217,255,.14);background:linear-gradient(145deg,rgba(75,207,255,.09),rgba(112,74,193,.08));border-radius:14px;padding:11px;text-align:left;cursor:pointer;transition:.18s ease;overflow:hidden}.ability:hover{transform:translateY(-2px);border-color:rgba(125,217,255,.32);box-shadow:0 8px 24px rgba(0,0,0,.18)}.ability:active{transform:scale(.97)}.ability:disabled{opacity:.32;cursor:not-allowed;filter:saturate(.4);transform:none}.ability strong{display:block;font-size:12px}.ability small{display:block;color:#7785a6;font-size:9px;margin-top:4px;line-height:1.35}.cost{position:absolute;right:8px;top:8px;font-size:9px;color:var(--cyan);font-weight:900}
+  .relics{display:flex;gap:7px;flex-wrap:wrap;min-height:32px}.relic{width:34px;height:34px;border-radius:10px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.045);display:grid;place-items:center;font-size:17px;position:relative;cursor:help}.relic::after{content:attr(data-tip);position:absolute;z-index:20;bottom:42px;left:50%;transform:translateX(-50%) translateY(4px);width:190px;padding:8px 9px;border-radius:10px;background:#11152a;border:1px solid rgba(255,255,255,.12);font-size:10px;line-height:1.4;color:#cbd5ee;opacity:0;pointer-events:none;transition:.16s}.relic:hover::after{opacity:1;transform:translateX(-50%) translateY(0)}
+  .empty-relics{font-size:11px;color:#606d8c;padding-top:8px}
+  .log{height:82px;overflow:hidden;mask-image:linear-gradient(to bottom,black 70%,transparent)}.log-line{font-size:10px;color:#7e8baa;line-height:1.55;animation:logIn .25s ease}.log-line b{color:#dfe8ff}.log-line.good b{color:#83ffc0}.log-line.bad b{color:#ff8ba1}@keyframes logIn{from{opacity:0;transform:translateY(-4px)}}
+  .footer{display:flex;justify-content:space-between;color:#4f5b78;font-size:10px;margin-top:14px;padding:0 4px}.footer button{border:0;background:none;color:#7e8eaf;cursor:pointer;padding:0}.footer button:hover{color:white}
+  .overlay{position:fixed;z-index:50;inset:0;display:grid;place-items:center;padding:20px;background:rgba(3,5,13,.72);backdrop-filter:blur(14px);opacity:0;pointer-events:none;transition:.25s ease}.overlay.show{opacity:1;pointer-events:auto}
+  .modal{width:min(680px,100%);border-radius:28px;border:1px solid rgba(157,203,255,.18);background:linear-gradient(145deg,rgba(22,27,55,.96),rgba(9,12,27,.97));box-shadow:0 28px 100px rgba(0,0,0,.55),inset 0 1px rgba(255,255,255,.05);padding:clamp(20px,4vw,34px);transform:translateY(14px) scale(.97);transition:.32s cubic-bezier(.2,.85,.2,1);position:relative;overflow:hidden}.overlay.show .modal{transform:none}.modal::before{content:"";position:absolute;width:300px;height:300px;border-radius:50%;left:-140px;top:-180px;background:radial-gradient(circle,rgba(94,231,255,.12),transparent 65%)}
+  .eyebrow{font-size:10px;letter-spacing:.22em;color:var(--cyan);text-transform:uppercase}.modal h1{font-size:clamp(28px,6vw,48px);line-height:1.03;margin:10px 0 12px;letter-spacing:-.04em}.modal h1 em{font-style:normal;color:var(--cyan);text-shadow:0 0 22px rgba(100,241,255,.3)}.modal p{color:#9ca9c8;line-height:1.7;font-size:13px;margin:0 0 18px}.rules{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:20px 0}.rule{padding:13px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.065)}.rule i{font-style:normal;font-size:20px}.rule b{display:block;font-size:11px;margin-top:8px}.rule span{font-size:9px;color:#73809e;line-height:1.4;display:block;margin-top:3px}
+  .primary{border:0;border-radius:14px;padding:13px 20px;cursor:pointer;font-weight:900;letter-spacing:.06em;color:#07101b;background:linear-gradient(90deg,var(--cyan),#a6b4ff);box-shadow:0 8px 28px rgba(100,241,255,.2);transition:.18s ease}.primary:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(100,241,255,.28)}.primary:active{transform:scale(.98)}
+  .relic-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}.relic-choice{border:1px solid rgba(255,255,255,.09);border-radius:17px;padding:16px;background:rgba(255,255,255,.035);cursor:pointer;text-align:left;transition:.2s ease;min-height:170px}.relic-choice:hover{transform:translateY(-5px);border-color:rgba(100,241,255,.34);background:rgba(100,241,255,.065);box-shadow:0 15px 34px rgba(0,0,0,.2)}.relic-icon{font-size:28px}.relic-choice h3{font-size:13px;margin:11px 0 6px}.relic-choice p{font-size:10px;line-height:1.5;margin:0;color:#8491af}.relic-rarity{font-size:8px;letter-spacing:.16em;color:var(--gold);margin-top:10px;text-transform:uppercase}
+  .modal-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px}.reroll{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.035);border-radius:12px;padding:10px 13px;cursor:pointer;font-size:11px;color:#aebad3}.reroll:disabled{opacity:.3;cursor:not-allowed}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:20px 0}.summary div{padding:11px;border-radius:12px;background:rgba(255,255,255,.035);text-align:center}.summary b{display:block;font-size:19px}.summary span{font-size:9px;color:#75819f}
+  .damage-float{position:fixed;z-index:45;font-size:20px;font-weight:1000;pointer-events:none;text-shadow:0 3px 14px rgba(0,0,0,.5);animation:floatDmg .85s ease-out forwards}@keyframes floatDmg{0%{opacity:0;transform:translate(-50%,0) scale(.6)}20%{opacity:1;transform:translate(-50%,-10px) scale(1.2)}100%{opacity:0;transform:translate(-50%,-62px) scale(.9)}}
+  .toast{position:fixed;z-index:60;left:50%;top:22px;transform:translate(-50%,-20px);opacity:0;padding:10px 15px;border-radius:999px;background:rgba(12,16,34,.9);border:1px solid rgba(153,219,255,.18);font-size:11px;color:#dbe8ff;box-shadow:0 12px 30px rgba(0,0,0,.3);pointer-events:none}.toast.show{animation:toast 1.6s ease}@keyframes toast{15%,75%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-12px)}}
+  @media(max-width:900px){.layout{grid-template-columns:1fr}.sidebar{grid-template-columns:1fr 1fr}.enemy-card{grid-row:span 2}.relic-card,.log-card{display:none}.app{max-width:700px}}
+  @media(max-width:620px){.app{padding:12px 10px 24px}.topbar{align-items:center}.subtitle,.run-meta .chip:nth-child(2){display:none}.brandmark{width:36px;height:36px}.layout{gap:10px}.board-panel{border-radius:22px}.sidebar{grid-template-columns:1fr;gap:9px}.enemy-card{grid-row:auto}.player-card,.enemy-card{padding:12px}.player-card{display:grid;grid-template-columns:1fr 1fr;gap:12px}.player-card .section-label{grid-column:1/-1;margin-bottom:0}.resource-row{margin:0}.abilities-card{padding:11px}.rules{grid-template-columns:1fr}.rule{display:grid;grid-template-columns:auto 1fr;column-gap:10px}.rule i{grid-row:1/3}.rule b{margin-top:0}.relic-grid{grid-template-columns:1fr}.relic-choice{min-height:auto}.summary{grid-template-columns:1fr 1fr}.swipe-hint{font-size:10px}.footer{display:none}}
+  @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand"><div class="brandmark"></div><div><div class="title">NULL<span>SHIFT</span></div><div class="subtitle">2048 / Roguelike fusion protocol</div></div></div>
+    <div class="run-meta"><div class="chip">层数 <b id="floorChip">1</b></div><div class="chip">得分 <b id="scoreChip">0</b></div><div class="chip">种子 <b id="seedChip">—</b></div></div>
+  </header>
+
+  <main class="layout">
+    <section class="board-panel">
+      <div class="board-head"><div class="floor-title">裂隙深度<strong id="floorName">第 1 层 · 入口回廊</strong></div><div class="combo" id="combo"><small>MERGE CHAIN</small><span id="comboText">×2</span></div></div>
+      <div class="canvas-wrap" id="canvasWrap"><canvas id="game" aria-label="2048 游戏棋盘"></canvas><div class="scanline"></div><div class="flash" id="flash"></div></div>
+      <div class="swipe-hint"><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> / 方向键 / 滑动 · 合并即攻击，空转也会让敌人行动</div>
+    </section>
+
+    <aside class="sidebar">
+      <section class="card player-card">
+        <div class="section-label">生命维持</div>
+        <div><div class="player-row"><div><div class="hp-num"><span id="hp">12</span>/<span id="maxHp">12</span></div><div class="mini">机体完整度</div></div><div class="mini" id="statusText">稳定</div></div><div class="bar"><i id="hpBar"></i></div></div>
+        <div class="resource-row"><div class="resource flux">裂隙能量<b id="flux">0</b></div><div class="resource shield">相位护盾<b id="shield">0</b></div></div>
+      </section>
+
+      <section class="card enemy-card">
+        <div class="section-label">当前威胁</div>
+        <div class="enemy-top"><div class="enemy-orb" id="enemyOrb">◉</div><div><div class="enemy-name" id="enemyName">数据蛭</div><div class="enemy-desc" id="enemyDesc">吞噬你尚未成形的选择</div></div></div>
+        <div class="bar enemy-hp"><i id="enemyHpBar"></i></div>
+        <div class="intent"><span id="intentText">2 回合后攻击</span><b id="intentPower">⚔ 2</b></div>
+      </section>
+
+      <section class="card abilities-card">
+        <div class="section-label">主动协议</div>
+        <div class="abilities">
+          <button class="ability" id="pulseBtn"><span class="cost">12◇</span><strong>裂隙脉冲</strong><small>造成 18 伤害；击杀溢出转为护盾</small></button>
+          <button class="ability" id="ventBtn"><span class="cost">10◇</span><strong>熵值泄压</strong><small>移除最低阶方块，并获得 2 护盾</small></button>
+        </div>
+      </section>
+
+      <section class="card relic-card"><div class="section-label">遗物构筑</div><div class="relics" id="relics"><div class="empty-relics">尚未建立构筑</div></div></section>
+      <section class="card log-card"><div class="section-label">战斗记录</div><div class="log" id="log"></div></section>
+    </aside>
+  </main>
+  <footer class="footer"><span>每一局的敌人、遗物与障碍序列都由种子重组。</span><button id="restartBtn">重启本局</button></footer>
+</div>
+
+<div class="overlay show" id="introOverlay">
+  <div class="modal">
+    <div class="eyebrow">Rift dive protocol</div>
+    <h1>用 <em>2048</em> 的秩序，<br>对抗裂隙的恶意。</h1>
+    <p>每次合并都会转化为攻击与能量。敌人按回合行动、封锁棋盘、腐蚀方块；击败它们后，从三件随机遗物中选择一件，让你的规则逐渐偏离“正常”。</p>
+    <div class="rules"><div class="rule"><i>↔</i><b>滑移与融合</b><span>同阶方块相撞，弹性合并并造成伤害。</span></div><div class="rule"><i>☠</i><b>敌人会行动</b><span>每次有效移动都会推进敌方意图。</span></div><div class="rule"><i>✦</i><b>构筑你的异常</b><span>吸血、暴击、连锁、迟滞——规则由你改写。</span></div></div>
+    <button class="primary" id="startBtn">开始下潜</button>
+  </div>
+</div>
+
+<div class="overlay" id="relicOverlay"><div class="modal"><div class="eyebrow">Threat neutralized</div><h1>选择一件 <em>异常遗物</em></h1><p id="rewardText">裂隙短暂安静下来。你的机体可以承载一条新的错误规则。</p><div class="relic-grid" id="relicChoices"></div><div class="modal-actions"><span class="mini" id="rerollHint">重掷会消耗 8 裂隙能量</span><button class="reroll" id="rerollBtn">重掷选项 · 8◇</button></div></div></div>
+<div class="overlay" id="gameoverOverlay"><div class="modal"><div class="eyebrow">Signal lost</div><h1>本次下潜，<em>到此为止</em></h1><p id="deathReason">你的机体在裂隙中失去了最后一块完整结构。</p><div class="summary"><div><b id="sumFloor">1</b><span>到达层数</span></div><div><b id="sumScore">0</b><span>最终得分</span></div><div><b id="sumTile">2</b><span>最高方块</span></div><div><b id="sumRelics">0</b><span>遗物数量</span></div></div><button class="primary" id="againBtn">生成新种子并重来</button></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+  const SIZE = 4, MOVE_MS = 155;
+  const canvas = document.getElementById('game'), ctx = canvas.getContext('2d', { alpha: false });
+  const wrap = document.getElementById('canvasWrap');
+  const $ = id => document.getElementById(id);
+  const ui = {
+    floorChip:$('floorChip'), scoreChip:$('scoreChip'), seedChip:$('seedChip'), floorName:$('floorName'), combo:$('combo'), comboText:$('comboText'),
+    hp:$('hp'), maxHp:$('maxHp'), hpBar:$('hpBar'), flux:$('flux'), shield:$('shield'), statusText:$('statusText'),
+    enemyOrb:$('enemyOrb'), enemyName:$('enemyName'), enemyDesc:$('enemyDesc'), enemyHpBar:$('enemyHpBar'), intentText:$('intentText'), intentPower:$('intentPower'),
+    pulseBtn:$('pulseBtn'), ventBtn:$('ventBtn'), relics:$('relics'), log:$('log'), flash:$('flash'), toast:$('toast')
+  };
+
+  let state, dpr=1, W=600, cell=120, gap=12, pad=18, running=false, locked=true, anim=null, particles=[], bgMotes=[], shake=0, hitVignette=0;
+  let pointer={down:false,x:0,y:0,sx:0,sy:0,dx:0,dy:0};
+  let audioCtx=null;
+
+  const FLOOR_NAMES=['入口回廊','碎片花园','倒置机房','静默缓存','守门协议','幽光堆栈','熵潮泵站','亡语索引','镜像坟场','核心前庭'];
+  const TILE_COLORS={
+    2:['#25345b','#9edfff'],4:['#254c63','#8fffd8'],8:['#315153','#d5ff87'],16:['#5b4f34','#ffe078'],32:['#694331','#ffb36b'],64:['#6b344d','#ff85a5'],128:['#56366f','#d993ff'],256:['#323e78','#9eb8ff'],512:['#255b6d','#83f4ff'],1024:['#6d326b','#ff94ef'],2048:['#725d27','#fff0a3'],4096:['#5c2d39','#fff1f4']
+  };
+  const ENEMIES=[
+    {id:'leech',name:'数据蛭',icon:'◉',desc:'吞噬你尚未成形的选择',baseHp:30,cd:3,power:2,act:'drain'},
+    {id:'warden',name:'栅格守卫',icon:'▦',desc:'把安全路径逐格焊死',baseHp:38,cd:3,power:3,act:'lock'},
+    {id:'thorn',name:'荆棘编译体',icon:'✣',desc:'让高价值融合带上倒刺',baseHp:35,cd:2,power:2,act:'thorn'},
+    {id:'glitch',name:'降阶幽灵',icon:'⌁',desc:'将最大的确定性重新模糊',baseHp:42,cd:3,power:3,act:'corrupt'},
+    {id:'brute',name:'熵压巨像',icon:'⬢',desc:'没有技巧，只有越来越重的拳头',baseHp:52,cd:2,power:4,act:'smash'}
+  ];
+  const BOSSES=[
+    {id:'boss_eye',name:'零号观测者',icon:'◈',desc:'它看见你每一种未来的失败',baseHp:96,cd:2,power:5,act:'boss'},
+    {id:'boss_root',name:'根权限残响',icon:'✦',desc:'整座裂隙正在借它的手行动',baseHp:145,cd:2,power:7,act:'boss'}
+  ];
+  const RELICS=[
+    {id:'coil',icon:'⚡',name:'共振线圈',rarity:'Uncommon',desc:'同一次移动中，每个后续合并造成 +35% 伤害。'},
+    {id:'lens',icon:'◇',name:'折射透镜',rarity:'Rare',desc:'合并时有 18% 概率额外升一阶，并产生更强冲击。'},
+    {id:'alloy',icon:'♥',name:'血铸合金',rarity:'Uncommon',desc:'合并出 32 或更高方块时回复 1 生命（每回合最多 1 次）。'},
+    {id:'stasis',icon:'⌛',name:'迟滞场',rarity:'Rare',desc:'敌人的行动间隔 +1 回合。'},
+    {id:'battery',icon:'✧',name:'双生电池',rarity:'Common',desc:'所有合并获得的裂隙能量 +50%。'},
+    {id:'armor',icon:'⬡',name:'镜面装甲',rarity:'Common',desc:'进入新层时获得 3 点护盾。'},
+    {id:'overclock',icon:'↯',name:'危险超频',rarity:'Rare',desc:'每次移动的第一次合并伤害翻倍；每 7 回合损失 1 生命。'},
+    {id:'harvest',icon:'✺',name:'溢出收割器',rarity:'Uncommon',desc:'对敌人造成的溢出伤害有 50% 转化为护盾。'},
+    {id:'alchemy',icon:'◌',name:'高阶孵化器',rarity:'Common',desc:'新方块生成 4 的概率提升，并有 7% 概率直接生成 8。'},
+    {id:'phoenix',icon:'♨',name:'凤凰内核',rarity:'Legendary',desc:'每局首次受到致命伤时，改为保留 1 生命并清除两个障碍。'},
+    {id:'needle',icon:'⌁',name:'反相针',rarity:'Uncommon',desc:'每次消除障碍，对敌人造成 8 伤害。'},
+    {id:'echo',icon:'∞',name:'回声缓存',rarity:'Rare',desc:'达到 3 连融时，复制本次获得能量的 50%。'}
+  ];
+
+  function mulberry32(seed){return function(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^t>>>14)>>>0)/4294967296}}
+  function rand(){return state.rng()}
+  function pick(arr){return arr[Math.floor(rand()*arr.length)]}
+  function hasRelic(id){return state.relics.some(r=>r.id===id)}
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+  function easeOutCubic(t){return 1-Math.pow(1-t,3)}
+  function easeOutBack(t){const c1=1.70158,c3=c1+1;return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2)}
+  function vibrate(pattern){try{navigator.vibrate?.(pattern)}catch(e){}}
+  function initAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==='suspended')audioCtx.resume()}
+  function tone(freq,dur=.07,type='sine',gain=.035,slide=0){
+    if(!audioCtx)return; const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.type=type;o.frequency.setValueAtTime(freq,audioCtx.currentTime); if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(40,freq+slide),audioCtx.currentTime+dur);g.gain.setValueAtTime(gain,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+dur);o.connect(g).connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+dur);
+  }
+  function sfxMove(){tone(110,.045,'triangle',.018,35)}
+  function sfxMerge(value){const f=190+Math.log2(value)*33;tone(f,.11,'sine',.045,90);setTimeout(()=>tone(f*1.5,.07,'triangle',.018,-20),25)}
+  function sfxHit(){tone(78,.14,'sawtooth',.04,-25)}
+  function sfxReward(){[330,440,660].forEach((f,i)=>setTimeout(()=>tone(f,.15,'sine',.035,80),i*65))}
+  function toast(msg){ui.toast.textContent=msg;ui.toast.classList.remove('show');void ui.toast.offsetWidth;ui.toast.classList.add('show')}
+  function log(msg,type=''){const d=document.createElement('div');d.className='log-line '+type;d.innerHTML=msg;ui.log.prepend(d);while(ui.log.children.length>7)ui.log.lastChild.remove()}
+
+  function newState(){
+    const seed=(Date.now()^(Math.random()*0xffffffff))>>>0;
+    return {seed,rng:mulberry32(seed),floor:1,score:0,turn:0,hp:12,maxHp:12,shield:0,flux:0,relics:[],phoenixUsed:false,board:Array.from({length:SIZE},()=>Array(SIZE).fill(null)),tiles:new Map(),nextId:1,obstacles:[],enemy:null,combo:0,maxTile:2,damageThisMove:0,healedThisMove:false,overdrive:false,kills:0,gameOver:false};
+  }
+  function resetGame(){
+    state=newState(); particles=[]; anim=null; locked=false; running=true; hitVignette=0; shake=0;
+    for(let i=0;i<2;i++)spawnTile(false);
+    startFloor(true); updateUI(); renderRelics(); ui.log.innerHTML=''; log('<b>下潜开始。</b> 裂隙正在重组。','good');
+  }
+  function startFloor(first=false){
+    state.obstacles=[]; state.turn=0; state.healedThisMove=false;
+    const boss=state.floor%5===0;
+    const proto=boss ? BOSSES[Math.min(BOSSES.length-1,Math.floor(state.floor/10))] : pick(ENEMIES.slice(0,Math.min(ENEMIES.length,2+Math.floor(state.floor/2))));
+    const hp=Math.round(proto.baseHp*(1+(state.floor-1)*.22));
+    state.enemy={...proto,maxHp:hp,hp,baseCd:proto.cd,counter:proto.cd+(hasRelic('stasis')?1:0),power:proto.power+Math.floor((state.floor-1)/3)};
+    if(!first){
+      state.hp=Math.min(state.maxHp,state.hp+2);
+      if(hasRelic('armor'))state.shield+=3;
+      relieveBoard();
+      spawnTile(false);
+      toast(`抵达第 ${state.floor} 层`);
+    }
+    ui.floorName.textContent=`第 ${state.floor} 层 · ${boss?'核心守门战':FLOOR_NAMES[(state.floor-1)%FLOOR_NAMES.length]}`;
+    log(`<b>${state.enemy.name}</b> 出现了。`, 'bad');
+  }
+  function relieveBoard(){
+    const lows=[...state.tiles.values()].filter(t=>!t.removed).sort((a,b)=>a.value-b.value);
+    const count=Math.min(lows.length, state.floor%3===0?2:1);
+    for(let i=0;i<count;i++)removeTileById(lows[i].id,true);
+  }
+  function addTile(x,y,value,spawn=true){const t={id:state.nextId++,x,y,value,spawnAt:spawn?performance.now():0,pulseAt:0,removed:false};state.tiles.set(t.id,t);state.board[y][x]=t.id;state.maxTile=Math.max(state.maxTile,value);return t}
+  function spawnTile(animated=true){
+    const empty=[];for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++)if(!state.board[y][x]&&!isBlocked(x,y))empty.push({x,y});
+    if(!empty.length)return false; const p=pick(empty); let value=rand()<.1?4:2;
+    if(hasRelic('alchemy')){const r=rand();value=r<.07?8:r<.32?4:2}
+    addTile(p.x,p.y,value,animated); burstAtCell(p.x,p.y,6,'spawn'); return true;
+  }
+  function isBlocked(x,y){return state.obstacles.some(o=>o.x===x&&o.y===y&&o.type==='lock')}
+  function obstacleAt(x,y,type=null){return state.obstacles.find(o=>o.x===x&&o.y===y&&(!type||o.type===type))}
+  function removeTileById(id,fx=false){const t=state.tiles.get(id);if(!t)return; if(state.board[t.y]?.[t.x]===id)state.board[t.y][t.x]=null;t.removed=true;state.tiles.delete(id);if(fx)burstAtCell(t.x,t.y,14,'shatter')}
+
+  function lineCoords(dir,index){
+    const a=[];for(let i=0;i<SIZE;i++){
+      if(dir==='left')a.push({x:i,y:index}); if(dir==='right')a.push({x:SIZE-1-i,y:index});
+      if(dir==='up')a.push({x:index,y:i}); if(dir==='down')a.push({x:index,y:SIZE-1-i});
+    }return a;
+  }
+  function segmentsFor(coords){const segs=[];let cur=[];for(const c of coords){if(isBlocked(c.x,c.y)){if(cur.length)segs.push(cur);cur=[]}else cur.push(c)}if(cur.length)segs.push(cur);return segs}
+
+  function computeMove(dir){
+    const nextBoard=Array.from({length:SIZE},()=>Array(SIZE).fill(null));
+    for(const o of state.obstacles)if(o.type==='lock')nextBoard[o.y][o.x]=null;
+    const transitions=[],newTiles=[],mergedSources=new Set(); let moved=false,mergeIndex=0,totalDamage=0,totalFlux=0,heal=false;
+    for(let line=0;line<SIZE;line++){
+      const coords=lineCoords(dir,line);
+      for(const seg of segmentsFor(coords)){
+        const src=seg.map(c=>{const id=state.board[c.y][c.x];return id?state.tiles.get(id):null}).filter(Boolean);
+        let out=0,i=0;
+        while(i<src.length){
+          const a=src[i],b=src[i+1]; const target=seg[out];
+          if(b&&a.value===b.value){
+            let value=a.value*2; let prism=false;
+            if(hasRelic('lens')&&rand()<.18){value*=2;prism=true}
+            const id=state.nextId++;
+            newTiles.push({id,x:target.x,y:target.y,value,spawnAt:0,pulseAt:performance.now()+MOVE_MS,removed:false,prism});
+            nextBoard[target.y][target.x]=id;
+            transitions.push({id:a.id,fromX:a.x,fromY:a.y,toX:target.x,toY:target.y,value:a.value,merge:true},{id:b.id,fromX:b.x,fromY:b.y,toX:target.x,toY:target.y,value:b.value,merge:true});
+            mergedSources.add(a.id);mergedSources.add(b.id);
+            if(a.x!==target.x||a.y!==target.y||b.x!==target.x||b.y!==target.y)moved=true;
+            const base=3+Math.log2(value)*1.7;
+            let mult=1;
+            if(hasRelic('coil'))mult*=1+mergeIndex*.35;
+            if(hasRelic('overclock')&&mergeIndex===0)mult*=2;
+            const dmg=Math.round(base*mult)+(prism?5:0); totalDamage+=dmg;
+            const energy=Math.ceil(Math.log2(value)/2)*(hasRelic('battery')?1.5:1); totalFlux+=energy;
+            if(hasRelic('alloy')&&value>=32&&!heal){heal=true}
+            mergeIndex++; state.maxTile=Math.max(state.maxTile,value); state.score+=value*(prism?2:1);
+            i+=2;out++;
+          }else{
+            nextBoard[target.y][target.x]=a.id;
+            transitions.push({id:a.id,fromX:a.x,fromY:a.y,toX:target.x,toY:target.y,value:a.value,merge:false});
+            if(a.x!==target.x||a.y!==target.y)moved=true;
+            i++;out++;
+          }
+        }
+      }
+    }
+    return {moved,dir,nextBoard,transitions,newTiles,mergedSources,totalDamage,totalFlux:Math.round(totalFlux),mergeCount:mergeIndex,heal};
+  }
+
+  function attemptMove(dir){
+    if(locked||!running||state.gameOver)return;
+    initAudio(); const result=computeMove(dir); if(!result.moved){bump(dir);return}
+    locked=true;sfxMove();state.turn++;state.healedThisMove=false;
+    state.board=result.nextBoard;
+    for(const tr of result.transitions){const t=state.tiles.get(tr.id);if(t){t.x=tr.toX;t.y=tr.toY}}
+    for(const id of result.mergedSources){const t=state.tiles.get(id);if(t)t.removed=true}
+    for(const nt of result.newTiles)state.tiles.set(nt.id,nt);
+    state.damageThisMove=result.totalDamage;
+    anim={start:performance.now(),...result};
+    state.combo=result.mergeCount;
+    if(result.mergeCount){
+      ui.comboText.textContent=`×${result.mergeCount}`;ui.combo.classList.add('show');
+      setTimeout(()=>ui.combo.classList.remove('show'),650);
+      if(hasRelic('echo')&&result.mergeCount>=3)result.totalFlux+=Math.ceil(result.totalFlux*.5);
+      state.flux+=result.totalFlux;
+    }
+    updateUI();
+  }
+  function finishMove(){
+    const a=anim;if(!a)return;
+    for(const id of a.mergedSources)state.tiles.delete(id);
+    for(const nt of a.newTiles){
+      const t=state.tiles.get(nt.id);t.pulseAt=performance.now();
+      burstAtCell(t.x,t.y,10+(Math.log2(t.value)|0),'merge');sfxMerge(t.value);
+      const thorn=obstacleAt(t.x,t.y,'thorn');if(thorn)takeDamage(1,'荆棘反噬');
+    }
+    if(a.totalDamage>0)damageEnemy(a.totalDamage,'合并冲击');
+    if(a.heal&&state.hp>0){healPlayer(1);log('血铸合金回收热量，<b>回复 1 生命</b>。','good')}
+    anim=null;
+    if(!state.enemy||state.enemy.hp<=0){locked=true;return}
+    spawnTile(true);
+    tickObstacles();
+    if(!state.enemy||state.enemy.hp<=0){updateUI();return}
+    if(hasRelic('overclock')&&state.turn%7===0)takeDamage(1,'超频灼伤');
+    if(state.hp<=0){endGame('危险超频烧毁了生命维持系统。');return}
+    enemyTurnTick();
+    updateUI();
+    if(state.hp<=0){endGame('生命维持系统被敌方攻击击穿。');return}
+    if(!canMove()){
+      takeDamage(3,'棋盘过载');
+      relieveDeadlock();
+      if(state.hp<=0){endGame('栅格完全锁死，过载摧毁了机体。');return}
+    }
+    locked=false;
+  }
+
+  function enemyTurnTick(){
+    if(!state.enemy)return;state.enemy.counter--;
+    if(state.enemy.counter<=0){enemyAct();state.enemy.counter=state.enemy.baseCd+(hasRelic('stasis')?1:0)}
+  }
+  function enemyAct(){
+    const e=state.enemy;ui.enemyOrb.classList.remove('attack');void ui.enemyOrb.offsetWidth;ui.enemyOrb.classList.add('attack');
+    if(e.act==='drain'){
+      const drain=Math.min(state.flux,3+Math.floor(state.floor/3));state.flux-=drain;
+      if(drain)log(`<b>${e.name}</b> 吞噬 ${drain} 点能量。`,'bad');else takeDamage(e.power,'数据蛭噬咬');
+    }else if(e.act==='lock'){
+      if(!addObstacle('lock',4))takeDamage(e.power,'守卫重击');
+    }else if(e.act==='thorn'){
+      addObstacle('thorn',5);takeDamage(Math.max(1,e.power-1),'荆棘震荡');
+    }else if(e.act==='corrupt'){
+      const tiles=[...state.tiles.values()].filter(t=>!t.removed).sort((a,b)=>b.value-a.value);
+      if(tiles.length&&tiles[0].value>2){tiles[0].value/=2;state.maxTile=Math.max(2,...[...state.tiles.values()].map(t=>t.value));burstAtCell(tiles[0].x,tiles[0].y,13,'corrupt');log(`<b>${e.name}</b> 将最高方块降了一阶。`,'bad')}else takeDamage(e.power,'幽灵穿透');
+    }else if(e.act==='smash'){
+      takeDamage(e.power,'熵压重拳');if(rand()<.45)addObstacle('lock',3);
+    }else if(e.act==='boss'){
+      takeDamage(e.power,'核心裁决');addObstacle(rand()<.55?'lock':'thorn',4);if(state.floor>=10&&rand()<.35)corruptRandom();
+    }
+    updateUI();
+  }
+  function corruptRandom(){const t=pick([...state.tiles.values()].filter(x=>x.value>2));if(t){t.value/=2;burstAtCell(t.x,t.y,10,'corrupt')}}
+  function addObstacle(type,ttl){
+    const options=[];for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++)if(!state.board[y][x]&&!obstacleAt(x,y))options.push({x,y});
+    const same=state.obstacles.filter(o=>o.type===type).length;if(!options.length||same>=(type==='lock'?2:3))return false;
+    const p=pick(options);state.obstacles.push({...p,type,ttl});burstAtCell(p.x,p.y,15,type);log(`<b>${state.enemy.name}</b> ${type==='lock'?'封锁了一格':'布置了荆棘陷阱'}。`,'bad');return true;
+  }
+  function tickObstacles(){
+    const expired=[];
+    for(const o of state.obstacles){o.ttl--;if(o.ttl<=0)expired.push(o)}
+    state.obstacles=state.obstacles.filter(o=>o.ttl>0);
+    for(const o of expired){burstAtCell(o.x,o.y,10,'shatter');if(hasRelic('needle')&&state.enemy?.hp>0)damageEnemy(8,'反相针')}
+  }
+  function clearObstacles(n=99){
+    const removed=state.obstacles.splice(0,n);for(const o of removed){burstAtCell(o.x,o.y,12,'shatter');if(hasRelic('needle')&&state.enemy?.hp>0)damageEnemy(8,'反相针')}
+  }
+  function relieveDeadlock(){
+    const locks=state.obstacles.filter(o=>o.type==='lock');if(locks.length){const o=locks[0];state.obstacles.splice(state.obstacles.indexOf(o),1);burstAtCell(o.x,o.y,16,'shatter');log('过载保险熔断了一个<b>封锁格</b>。','good');return}
+    const lows=[...state.tiles.values()].sort((a,b)=>a.value-b.value);if(lows.length){removeTileById(lows[0].id,true);log('过载保险烧毁了一个最低阶方块。','good')}
+  }
+
+  function damageEnemy(amount,source){
+    if(!state.enemy||amount<=0)return;const before=state.enemy.hp;state.enemy.hp=Math.max(0,before-amount);shake=Math.min(14,4+amount*.18);hitVignette=.22;
+    ui.enemyOrb.classList.remove('hurt');void ui.enemyOrb.offsetWidth;ui.enemyOrb.classList.add('hurt');floatDamage(amount,ui.enemyOrb,'#9ffcff');
+    log(`${source}造成 <b>${amount}</b> 伤害。`,'good');
+    if(state.enemy.hp<=0){
+      const overflow=Math.max(0,amount-before);if(hasRelic('harvest')&&overflow)state.shield+=Math.ceil(overflow*.5);
+      state.kills++;state.score+=state.floor*250;locked=true;sfxReward();vibrate([25,30,40]);clearObstacles();updateUI();setTimeout(showRelicReward,520);
+    }
+  }
+  function takeDamage(amount,source){
+    if(amount<=0||state.gameOver)return;let left=amount;
+    if(state.shield>0){const block=Math.min(state.shield,left);state.shield-=block;left-=block;if(block)log(`护盾抵消 <b>${block}</b> 伤害。`,'good')}
+    if(left>0)state.hp-=left;
+    if(state.hp<=0&&hasRelic('phoenix')&&!state.phoenixUsed){state.phoenixUsed=true;state.hp=1;clearObstacles(2);toast('凤凰内核拒绝了死亡');log('<b>凤凰内核</b> 点燃：保留 1 生命。','good');tone(520,.3,'sine',.06,260)}
+    shake=Math.max(shake,10);hitVignette=.8;sfxHit();vibrate([35,25,35]);floatDamage(amount,wrap,'#ff7592');log(`${source}造成 <b>${amount}</b> 伤害。`,'bad');updateUI();
+  }
+  function healPlayer(amount){state.hp=Math.min(state.maxHp,state.hp+amount);updateUI()}
+  function floatDamage(n,el,color){const r=el.getBoundingClientRect(),d=document.createElement('div');d.className='damage-float';d.textContent=`${color==='#ff7592'?'-':'-'}${n}`;d.style.left=(r.left+r.width/2)+'px';d.style.top=(r.top+r.height*.35)+'px';d.style.color=color;document.body.appendChild(d);setTimeout(()=>d.remove(),900)}
+
+  function showRelicReward(){
+    if(state.gameOver)return;
+    if(!availableRelics().length){
+      state.maxHp+=1;state.hp=Math.min(state.maxHp,state.hp+4);state.shield+=4;
+      log('遗物槽已满：裂隙将奖励压缩为 <b>机体强化</b>。','good');
+      state.floor++;startFloor(false);locked=false;updateUI();return;
+    }
+    buildRelicChoices();$('rewardText').textContent=`${state.enemy.name} 已被抹除。选择一条会改变后续规则的异常。`;$('relicOverlay').classList.add('show');
+  }
+  function availableRelics(){return RELICS.filter(r=>!hasRelic(r.id))}
+  function buildRelicChoices(){
+    const pool=availableRelics();const choices=[];while(choices.length<Math.min(3,pool.length)){const r=pick(pool);if(!choices.includes(r))choices.push(r)}
+    const host=$('relicChoices');host.innerHTML='';for(const r of choices){const b=document.createElement('button');b.className='relic-choice';b.innerHTML=`<div class="relic-icon">${r.icon}</div><h3>${r.name}</h3><p>${r.desc}</p><div class="relic-rarity">${r.rarity}</div>`;b.onclick=()=>chooseRelic(r);host.appendChild(b)}
+    uiValueButtons();
+  }
+  function chooseRelic(r){
+    state.relics.push(r);$('relicOverlay').classList.remove('show');renderRelics();log(`获得遗物：<b>${r.name}</b>。`,'good');
+    if(r.id==='armor')state.shield+=3;if(r.id==='phoenix')state.phoenixUsed=false;
+    state.floor++;startFloor(false);locked=false;updateUI();
+  }
+  function rerollRelics(){if(state.flux<8)return;state.flux-=8;buildRelicChoices();tone(260,.12,'triangle',.035,180);updateUI()}
+  function renderRelics(){
+    ui.relics.innerHTML='';if(!state.relics.length){ui.relics.innerHTML='<div class="empty-relics">尚未建立构筑</div>';return}
+    for(const r of state.relics){const d=document.createElement('div');d.className='relic';d.textContent=r.icon;d.dataset.tip=`${r.name}：${r.desc}`;ui.relics.appendChild(d)}
+  }
+
+  function usePulse(){
+    if(locked||state.flux<12||!state.enemy||state.enemy.hp<=0)return;initAudio();state.flux-=12;tone(180,.22,'sawtooth',.05,620);ui.flash.classList.remove('go');void ui.flash.offsetWidth;ui.flash.classList.add('go');damageEnemy(18,'裂隙脉冲');updateUI();
+  }
+  function useVent(){
+    if(locked||state.flux<10)return;const tiles=[...state.tiles.values()].filter(t=>!t.removed).sort((a,b)=>a.value-b.value);if(!tiles.length)return;initAudio();state.flux-=10;const target=pick(tiles.filter(t=>t.value===tiles[0].value));removeTileById(target.id,true);state.shield+=2;tone(420,.16,'triangle',.035,-250);log('熵值泄压移除最低阶方块，获得 <b>2 护盾</b>。','good');updateUI();
+  }
+
+  function canMove(){
+    for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++)if(!isBlocked(x,y)&&!state.board[y][x])return true;
+    for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
+      const id=state.board[y][x];if(!id)continue;const v=state.tiles.get(id)?.value;
+      for(const [dx,dy] of [[1,0],[0,1]]){const nx=x+dx,ny=y+dy;if(nx<SIZE&&ny<SIZE&&!isBlocked(nx,ny)){const nid=state.board[ny][nx];if(nid&&state.tiles.get(nid)?.value===v)return true}}
+    }return false;
+  }
+  function bump(dir){
+    const d={left:[-7,0],right:[7,0],up:[0,-7],down:[0,7]}[dir];wrap.animate([{transform:`translate3d(0,0,0)`},{transform:`translate3d(${d[0]}px,${d[1]}px,0)`},{transform:'translate3d(0,0,0)'}],{duration:150,easing:'cubic-bezier(.2,.8,.2,1)'});tone(85,.04,'square',.012,-10)
+  }
+  function endGame(reason){
+    if(state.gameOver)return;state.gameOver=true;running=false;locked=true;$('deathReason').textContent=reason;$('sumFloor').textContent=state.floor;$('sumScore').textContent=state.score.toLocaleString();$('sumTile').textContent=state.maxTile;$('sumRelics').textContent=state.relics.length;$('gameoverOverlay').classList.add('show');
+  }
+  function updateUI(){
+    if(!state)return;ui.floorChip.textContent=state.floor;ui.scoreChip.textContent=state.score.toLocaleString();ui.seedChip.textContent=state.seed.toString(16).slice(-6).toUpperCase();
+    ui.hp.textContent=Math.max(0,state.hp);ui.maxHp.textContent=state.maxHp;ui.hpBar.style.width=(clamp(state.hp/state.maxHp,0,1)*100)+'%';ui.flux.textContent=state.flux;ui.shield.textContent=state.shield;
+    ui.statusText.textContent=state.hp<=3?'临界':state.shield>0?'护盾在线':'稳定';ui.statusText.style.color=state.hp<=3?'#ff7592':'';
+    if(state.enemy){ui.enemyName.textContent=state.enemy.name;ui.enemyDesc.textContent=state.enemy.desc;ui.enemyOrb.textContent=state.enemy.icon;ui.enemyHpBar.style.width=(state.enemy.hp/state.enemy.maxHp*100)+'%';ui.intentText.textContent=state.enemy.hp<=0?'威胁已清除':`${state.enemy.counter} 回合后行动`;ui.intentPower.textContent=intentLabel(state.enemy)}
+    uiValueButtons();
+  }
+  function intentLabel(e){if(e.hp<=0)return '✓';if(e.act==='lock')return '▦ 封锁';if(e.act==='thorn')return `✣ ${Math.max(1,e.power-1)}`;if(e.act==='drain')return '◇ 吞噬';if(e.act==='corrupt')return '⌁ 降阶';return `⚔ ${e.power}`}
+  function uiValueButtons(){ui.pulseBtn.disabled=!state||state.flux<12||locked;ui.ventBtn.disabled=!state||state.flux<10||locked;$('rerollBtn').disabled=!state||state.flux<8;$('rerollHint').textContent=state&&state.flux>=8?'重掷会消耗 8 裂隙能量':'能量不足，无法重掷'}
+
+  function resize(){
+    const rect=canvas.getBoundingClientRect();dpr=Math.min(2,window.devicePixelRatio||1);W=Math.max(280,rect.width);canvas.width=Math.round(W*dpr);canvas.height=Math.round(W*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);pad=W*.035;gap=W*.022;cell=(W-pad*2-gap*3)/4;
+    if(!bgMotes.length)for(let i=0;i<36;i++)bgMotes.push({x:Math.random()*W,y:Math.random()*W,r:Math.random()*1.4+.3,s:Math.random()*.12+.03,a:Math.random()*.3+.05});
+  }
+  function cellPos(x,y){return {x:pad+x*(cell+gap),y:pad+y*(cell+gap)}}
+  function roundRect(c,x,y,w,h,r){r=Math.min(r,w/2,h/2);c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+  function hexToRgb(hex){const n=parseInt(hex.slice(1),16);return[(n>>16)&255,(n>>8)&255,n&255]}
+  function rgba(hex,a){const [r,g,b]=hexToRgb(hex);return`rgba(${r},${g},${b},${a})`}
+
+  function drawBackground(t){
+    const grd=ctx.createLinearGradient(0,0,W,W);grd.addColorStop(0,'#10152b');grd.addColorStop(.55,'#0a1022');grd.addColorStop(1,'#161027');ctx.fillStyle=grd;ctx.fillRect(0,0,W,W);
+    ctx.save();for(const m of bgMotes){m.y-=m.s;if(m.y<-2){m.y=W+2;m.x=Math.random()*W}ctx.fillStyle=`rgba(155,216,255,${m.a*(.65+.35*Math.sin(t*.001+m.x))})`;ctx.beginPath();ctx.arc(m.x,m.y,m.r,0,Math.PI*2);ctx.fill()}ctx.restore();
+    ctx.save();ctx.globalAlpha=.12;ctx.strokeStyle='#80dfff';ctx.lineWidth=.55;const off=(t*.012)%34;for(let i=-W;i<W*2;i+=34){ctx.beginPath();ctx.moveTo(i+off,0);ctx.lineTo(i-W+off,W);ctx.stroke()}ctx.restore();
+    for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
+      const p=cellPos(x,y), pulse=.5+.5*Math.sin(t*.0015+x+y);roundRect(ctx,p.x,p.y,cell,cell,cell*.12);ctx.fillStyle=`rgba(169,196,255,${.035+pulse*.012})`;ctx.fill();ctx.strokeStyle='rgba(158,195,255,.075)';ctx.lineWidth=1;ctx.stroke();
+    }
+  }
+  function drawObstacle(o,t){
+    const p=cellPos(o.x,o.y),cx=p.x+cell/2,cy=p.y+cell/2;
+    ctx.save();if(o.type==='lock'){
+      const pulse=.65+.35*Math.sin(t*.006+o.x);ctx.shadowColor='#7d78ff';ctx.shadowBlur=18*pulse;roundRect(ctx,p.x+3,p.y+3,cell-6,cell-6,cell*.12);ctx.fillStyle='rgba(83,76,158,.32)';ctx.fill();ctx.strokeStyle='rgba(169,161,255,.65)';ctx.lineWidth=1.5;ctx.stroke();
+      ctx.translate(cx,cy);ctx.rotate(t*.0004);ctx.strokeStyle='rgba(211,208,255,.55)';ctx.lineWidth=2;for(let i=0;i<4;i++){ctx.rotate(Math.PI/2);ctx.beginPath();ctx.moveTo(0,-cell*.28);ctx.lineTo(0,-cell*.12);ctx.stroke()}ctx.font=`700 ${cell*.18}px system-ui`;ctx.fillStyle='#c7c4ff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('▦',0,1);
+    }else{
+      ctx.translate(cx,cy);const pulse=1+.06*Math.sin(t*.009);ctx.scale(pulse,pulse);ctx.shadowColor='#ff5c91';ctx.shadowBlur=14;ctx.strokeStyle='rgba(255,100,145,.75)';ctx.lineWidth=2;for(let i=0;i<8;i++){ctx.rotate(Math.PI/4);ctx.beginPath();ctx.moveTo(0,cell*.16);ctx.lineTo(0,cell*.34);ctx.stroke()}ctx.fillStyle='rgba(130,40,80,.45)';ctx.beginPath();ctx.arc(0,0,cell*.2,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ff8fb2';ctx.font=`700 ${cell*.17}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✣',0,1);
+    }ctx.restore();
+  }
+  function tilePalette(value){return TILE_COLORS[value]||['#5a315f','#fff2ff']}
+  function drawTileAt(value,x,y,scale=1,alpha=1,rotation=0,glow=1){
+    const [base,text]=tilePalette(value),cx=x+cell/2,cy=y+cell/2;ctx.save();ctx.globalAlpha=alpha;ctx.translate(cx,cy);ctx.rotate(rotation);ctx.scale(scale,scale);ctx.translate(-cell/2,-cell/2);
+    const g=ctx.createLinearGradient(0,0,cell,cell);g.addColorStop(0,rgba(base,.98));g.addColorStop(1,rgba(base,.68));ctx.shadowColor=rgba(text,.35*glow);ctx.shadowBlur=18*glow;roundRect(ctx,2,2,cell-4,cell-4,cell*.13);ctx.fillStyle=g;ctx.fill();ctx.shadowBlur=0;
+    const hi=ctx.createLinearGradient(0,0,cell,cell);hi.addColorStop(0,'rgba(255,255,255,.22)');hi.addColorStop(.35,'rgba(255,255,255,.02)');hi.addColorStop(1,'rgba(0,0,0,.12)');roundRect(ctx,3,3,cell-6,cell-6,cell*.12);ctx.fillStyle=hi;ctx.fill();ctx.strokeStyle=rgba(text,.28);ctx.lineWidth=1;ctx.stroke();
+    const exp=Math.log2(value);ctx.globalAlpha=alpha*.1;ctx.strokeStyle=text;ctx.lineWidth=1;ctx.beginPath();ctx.arc(cell*.5,cell*.5,cell*(.18+.012*(exp%3)),0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=alpha;const len=String(value).length;ctx.font=`900 ${cell*(len>=4?.25:len===3?.30:.35)}px Inter,system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=text;ctx.shadowColor=rgba(text,.55);ctx.shadowBlur=10;ctx.fillText(value,cell/2,cell*.51);ctx.shadowBlur=0;
+    ctx.font=`700 ${cell*.075}px Inter,system-ui`;ctx.fillStyle=rgba(text,.66);ctx.letterSpacing='1px';ctx.fillText(`TIER ${exp-1}`,cell/2,cell*.76);
+    ctx.restore();
+  }
+  function drawTiles(t){
+    const movingIds=new Set(anim?anim.transitions.map(x=>x.id):[]),newIds=new Set(anim?anim.newTiles.map(x=>x.id):[]);
+    for(const tile of state.tiles.values()){
+      if(tile.removed||movingIds.has(tile.id)||newIds.has(tile.id))continue;
+      const p=cellPos(tile.x,tile.y);let scale=1;
+      if(tile.spawnAt){const q=clamp((t-tile.spawnAt)/260,0,1);scale=easeOutBack(q);if(q>=1)tile.spawnAt=0}
+      if(tile.pulseAt){const q=(t-tile.pulseAt)/340;if(q<1)scale*=1+Math.sin(q*Math.PI)*.14*(1-q);else tile.pulseAt=0}
+      drawTileAt(tile.value,p.x,p.y,scale,1,Math.sin(t*.001+tile.id)*.003);
+    }
+    if(anim){
+      const q=clamp((t-anim.start)/MOVE_MS,0,1),e=easeOutCubic(q);
+      for(const tr of anim.transitions){const a=cellPos(tr.fromX,tr.fromY),b=cellPos(tr.toX,tr.toY);let x=a.x+(b.x-a.x)*e,y=a.y+(b.y-a.y)*e;const dist=Math.hypot(b.x-a.x,b.y-a.y);const stretch=dist?Math.sin(q*Math.PI)*.06:0;drawTileAt(tr.value,x,y,1+stretch,1,0,1+stretch*5)}
+      if(q>.72){const nq=(q-.72)/.28;for(const nt of anim.newTiles){const p=cellPos(nt.x,nt.y);drawTileAt(nt.value,p.x,p.y,easeOutBack(nq),nq,nt.prism?Math.sin(nq*Math.PI)*.08:0,nt.prism?1.8:1)}}
+      if(q>=1)finishMove();
+    }
+  }
+  function burstAtCell(x,y,count,type){
+    const p=cellPos(x,y),cx=p.x+cell/2,cy=p.y+cell/2;const palettes={merge:['#9ffcff','#ffffff','#b889ff'],spawn:['#75eaff','#8aa7ff'],shatter:['#bab7ff','#ffffff'],lock:['#8d85ff','#d4d2ff'],thorn:['#ff6f9f','#ffb0c9'],corrupt:['#ff66d7','#884dff']};const pal=palettes[type]||palettes.merge;
+    for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,s=(Math.random()*2.8+1)*(W/500);particles.push({x:cx,y:cy,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,decay:Math.random()*.025+.018,r:Math.random()*3+1,color:pick(pal),type})}
+  }
+  function drawParticles(){
+    ctx.save();ctx.globalCompositeOperation='lighter';for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vx*=.96;p.vy*=.96;p.vy+=p.type==='merge'?.015:0;p.life-=p.decay;if(p.life<=0){particles.splice(i,1);continue}ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.shadowColor=p.color;ctx.shadowBlur=8;ctx.beginPath();ctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);ctx.fill()}ctx.restore();
+  }
+  function render(t=0){
+    requestAnimationFrame(render);if(!state)return;ctx.save();let sx=0,sy=0;if(shake>.1){sx=(Math.random()-.5)*shake;sy=(Math.random()-.5)*shake;shake*=.86}ctx.translate(sx,sy);drawBackground(t);for(const o of state.obstacles)drawObstacle(o,t);drawTiles(t);drawParticles();ctx.restore();
+    if(hitVignette>.01){ctx.save();const g=ctx.createRadialGradient(W/2,W/2,W*.18,W/2,W/2,W*.72);g.addColorStop(0,'rgba(255,40,80,0)');g.addColorStop(1,`rgba(255,30,70,${hitVignette*.32})`);ctx.fillStyle=g;ctx.fillRect(0,0,W,W);ctx.restore();hitVignette*=.9}
+  }
+
+  function keyDir(k){return({ArrowLeft:'left',a:'left',A:'left',ArrowRight:'right',d:'right',D:'right',ArrowUp:'up',w:'up',W:'up',ArrowDown:'down',s:'down',S:'down'})[k]}
+  window.addEventListener('keydown',e=>{const d=keyDir(e.key);if(d){e.preventDefault();attemptMove(d)}});
+  canvas.addEventListener('pointerdown',e=>{pointer.down=true;pointer.sx=pointer.x=e.clientX;pointer.sy=pointer.y=e.clientY;pointer.dx=pointer.dy=0;canvas.setPointerCapture(e.pointerId);initAudio()});
+  canvas.addEventListener('pointermove',e=>{if(!pointer.down)return;pointer.x=e.clientX;pointer.y=e.clientY;pointer.dx=pointer.x-pointer.sx;pointer.dy=pointer.y-pointer.sy;const rx=clamp(-pointer.dy/30,-4,4),ry=clamp(pointer.dx/30,-4,4);wrap.style.transform=`perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale(.995)`});
+  function endPointer(){if(!pointer.down)return;pointer.down=false;wrap.style.transform='';const ax=Math.abs(pointer.dx),ay=Math.abs(pointer.dy);if(Math.max(ax,ay)>28)attemptMove(ax>ay?(pointer.dx>0?'right':'left'):(pointer.dy>0?'down':'up'));pointer.dx=pointer.dy=0}
+  canvas.addEventListener('pointerup',endPointer);canvas.addEventListener('pointercancel',endPointer);
+  window.addEventListener('resize',resize,{passive:true});
+
+  $('startBtn').onclick=()=>{initAudio();$('introOverlay').classList.remove('show');resetGame()};
+  $('againBtn').onclick=()=>{$('gameoverOverlay').classList.remove('show');resetGame()};
+  $('restartBtn').onclick=()=>{if(confirm('放弃当前构筑并生成一局新游戏？'))resetGame()};
+  $('rerollBtn').onclick=rerollRelics;ui.pulseBtn.onclick=usePulse;ui.ventBtn.onclick=useVent;
+
+  resize();state=newState();for(let i=0;i<2;i++)spawnTile(false);startFloor(true);updateUI();renderRelics();requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>
