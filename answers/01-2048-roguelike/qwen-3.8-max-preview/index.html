@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>虚空炼金术 - Void Alchemy</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-primary: #0a0a1a;
+  --bg-secondary: #12122a;
+  --bg-tertiary: #1a1a3a;
+  --text-primary: #e8e8ff;
+  --text-secondary: #8888cc;
+  --accent: #7b2fff;
+  --accent-glow: #a855f7;
+  --danger: #ff3366;
+  --heal: #33ff99;
+  --gold: #ffd700;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: 
+    radial-gradient(ellipse at 20% 50%, rgba(123,47,255,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(255,51,102,0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(51,255,153,0.04) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+#game-container {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  max-width: 520px;
+  width: 100%;
+}
+
+/* Header */
+#header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0 4px;
+}
+
+#title {
+  font-size: 1.4em;
+  font-weight: 800;
+  background: linear-gradient(135deg, #a855f7, #6366f1, #ec4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 30px rgba(168,85,247,0.3);
+}
+
+#floor-display {
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(123,47,255,0.3);
+}
+
+/* Stats Bar */
+#stats-bar {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  justify-content: center;
+}
+
+.stat-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--bg-secondary);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 8px 16px;
+  min-width: 80px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-box.pulse {
+  animation: statPulse 0.4s ease;
+}
+
+@keyframes statPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); box-shadow: 0 0 20px rgba(168,85,247,0.4); }
+  100% { transform: scale(1); }
+}
+
+.stat-label {
+  font-size: 0.65em;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+}
+
+.stat-value {
+  font-size: 1.2em;
+  font-weight: 700;
+}
+
+#hp-value { color: var(--danger); }
+#score-value { color: var(--gold); }
+#essence-value { color: var(--accent-glow); }
+
+/* HP Bar */
+#hp-bar-container {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+#hp-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #ff3366, #ff6b9d);
+  border-radius: 4px;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+#hp-bar::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: hpShine 2s infinite;
+}
+
+@keyframes hpShine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Grid */
+#grid-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 1;
+  background: var(--bg-secondary);
+  border-radius: 16px;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,0.05);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+  transition: transform 0.1s;
+}
+
+#grid-wrapper.shake {
+  animation: gridShake 0.3s ease;
+}
+
+@keyframes gridShake {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  20% { transform: translate(-3px, 2px) rotate(-0.5deg); }
+  40% { transform: translate(3px, -2px) rotate(0.5deg); }
+  60% { transform: translate(-2px, 1px) rotate(-0.3deg); }
+  80% { transform: translate(2px, -1px) rotate(0.3deg); }
+}
+
+#grid-wrapper.big-shake {
+  animation: gridBigShake 0.5s ease;
+}
+
+@keyframes gridBigShake {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  10% { transform: translate(-6px, 4px) rotate(-1deg); }
+  30% { transform: translate(6px, -4px) rotate(1deg); }
+  50% { transform: translate(-4px, 3px) rotate(-0.7deg); }
+  70% { transform: translate(4px, -2px) rotate(0.5deg); }
+  90% { transform: translate(-2px, 1px) rotate(-0.2deg); }
+}
+
+#grid-bg {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+}
+
+.cell-bg {
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.03);
+}
+
+#tile-layer {
+  position: absolute;
+  top: 10px; left: 10px; right: 10px; bottom: 10px;
+}
+
+.tile {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  font-weight: 800;
+  transition: transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94), 
+              opacity 0.15s ease;
+  will-change: transform;
+  cursor: default;
+  user-select: none;
+}
+
+.tile.moving {
+  transition: transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  z-index: 10;
+}
+
+.tile.merged {
+  animation: tileMerge 0.35s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  z-index: 20;
+}
+
+@keyframes tileMerge {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.25); }
+  70% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+.tile.spawn {
+  animation: tileSpawn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes tileSpawn {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.tile.enemy-tile {
+  animation: enemyPulse 1.5s infinite;
+}
+
+@keyframes enemyPulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(255,51,102,0.4); }
+  50% { box-shadow: 0 0 25px rgba(255,51,102,0.8); }
+}
+
+.tile-value {
+  font-size: clamp(0.9em, 3.5vw, 1.4em);
+  line-height: 1;
+}
+
+.tile-icon {
+  font-size: clamp(0.7em, 2.5vw, 1em);
+  margin-bottom: 2px;
+}
+
+/* Tile Colors */
+.tile-2 { background: linear-gradient(135deg, #2d2d5e, #3d3d7e); color: #aab; }
+.tile-4 { background: linear-gradient(135deg, #2d4d5e, #3d6d7e); color: #acc; }
+.tile-8 { background: linear-gradient(135deg, #2d5e4d, #3d7e6d); color: #aea; }
+.tile-16 { background: linear-gradient(135deg, #4d5e2d, #6d7e3d); color: #cea; }
+.tile-32 { background: linear-gradient(135deg, #5e4d2d, #7e6d3d); color: #eca; }
+.tile-64 { background: linear-gradient(135deg, #5e2d2d, #7e3d3d); color: #eaa; }
+.tile-128 { background: linear-gradient(135deg, #5e2d5e, #7e3d7e); color: #eae; }
+.tile-256 { background: linear-gradient(135deg, #4d2d6e, #6d3d8e); color: #dae; }
+.tile-512 { background: linear-gradient(135deg, #3d2d7e, #5d3dae); color: #cae; }
+.tile-1024 { background: linear-gradient(135deg, #6d2d4e, #9d3d6e); color: #fad; }
+.tile-2048 { background: linear-gradient(135deg, #7b2fff, #a855f7); color: #fff; box-shadow: 0 0 30px rgba(168,85,247,0.6); }
+.tile-4096 { background: linear-gradient(135deg, #ff3366, #ff6b9d); color: #fff; box-shadow: 0 0 30px rgba(255,51,102,0.6); }
+
+.tile-enemy { background: linear-gradient(135deg, #4a0020, #8b0040); color: #ff6b9d; border: 2px solid #ff3366; }
+
+/* Relics Bar */
+#relics-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  min-height: 32px;
+  width: 100%;
+}
+
+.relic-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-tertiary);
+  border: 1px solid rgba(168,85,247,0.3);
+  border-radius: 16px;
+  padding: 3px 10px;
+  font-size: 0.7em;
+  animation: relicAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes relicAppear {
+  0% { transform: scale(0) rotate(-10deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+/* Particles */
+.particle {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  z-index: 100;
+}
+
+/* Overlay Screens */
+.overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(5,5,20,0.92);
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.overlay.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.overlay-title {
+  font-size: 2em;
+  font-weight: 900;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #a855f7, #ec4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.overlay-subtitle {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* Relic Choice */
+#relic-choices {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 500px;
+}
+
+.relic-card {
+  background: var(--bg-secondary);
+  border: 2px solid rgba(168,85,247,0.3);
+  border-radius: 16px;
+  padding: 20px 16px;
+  width: 140px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.relic-card:hover {
+  transform: translateY(-6px) scale(1.05);
+  border-color: var(--accent-glow);
+  box-shadow: 0 10px 40px rgba(168,85,247,0.3);
+}
+
+.relic-card:active {
+  transform: translateY(-2px) scale(0.98);
+}
+
+.relic-card-icon {
+  font-size: 2em;
+  margin-bottom: 8px;
+}
+
+.relic-card-name {
+  font-weight: 700;
+  font-size: 0.85em;
+  margin-bottom: 6px;
+  color: var(--accent-glow);
+}
+
+.relic-card-desc {
+  font-size: 0.7em;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Buttons */
+.btn {
+  background: linear-gradient(135deg, var(--accent), #6366f1);
+  color: white;
+  border: none;
+  padding: 14px 36px;
+  border-radius: 12px;
+  font-size: 1em;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 16px;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(123,47,255,0.4);
+}
+
+.btn:active {
+  transform: translateY(0) scale(0.97);
+}
+
+/* Game Over Stats */
+.go-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.go-stat {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+}
+
+.go-stat-val {
+  font-size: 1.5em;
+  font-weight: 800;
+  color: var(--accent-glow);
+}
+
+.go-stat-label {
+  font-size: 0.7em;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* Enemy Warning */
+#enemy-warning {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.5em;
+  font-weight: 900;
+  color: var(--danger);
+  text-shadow: 0 0 20px rgba(255,51,102,0.8);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+
+#enemy-warning.show {
+  animation: warningFlash 1s ease;
+}
+
+@keyframes warningFlash {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+  80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+}
+
+/* Combo indicator */
+#combo-display {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.9em;
+  font-weight: 800;
+  color: var(--gold);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+#combo-display.show {
+  opacity: 1;
+  animation: comboPop 0.4s ease;
+}
+
+@keyframes comboPop {
+  0% { transform: translateX(-50%) scale(0.5); }
+  50% { transform: translateX(-50%) scale(1.3); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+/* Progress to next floor */
+#floor-progress {
+  width: 100%;
+  height: 4px;
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+#floor-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-glow));
+  border-radius: 2px;
+  transition: width 0.4s ease;
+  width: 0%;
+}
+
+/* Instructions */
+#instructions {
+  font-size: 0.7em;
+  color: var(--text-secondary);
+  text-align: center;
+  opacity: 0.7;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  #game-container { padding: 10px; gap: 8px; }
+  #grid-wrapper { padding: 8px; border-radius: 12px; }
+  #grid-bg { gap: 6px; }
+  .stat-box { padding: 6px 10px; min-width: 65px; }
+  .relic-card { width: 120px; padding: 14px 10px; }
+}
+
+/* Floating damage numbers */
+.float-text {
+  position: absolute;
+  font-weight: 900;
+  font-size: 1.2em;
+  pointer-events: none;
+  z-index: 200;
+  animation: floatUp 1s ease forwards;
+}
+
+@keyframes floatUp {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-40px) scale(0.7); }
+}
+
+.float-damage { color: var(--danger); }
+.float-heal { color: var(--heal); }
+.float-score { color: var(--gold); }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <div id="header">
+    <div id="title">虚空炼金术</div>
+    <div id="floor-display">第 1 层</div>
+  </div>
+  
+  <div id="stats-bar">
+    <div class="stat-box" id="hp-box">
+      <span class="stat-label">生命</span>
+      <span class="stat-value" id="hp-value">100</span>
+    </div>
+    <div class="stat-box" id="score-box">
+      <span class="stat-label">分数</span>
+      <span class="stat-value" id="score-value">0</span>
+    </div>
+    <div class="stat-box" id="essence-box">
+      <span class="stat-label">精华</span>
+      <span class="stat-value" id="essence-value">0</span>
+    </div>
+  </div>
+  
+  <div id="hp-bar-container">
+    <div id="hp-bar" style="width: 100%"></div>
+  </div>
+  
+  <div id="floor-progress">
+    <div id="floor-progress-bar"></div>
+  </div>
+  
+  <div id="relics-bar"></div>
+  
+  <div id="grid-wrapper">
+    <div id="combo-display"></div>
+    <div id="enemy-warning">⚠ 虚空侵蚀 ⚠</div>
+    <div id="grid-bg"></div>
+    <div id="tile-layer"></div>
+  </div>
+  
+  <div id="instructions">方向键 / WASD / 滑动 操作 · 合并方块击败虚空</div>
+</div>
+
+<!-- Relic Selection Overlay -->
+<div class="overlay" id="relic-overlay">
+  <div class="overlay-title">✦ 遗物降临 ✦</div>
+  <div class="overlay-subtitle" id="relic-subtitle">选择一件遗物强化你的炼金之路</div>
+  <div id="relic-choices"></div>
+</div>
+
+<!-- Game Over Overlay -->
+<div class="overlay" id="gameover-overlay">
+  <div class="overlay-title">☠ 虚空吞噬 ☠</div>
+  <div class="overlay-subtitle">你的炼金之旅在此终结...</div>
+  <div class="go-stats">
+    <div class="go-stat"><div class="go-stat-val" id="go-score">0</div><div class="go-stat-label">最终分数</div></div>
+    <div class="go-stat"><div class="go-stat-val" id="go-floor">1</div><div class="go-stat-label">到达层数</div></div>
+    <div class="go-stat"><div class="go-stat-val" id="go-merges">0</div><div class="go-stat-label">合并次数</div></div>
+    <div class="go-stat"><div class="go-stat-val" id="go-relics">0</div><div class="go-stat-label">获得遗物</div></div>
+  </div>
+  <button class="btn" id="restart-btn">再次挑战</button>
+</div>
+
+<!-- Start Overlay -->
+<div class="overlay active" id="start-overlay">
+  <div class="overlay-title">虚空炼金术</div>
+  <div class="overlay-subtitle">
+    在虚空的裂隙中，合并元素方块<br>
+    抵御不断侵蚀的虚空生物<br>
+    收集遗物，构建你的炼金流派<br><br>
+    <span style="color:var(--accent-glow)">合并方块 → 造成伤害 → 击退虚空</span><br>
+    <span style="color:var(--danger)">虚空方块倒计时归零 → 你受到伤害</span>
+  </div>
+  <button class="btn" id="start-btn">开始炼金</button>
+</div>
+
+<script>
+// ===== GAME STATE =====
+const GRID_SIZE = 4;
+let grid = [];
+let tiles = [];
+let tileId = 0;
+let score = 0;
+let hp = 100;
+let maxHp = 100;
+let essence = 0;
+let floor = 1;
+let mergeCount = 0;
+let totalMerges = 0;
+let mergesForFloor = 8;
+let combo = 0;
+let comboTimer = null;
+let gameActive = false;
+let relics = [];
+let isAnimating = false;
+let enemyTiles = [];
+
+// Relic definitions
+const ALL_RELICS = [
+  { id: 'vampiric', icon: '🩸', name: '吸血精华', desc: '合并时恢复2点生命', type: 'passive' },
+  { id: 'critical', icon: '⚡', name: '暴击炼金', desc: '20%概率合并造成双倍伤害', type: 'passive' },
+  { id: 'shield', icon: '🛡️', name: '虚空护盾', desc: '每层首次受伤减半', type: 'passive' },
+  { id: 'haste', icon: '💨', name: '时间扭曲', desc: '虚空方块倒计时+2回合', type: 'passive' },
+  { id: 'greed', icon: '💰', name: '贪婪之手', desc: '精华获取量+50%', type: 'passive' },
+  { id: 'berserk', icon: '🔥', name: '狂暴炼金', desc: 'HP<50%时合并伤害+100%', type: 'passive' },
+  { id: 'regen', icon: '🌿', name: '生命涌泉', desc: '每3次合并恢复5点HP', type: 'passive' },
+  { id: 'thorns', icon: '🌹', name: '荆棘反甲', desc: '受伤时反弹30%伤害给虚空', type: 'passive' },
+  { id: 'lucky', icon: '🍀', name: '幸运星尘', desc: '新方块有15%概率为高一级', type: 'passive' },
+  { id: 'nova', icon: '💥', name: '炼金新星', desc: '合并128+时清除一个虚空方块', type: 'passive' },
+  { id: 'fortify', icon: '🏰', name: '堡垒之心', desc: '最大HP+30', type: 'instant' },
+  { id: 'wisdom', icon: '📖', name: '贤者之识', desc: '升层所需合并数-2', type: 'instant' },
+];
+
+// ===== INITIALIZATION =====
+function initGrid() {
+  const gridBg = document.getElementById('grid-bg');
+  gridBg.innerHTML = '';
+  for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell-bg';
+    gridBg.appendChild(cell);
+  }
+}
+
+function getCellSize() {
+  const wrapper = document.getElementById('grid-wrapper');
+  const padding = 10;
+  const gap = 8;
+  const totalSize = wrapper.clientWidth - padding * 2;
+  return (totalSize - gap * (GRID_SIZE - 1)) / GRID_SIZE;
+}
+
+function getCellPos(row, col) {
+  const gap = 8;
+  const cellSize = getCellSize();
+  return {
+    x: col * (cellSize + gap),
+    y: row * (cellSize + gap),
+    size: cellSize
+  };
+}
+
+// ===== TILE MANAGEMENT =====
+function createTileElement(tile) {
+  const el = document.createElement('div');
+  el.id = `tile-${tile.id}`;
+  el.className = `tile tile-${tile.value}${tile.isEnemy ? ' tile-enemy' : ''}`;
+  
+  const pos = getCellPos(tile.row, tile.col);
+  el.style.width = pos.size + 'px';
+  el.style.height = pos.size + 'px';
+  el.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+  
+  if (tile.isEnemy) {
+    el.innerHTML = `<span class="tile-icon">👁️</span><span class="tile-value">${tile.countdown}</span>`;
+  } else {
+    const icons = {2:'✦',4:'✧',8:'◆',16:'◇',32:'⬡',64:'⬢',128:'★',256:'☆',512:'❋',1024:'✵',2048:'☀',4096:'🌟'};
+    el.innerHTML = `<span class="tile-icon">${icons[tile.value]||'●'}</span><span class="tile-value">${tile.value}</span>`;
+  }
+  
+  document.getElementById('tile-layer').appendChild(el);
+  tile.el = el;
+  return el;
+}
+
+function updateTileElement(tile) {
+  if (!tile.el) return;
+  const pos = getCellPos(tile.row, tile.col);
+  tile.el.style.width = pos.size + 'px';
+  tile.el.style.height = pos.size + 'px';
+  tile.el.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+  
+  if (tile.isEnemy) {
+    tile.el.className = 'tile tile-enemy';
+    tile.el.innerHTML = `<span class="tile-icon">👁️</span><span class="tile-value">${tile.countdown}</span>`;
+  } else {
+    tile.el.className = `tile tile-${Math.min(tile.value, 4096)}`;
+    const icons = {2:'✦',4:'✧',8:'◆',16:'◇',32:'⬡',64:'⬢',128:'★',256:'☆',512:'❋',1024:'✵',2048:'☀',4096:'🌟'};
+    tile.el.innerHTML = `<span class="tile-icon">${icons[tile.value]||'●'}</span><span class="tile-value">${tile.value}</span>`;
+  }
+}
+
+function spawnTile(isEnemy = false) {
+  const empty = [];
+  for (let r = 0; r < GRID_SIZE; r++) {
+    for (let c = 0; c < GRID_SIZE; c++) {
+      if (!grid[r][c]) empty.push({r, c});
+    }
+  }
+  if (empty.length === 0) return null;
+  
+  const {r, c} = empty[Math.floor(Math.random() * empty.length)];
+  
+  let value = 2;
+  if (!isEnemy) {
+    if (Math.random() < 0.1) value = 4;
+    if (hasRelic('lucky') && Math.random() < 0.15) value *= 2;
+  }
+  
+  const tile = {
+    id: tileId++,
+    row: r,
+    col: c,
+    value: value,
+    isEnemy: isEnemy,
+    countdown: isEnemy ? getEnemyCountdown() : 0,
+    el: null
+  };
+  
+  grid[r][c] = tile;
+  tiles.push(tile);
+  if (isEnemy) enemyTiles.push(tile);
+  
+  const el = createTileElement(tile);
+  el.classList.add('spawn');
+  setTimeout(() => el.classList.remove('spawn'), 300);
+  
+  return tile;
+}
+
+function getEnemyCountdown() {
+  let base = Math.max(3, 6 - Math.floor(floor / 3));
+  if (hasRelic('haste')) base += 2;
+  return base;
+}
+
+function removeTile(tile) {
+  if (tile.el) {
+    tile.el.style.opacity = '0';
+    tile.el.style.transform += ' scale(0)';
+    setTimeout(() => {
+      if (tile.el && tile.el.parentNode) tile.el.parentNode.removeChild(tile.el);
+    }, 200);
+  }
+  grid[tile.row][tile.col] = null;
+  tiles = tiles.filter(t => t.id !== tile.id);
+  enemyTiles = enemyTiles.filter(t => t.id !== tile.id);
+}
+
+// ===== MOVEMENT LOGIC =====
+function move(direction) {
+  if (!gameActive || isAnimating) return;
+  
+  isAnimating = true;
+  let moved = false;
+  let mergedThisMove = false;
+  const mergedPositions = [];
+  
+  // Determine traversal order
+  const vectors = { up: [-1,0], down: [1,0], left: [0,-1], right: [0,1] };
+  const [dr, dc] = vectors[direction];
+  
+  const rows = [...Array(GRID_SIZE).keys()];
+  const cols = [...Array(GRID_SIZE).keys()];
+  if (dr === 1) rows.reverse();
+  if (dc === 1) cols.reverse();
+  
+  const merged = new Set();
+  
+  for (const r of rows) {
+    for (const c of cols) {
+      const tile = grid[r][c];
+      if (!tile || tile.isEnemy) continue;
+      
+      let nr = r, nc = c;
+      while (true) {
+        const nnr = nr + dr, nnc = nc + dc;
+        if (nnr < 0 || nnr >= GRID_SIZE || nnc < 0 || nnc >= GRID_SIZE) break;
+        if (grid[nnr][nnc]) {
+          if (!grid[nnr][nnc].isEnemy && grid[nnr][nnc].value === tile.value && !merged.has(grid[nnr][nnc].id)) {
+            // Merge!
+            nr = nnr; nc = nnc;
+          }
+          break;
+        }
+        nr = nnr; nc = nnc;
+      }
+      
+      if (nr !== r || nc !== c) {
+        moved = true;
+        const target = grid[nr][nc];
+        grid[r][c] = null;
+        
+        if (target && !target.isEnemy && target.value === tile.value) {
+          // Merge tiles
+          merged.add(target.id);
+          const newValue = tile.value * 2;
+          
+          // Animate moving tile to target position
+          tile.row = nr; tile.col = nc;
+          updateTileElement(tile);
+          tile.el.classList.add('moving');
+          
+          // After animation, perform merge
+          const targetTile = target;
+          const movingTile = tile;
+          
+          setTimeout(() => {
+            removeTile(movingTile);
+            targetTile.value = newValue;
+            updateTileElement(targetTile);
+            targetTile.el.classList.add('merged');
+            setTimeout(() => targetTile.el && targetTile.el.classList.remove('merged'), 350);
+            
+            // Score & effects
+            const points = newValue * (hasRelic('critical') && Math.random() < 0.2 ? 2 : 1);
+            addScore(points);
+            addEssence(Math.ceil(newValue / 4));
+            onMerge(newValue, nr, nc);
+            
+            // Particles
+            spawnParticles(nr, nc, newValue);
+          }, 150);
+          
+          mergedThisMove = true;
+          mergedPositions.push({r: nr, c: nc, val: newValue});
+        } else {
+          // Just move
+          tile.row = nr; tile.col = nc;
+          grid[nr][nc] = tile;
+          updateTileElement(tile);
+          tile.el.classList.add('moving');
+          setTimeout(() => tile.el && tile.el.classList.remove('moving'), 160);
+        }
+      }
+    }
+  }
+  
+  if (moved) {
+    // Process enemy countdowns
+    setTimeout(() => {
+      processEnemies();
+      
+      // Spawn new tile
+      if (Math.random() < 0.85 || tiles.filter(t=>!t.isEnemy).length < 3) {
+        spawnTile(false);
+      }
+      
+      // Maybe spawn enemy
+      maybeSpawnEnemy();
+      
+      // Check game over
+      if (!canMove()) {
+        gameOver();
+      }
+      
+      isAnimating = false;
+    }, 180);
+  } else {
+    isAnimating = false;
+  }
+}
+
+function onMerge(value, row, col) {
+  mergeCount++;
+  totalMerges++;
+  
+  // Combo system
+  combo++;
+  clearTimeout(comboTimer);
+  comboTimer = setTimeout(() => { combo = 0; hideCombo(); }, 2000);
+  if (combo >= 2) showCombo(combo);
+  
+  // Vampiric relic
+  if (hasRelic('vampiric')) {
+    healHp(2);
+  }
+  
+  // Regen relic
+  if (hasRelic('regen') && totalMerges % 3 === 0) {
+    healHp(5);
+  }
+  
+  // Nova relic
+  if (hasRelic('nova') && value >= 128 && enemyTiles.length > 0) {
+    const enemy = enemyTiles[Math.floor(Math.random() * enemyTiles.length)];
+    showFloatText(enemy.row, enemy.col, '💥', 'float-score');
+    removeTile(enemy);
+  }
+  
+  // Berserk damage bonus
+  let dmg = Math.ceil(value / 8);
+  if (hasRelic('berserk') && hp < maxHp * 0.5) dmg *= 2;
+  if (hasRelic('critical') && Math.random() < 0.2) dmg *= 2;
+  
+  // Damage enemies
+  if (enemyTiles.length > 0) {
+    const target = enemyTiles.reduce((a, b) => a.countdown < b.countdown ? a : b);
+    target.countdown -= dmg;
+    showFloatText(target.row, target.col, `-${dmg}`, 'float-damage');
+    if (target.countdown <= 0) {
+      showFloatText(target.row, target.col, '☠', 'float-score');
+      removeTile(target);
+      addScore(value * 2);
+      addEssence(value / 2);
+    } else {
+      updateTileElement(target);
+    }
+  }
+  
+  // Floor progress
+  updateFloorProgress();
+  
+  // Screen shake for big merges
+  if (value >= 64) {
+    shakeGrid(value >= 256 ? 'big' : 'normal');
+  }
+}
+
+function processEnemies() {
+  const toRemove = [];
+  for (const enemy of [...enemyTiles]) {
+    enemy.countdown--;
+    if (enemy.countdown <= 0) {
+      // Enemy attacks!
+      let dmg = 8 + floor * 2;
+      if (hasRelic('shield') && !enemy._shieldUsed) {
+        dmg = Math.ceil(dmg / 2);
+        enemy._shieldUsed = true;
+      }
+      damageHp(dmg);
+      showFloatText(enemy.row, enemy.col, `-${dmg}❤`, 'float-damage');
+      showEnemyWarning();
+      
+      if (hasRelic('thorns')) {
+        // Thorns doesn't kill enemy, just visual
+      }
+      
+      toRemove.push(enemy);
+    } else {
+      updateTileElement(enemy);
+    }
+  }
+  toRemove.forEach(e => removeTile(e));
+}
+
+function maybeSpawnEnemy() {
+  const enemyChance = Math.min(0.12 + floor * 0.03, 0.4);
+  const maxEnemies = Math.min(1 + Math.floor(floor / 3), 3);
+  if (enemyTiles.length < maxEnemies && Math.random() < enemyChance) {
+    spawnTile(true);
+  }
+}
+
+function canMove() {
+  for (let r = 0; r < GRID_SIZE; r++) {
+    for (let c = 0; c < GRID_SIZE; c++) {
+      if (!grid[r][c]) return true;
+      if (grid[r][c].isEnemy) continue;
+      const val = grid[r][c].value;
+      if (c < GRID_SIZE-1 && grid[r][c+1] && !grid[r][c+1].isEnemy && grid[r][c+1].value === val) return true;
+      if (r < GRID_SIZE-1 && grid[r+1][c] && !grid[r+1][c].isEnemy && grid[r+1][c].value === val) return true;
+    }
+  }
+  return false;
+}
+
+// ===== FLOOR SYSTEM =====
+function updateFloorProgress() {
+  const progress = Math.min(mergeCount / mergesForFloor, 1);
+  document.getElementById('floor-progress-bar').style.width = (progress * 100) + '%';
+  
+  if (mergeCount >= mergesForFloor) {
+    advanceFloor();
+  }
+}
+
+function advanceFloor() {
+  floor++;
+  mergeCount = 0;
+  mergesForFloor = Math.max(5, 8 + floor - (hasRelic('wisdom') ? 2 : 0));
+  
+  document.getElementById('floor-display').textContent = `第 ${floor} 层`;
+  document.getElementById('floor-progress-bar').style.width = '0%';
+  
+  // Show relic selection
+  showRelicSelection();
+}
+
+// ===== RELIC SYSTEM =====
+function showRelicSelection() {
+  gameActive = false;
+  const overlay = document.getElementById('relic-overlay');
+  const choices = document.getElementById('relic-choices');
+  document.getElementById('relic-subtitle').textContent = `第 ${floor} 层 · 选择一件遗物`;
+  
+  // Pick 3 random relics not yet owned
+  const available = ALL_RELICS.filter(r => !relics.includes(r.id));
+  const shuffled = available.sort(() => Math.random() - 0.5).slice(0, 3);
+  
+  choices.innerHTML = '';
+  shuffled.forEach(relic => {
+    const card = document.createElement('div');
+    card.className = 'relic-card';
+    card.innerHTML = `
+      <div class="relic-card-icon">${relic.icon}</div>
+      <div class="relic-card-name">${relic.name}</div>
+      <div class="relic-card-desc">${relic.desc}</div>
+    `;
+    card.onclick = () => selectRelic(relic);
+    choices.appendChild(card);
+  });
+  
+  overlay.classList.add('active');
+}
+
+function selectRelic(relic) {
+  relics.push(relic.id);
+  
+  // Apply instant effects
+  if (relic.id === 'fortify') {
+    maxHp += 30;
+    hp = Math.min(hp + 30, maxHp);
+    updateHpDisplay();
+  }
+  if (relic.id === 'wisdom') {
+    mergesForFloor = Math.max(5, mergesForFloor - 2);
+  }
+  
+  updateRelicsBar();
+  document.getElementById('relic-overlay').classList.remove('active');
+  gameActive = true;
+}
+
+function hasRelic(id) {
+  return relics.includes(id);
+}
+
+function updateRelicsBar() {
+  const bar = document.getElementById('relics-bar');
+  bar.innerHTML = '';
+  relics.forEach(id => {
+    const relic = ALL_RELICS.find(r => r.id === id);
+    if (relic) {
+      const badge = document.createElement('div');
+      badge.className = 'relic-badge';
+      badge.innerHTML = `${relic.icon} ${relic.name}`;
+      bar.appendChild(badge);
+    }
+  });
+}
+
+// ===== HP & SCORE =====
+function damageHp(amount) {
+  hp = Math.max(0, hp - amount);
+  updateHpDisplay();
+  document.getElementById('hp-box').classList.add('pulse');
+  setTimeout(() => document.getElementById('hp-box').classList.remove('pulse'), 400);
+  
+  if (hp <= 0) {
+    gameOver();
+  }
+}
+
+function healHp(amount) {
+  hp = Math.min(maxHp, hp + amount);
+  updateHpDisplay();
+}
+
+function updateHpDisplay() {
+  document.getElementById('hp-value').textContent = Math.round(hp);
+  document.getElementById('hp-bar').style.width = (hp / maxHp * 100) + '%';
+}
+
+function addScore(points) {
+  score += points;
+  document.getElementById('score-value').textContent = score;
+  document.getElementById('score-box').classList.add('pulse');
+  setTimeout(() => document.getElementById('score-box').classList.remove('pulse'), 400);
+}
+
+function addEssence(amount) {
+  if (hasRelic('greed')) amount = Math.ceil(amount * 1.5);
+  essence += amount;
+  document.getElementById('essence-value').textContent = essence;
+}
+
+// ===== VISUAL EFFECTS =====
+function shakeGrid(intensity) {
+  const wrapper = document.getElementById('grid-wrapper');
+  wrapper.classList.remove('shake', 'big-shake');
+  void wrapper.offsetWidth; // Force reflow
+  wrapper.classList.add(intensity === 'big' ? 'big-shake' : 'shake');
+  setTimeout(() => wrapper.classList.remove('shake', 'big-shake'), 500);
+}
+
+function spawnParticles(row, col, value) {
+  const pos = getCellPos(row, col);
+  const layer = document.getElementById('tile-layer');
+  const colors = ['#a855f7', '#6366f1', '#ec4899', '#ffd700', '#33ff99'];
+  const count = Math.min(6 + Math.floor(value / 32), 16);
+  
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const size = 3 + Math.random() * 5;
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const angle = (Math.PI * 2 / count) * i + Math.random() * 0.5;
+    const dist = 20 + Math.random() * 40;
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist;
+    
+    p.style.cssText = `
+      width: ${size}px; height: ${size}px;
+      background: ${color};
+      left: ${pos.x + pos.size/2}px;
+      top: ${pos.y + pos.size/2}px;
+      box-shadow: 0 0 6px ${color};
+      transition: all ${0.4 + Math.random()*0.3}s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      opacity: 1;
+    `;
+    layer.appendChild(p);
+    
+    requestAnimationFrame(() => {
+      p.style.transform = `translate(${dx}px, ${dy}px) scale(0)`;
+      p.style.opacity = '0';
+    });
+    
+    setTimeout(() => p.remove(), 800);
+  }
+}
+
+function showFloatText(row, col, text, className) {
+  const pos = getCellPos(row, col);
+  const layer = document.getElementById('tile-layer');
+  const el = document.createElement('div');
+  el.className = `float-text ${className}`;
+  el.textContent = text;
+  el.style.left = (pos.x + pos.size/2 - 10) + 'px';
+  el.style.top = (pos.y) + 'px';
+  layer.appendChild(el);
+  setTimeout(() => el.remove(), 1000);
+}
+
+function showCombo(count) {
+  const el = document.getElementById('combo-display');
+  el.textContent = `${count}x 连击!`;
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+}
+
+function hideCombo() {
+  document.getElementById('combo-display').classList.remove('show');
+}
+
+function showEnemyWarning() {
+  const el = document.getElementById('enemy-warning');
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1000);
+}
+
+// ===== GAME OVER =====
+function gameOver() {
+  gameActive = false;
+  document.getElementById('go-score').textContent = score;
+  document.getElementById('go-floor').textContent = floor;
+  document.getElementById('go-merges').textContent = totalMerges;
+  document.getElementById('go-relics').textContent = relics.length;
+  
+  setTimeout(() => {
+    document.getElementById('gameover-overlay').classList.add('active');
+  }, 500);
+}
+
+// ===== GAME START / RESTART =====
+function startGame() {
+  // Reset state
+  grid = Array.from({length: GRID_SIZE}, () => Array(GRID_SIZE).fill(null));
+  tiles = [];
+  enemyTiles = [];
+  tileId = 0;
+  score = 0;
+  hp = 100;
+  maxHp = 100;
+  essence = 0;
+  floor = 1;
+  mergeCount = 0;
+  totalMerges = 0;
+  mergesForFloor = 8;
+  combo = 0;
+  relics = [];
+  isAnimating = false;
+  gameActive = true;
+  
+  // Clear tile layer
+  document.getElementById('tile-layer').innerHTML = '';
+  document.getElementById('relics-bar').innerHTML = '';
+  
+  // Update UI
+  document.getElementById('score-value').textContent = '0';
+  document.getElementById('essence-value').textContent = '0';
+  document.getElementById('floor-display').textContent = '第 1 层';
+  document.getElementById('floor-progress-bar').style.width = '0%';
+  updateHpDisplay();
+  
+  // Spawn initial tiles
+  spawnTile(false);
+  spawnTile(false);
+  spawnTile(false);
+  
+  // Hide overlays
+  document.getElementById('start-overlay').classList.remove('active');
+  document.getElementById('gameover-overlay').classList.remove('active');
+  document.getElementById('relic-overlay').classList.remove('active');
+}
+
+// ===== INPUT HANDLING =====
+document.addEventListener('keydown', (e) => {
+  if (!gameActive) return;
+  const keyMap = {
+    'ArrowUp': 'up', 'ArrowDown': 'down', 'ArrowLeft': 'left', 'ArrowRight': 'right',
+    'w': 'up', 's': 'down', 'a': 'left', 'd': 'right',
+    'W': 'up', 'S': 'down', 'A': 'left', 'D': 'right'
+  };
+  const dir = keyMap[e.key];
+  if (dir) {
+    e.preventDefault();
+    move(dir);
+  }
+});
+
+// Touch/Swipe support
+let touchStartX = 0, touchStartY = 0;
+document.getElementById('grid-wrapper').addEventListener('touchstart', (e) => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, {passive: true});
+
+document.getElementById('grid-wrapper').addEventListener('touchend', (e) => {
+  if (!gameActive) return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const absDx = Math.abs(dx), absDy = Math.abs(dy);
+  
+  if (Math.max(absDx, absDy) < 30) return;
+  
+  if (absDx > absDy) {
+    move(dx > 0 ? 'right' : 'left');
+  } else {
+    move(dy > 0 ? 'down' : 'up');
+  }
+}, {passive: true});
+
+// Buttons
+document.getElementById('start-btn').addEventListener('click', startGame);
+document.getElementById('restart-btn').addEventListener('click', startGame);
+
+// ===== WINDOW RESIZE =====
+window.addEventListener('resize', () => {
+  tiles.forEach(t => updateTileElement(t));
+});
+
+// ===== INIT =====
+initGrid();
+</script>
+</body>
+</html>

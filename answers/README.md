@@ -7,7 +7,8 @@ answers/
 ├── 01-2048-roguelike/
 │   ├── deepseek/
 │   ├── kimi-k3/
-│   └── glm-5.2/
+│   ├── glm-5.2/
+│   └── qwen-3.8-max-preview/
 ├── 02-fpv-drone-simulator/
 │   ├── deepseek/
 │   ├── kimi-k3/
