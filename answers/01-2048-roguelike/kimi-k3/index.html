@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>深渊回响 · Echoes of the Abyss — 2048 × Roguelike</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+:root{
+  --bg0:#070510; --bg1:#0d0a1f; --ink:#e8e4ff; --dim:#8a84b8;
+  --accent:#7c5cff; --accent2:#00e5c3; --danger:#ff4d6d; --gold:#ffd166;
+  --gap:10px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;}
+body{
+  background:radial-gradient(1200px 800px at 50% -10%, #1b1440 0%, var(--bg1) 45%, var(--bg0) 100%);
+  color:var(--ink);
+  font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  user-select:none; touch-action:none;
+}
+#bgCanvas{position:fixed;inset:0;z-index:0;pointer-events:none;}
+#fxCanvas{position:fixed;inset:0;z-index:60;pointer-events:none;}
+#vignette{position:fixed;inset:0;z-index:55;pointer-events:none;opacity:0;
+  background:radial-gradient(ellipse at center, transparent 55%, rgba(255,30,70,.55) 100%);}
+#app{position:relative;z-index:10;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:12px;}
+
+/* ---------- HUD ---------- */
+#hud{width:min(94vw,460px);display:flex;flex-direction:column;gap:8px;}
+#hudTop{display:flex;justify-content:space-between;align-items:flex-end;gap:8px;}
+#floorBadge{display:flex;flex-direction:column;gap:2px;}
+#floorLabel{font-size:11px;letter-spacing:.2em;color:var(--dim);}
+#floorName{font-size:15px;font-weight:700;}
+#floorName.boss{color:var(--danger);text-shadow:0 0 12px rgba(255,77,109,.6);}
+#scoreBox{text-align:right;}
+#scoreLabel{font-size:11px;letter-spacing:.2em;color:var(--dim);}
+#scoreVal{font-size:22px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums;text-shadow:0 0 14px rgba(255,209,102,.35);}
+.bars{display:flex;flex-direction:column;gap:5px;}
+.barRow{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--dim);}
+.barRow .tag{width:34px;flex:none;letter-spacing:.1em;}
+.bar{flex:1;height:10px;border-radius:6px;background:rgba(255,255,255,.07);overflow:hidden;position:relative;border:1px solid rgba(255,255,255,.08);}
+.bar > i{display:block;height:100%;border-radius:6px;transition:width .35s cubic-bezier(.22,1,.36,1);}
+#hpFill{background:linear-gradient(90deg,#ff4d6d,#ff8fa3);box-shadow:0 0 10px rgba(255,77,109,.7);}
+#erFill{background:linear-gradient(90deg,#5a48d6,#9a8cff);box-shadow:0 0 10px rgba(124,92,255,.7);}
+.barRow .num{width:56px;flex:none;text-align:right;font-variant-numeric:tabular-nums;}
+#targetRow{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--dim);
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:6px 10px;}
+#targetVal{color:var(--accent2);font-weight:800;text-shadow:0 0 10px rgba(0,229,195,.5);}
+#relicBar{display:flex;gap:6px;flex-wrap:wrap;min-height:30px;}
+.relicChip{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:16px;cursor:help;
+  background:linear-gradient(145deg,rgba(124,92,255,.25),rgba(124,92,255,.08));
+  border:1px solid rgba(124,92,255,.45);box-shadow:0 0 10px rgba(124,92,255,.25) inset;}
+
+/* ---------- Board ---------- */
+#boardWrap{position:relative;}
+#board{
+  position:relative;width:min(94vw,460px);height:min(94vw,460px);
+  background:linear-gradient(160deg,rgba(20,16,45,.9),rgba(10,8,25,.95));
+  border-radius:18px;border:1px solid rgba(124,92,255,.25);
+  box-shadow:0 0 0 1px rgba(0,0,0,.4),0 20px 60px rgba(0,0,0,.6),0 0 40px rgba(124,92,255,.12) inset;
+}
+#board::after{content:"";position:absolute;inset:0;border-radius:18px;pointer-events:none;
+  background:radial-gradient(circle at 50% 0%,rgba(124,92,255,.12),transparent 60%);}
+.cellGhost{position:absolute;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.045);}
+.cellGhost.blocked{background:repeating-linear-gradient(45deg,rgba(90,80,140,.25) 0 6px,rgba(30,25,60,.5) 6px 12px);
+  border-color:rgba(124,92,255,.3);box-shadow:0 0 14px rgba(0,0,0,.5) inset;}
+#tileLayer{position:absolute;inset:0;}
+.tile{position:absolute;left:0;top:0;will-change:transform;z-index:2;}
+.tile .face{
+  width:100%;height:100%;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  font-weight:800;position:relative;overflow:hidden;
+  border:1px solid rgba(255,255,255,.18);
+}
+.tile .face::before{content:"";position:absolute;inset:0;
+  background:radial-gradient(circle at 30% 20%,rgba(255,255,255,.35),transparent 55%);}
+.tile .rune{font-size:clamp(14px,4.5vw,22px);line-height:1;filter:drop-shadow(0 0 6px currentColor);}
+.tile .val{font-size:clamp(11px,3.4vw,16px);font-variant-numeric:tabular-nums;letter-spacing:.02em;opacity:.95;}
+.tile.monster .face{border-color:rgba(255,77,109,.6);}
+.tile.monster .rune{animation:monsterPulse 1.6s ease-in-out infinite;}
+@keyframes monsterPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.12);}}
+.tile .atk{position:absolute;top:4px;right:6px;font-size:10px;font-weight:700;color:#ffb3c1;text-shadow:0 0 6px rgba(255,77,109,.8);}
+
+/* ---------- Overlays ---------- */
+.overlay{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;
+  background:rgba(5,4,14,.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  opacity:0;pointer-events:none;transition:opacity .4s ease;padding:20px;text-align:center;}
+.overlay.show{opacity:1;pointer-events:auto;}
+.gameTitle{font-size:clamp(34px,9vw,58px);font-weight:900;letter-spacing:.12em;
+  background:linear-gradient(180deg,#fff 10%,#b9a8ff 55%,#5a48d6 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 24px rgba(124,92,255,.55));}
+.subTitle{font-size:13px;letter-spacing:.5em;color:var(--dim);margin-top:-10px;}
+.intro{max-width:420px;font-size:13px;line-height:1.9;color:#c9c3ee;}
+.intro b{color:var(--accent2);}
+.btn{
+  font-family:inherit;cursor:pointer;border:none;color:#0a0818;font-weight:800;font-size:16px;letter-spacing:.2em;
+  padding:14px 46px;border-radius:999px;
+  background:linear-gradient(135deg,var(--accent2),#4de3ff);
+  box-shadow:0 0 26px rgba(0,229,195,.45),0 6px 18px rgba(0,0,0,.5);
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+.btn:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 0 40px rgba(0,229,195,.7),0 10px 24px rgba(0,0,0,.5);}
+.btn:active{transform:scale(.96);}
+.btn.ghost{background:transparent;color:var(--dim);border:1px solid rgba(255,255,255,.2);box-shadow:none;font-size:13px;padding:10px 26px;}
+.keysHint{font-size:11px;color:var(--dim);letter-spacing:.15em;line-height:2;}
+kbd{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:5px;padding:1px 7px;font-family:inherit;}
+
+/* draft */
+#draftTitle{font-size:22px;font-weight:800;letter-spacing:.3em;color:var(--gold);text-shadow:0 0 18px rgba(255,209,102,.5);}
+#draftSub{font-size:12px;color:var(--dim);letter-spacing:.2em;margin-top:-10px;}
+#draftCards{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;}
+.draftCard{
+  width:150px;min-height:190px;border-radius:16px;padding:16px 12px;cursor:pointer;position:relative;
+  background:linear-gradient(165deg,rgba(35,28,75,.95),rgba(14,11,32,.98));
+  border:1px solid rgba(124,92,255,.4);
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.draftCard:hover{transform:translateY(-8px) scale(1.04);border-color:var(--accent2);
+  box-shadow:0 0 30px rgba(0,229,195,.3),0 18px 40px rgba(0,0,0,.6);}
+.draftCard .ico{font-size:38px;filter:drop-shadow(0 0 12px rgba(124,92,255,.8));}
+.draftCard .nm{font-size:15px;font-weight:800;color:#fff;}
+.draftCard .ds{font-size:11.5px;line-height:1.7;color:#b9b3e0;}
+.draftCard .rar{font-size:10px;letter-spacing:.3em;color:var(--gold);}
+
+/* gameover */
+#goTitle{font-size:clamp(30px,8vw,46px);font-weight:900;letter-spacing:.15em;color:var(--danger);
+  text-shadow:0 0 30px rgba(255,77,109,.6);}
+#goReason{font-size:14px;color:#ffb3c1;}
+#goStats{display:grid;grid-template-columns:repeat(2,minmax(120px,1fr));gap:10px;margin:6px 0;}
+.stat{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:10px 14px;}
+.stat .k{font-size:11px;color:var(--dim);letter-spacing:.2em;}
+.stat .v{font-size:20px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums;}
+#goRelics{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:340px;}
+
+/* banners & floaters */
+#banner{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%);z-index:70;pointer-events:none;
+  font-size:clamp(24px,6.5vw,40px);font-weight:900;letter-spacing:.2em;opacity:0;white-space:nowrap;}
+.floater{position:fixed;z-index:65;pointer-events:none;font-weight:800;font-size:18px;
+  text-shadow:0 2px 8px rgba(0,0,0,.6);font-variant-numeric:tabular-nums;}
+#muteBtn{position:fixed;top:12px;right:14px;z-index:90;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+  color:var(--ink);width:38px;height:38px;border-radius:10px;font-size:17px;cursor:pointer;}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);z-index:75;opacity:0;
+  background:rgba(20,16,45,.95);border:1px solid rgba(124,92,255,.5);color:var(--ink);
+  padding:10px 22px;border-radius:999px;font-size:13px;pointer-events:none;white-space:nowrap;
+  box-shadow:0 8px 30px rgba(0,0,0,.6);}
+@media (max-height:720px){ #hud{transform:scale(.92);transform-origin:top center;margin-bottom:-8px;} }
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<canvas id="fxCanvas"></canvas>
+<div id="vignette"></div>
+<button id="muteBtn" title="音效开关">🔊</button>
+<div id="banner"></div>
+<div id="toast"></div>
+
+<div id="app">
+  <div id="hud">
+    <div id="hudTop">
+      <div id="floorBadge">
+        <div id="floorLabel">DEPTH · 层数</div>
+        <div id="floorName">第 1 层</div>
+      </div>
+      <div id="scoreBox">
+        <div id="scoreLabel">SCORE · 灵魂结晶</div>
+        <div id="scoreVal">0</div>
+      </div>
+    </div>
+    <div class="bars">
+      <div class="barRow"><span class="tag">生命</span><div class="bar"><i id="hpFill"></i></div><span class="num" id="hpNum">30/30</span></div>
+      <div class="barRow"><span class="tag">侵蚀</span><div class="bar"><i id="erFill"></i></div><span class="num" id="erNum">0/10</span></div>
+    </div>
+    <div id="targetRow"><span id="targetText">🎯 本层目标</span><span id="targetVal">融合出 64 级魂火</span></div>
+    <div id="relicBar"></div>
+  </div>
+  <div id="boardWrap">
+    <div id="board"><div id="tileLayer"></div></div>
+  </div>
+</div>
+
+<div class="overlay show" id="startScreen">
+  <div class="gameTitle">深渊回响</div>
+  <div class="subTitle">ECHOES OF THE ABYSS</div>
+  <div class="intro">
+    你是坠入深渊的引魂者。滑动棋盘融合<b>魂火</b>，点亮下潜之路。<br>
+    小心盘踞的<b>魔物</b>——它们每回合都在啃噬你的生命；<br>
+    停滞不前的步伐会累积<b>侵蚀</b>，将你拖入黑暗。<br>
+    每深入一层，择一件<b>遗物</b>，铸就属于你的流派，活到最后。
+  </div>
+  <button class="btn" id="startBtn">潜入深渊</button>
+  <div class="keysHint"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> / <kbd>WASD</kbd> 移动 &nbsp;·&nbsp; 触屏滑动同样有效</div>
+</div>
+
+<div class="overlay" id="draftScreen">
+  <div id="draftTitle">深渊的馈赠</div>
+  <div id="draftSub">选择一件遗物 · 它将改变你之后的规则</div>
+  <div id="draftCards"></div>
+</div>
+
+<div class="overlay" id="overScreen">
+  <div id="goTitle">深渊将你吞噬</div>
+  <div id="goReason"></div>
+  <div id="goStats"></div>
+  <div id="goRelics"></div>
+  <button class="btn" id="retryBtn">再度潜入</button>
+  <div class="keysHint">每一次下潜，深渊都会重新编织它的模样</div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   深渊回响 · Echoes of the Abyss
+   2048 融合机制 × Roguelike —— 单文件完整实现
+   ============================================================ */
+
+/* ---------------- 工具 ---------------- */
+const $ = s => document.querySelector(s);
+const rand = (a,b) => a + Math.random()*(b-a);
+const randInt = (a,b) => Math.floor(rand(a,b+1));
+const choice = arr => arr[Math.floor(Math.random()*arr.length)];
+const shuffle = arr => { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+const wait = ms => new Promise(r=>setTimeout(r,ms));
+
+/* ---------------- 音效引擎 (WebAudio 合成, 无外部资源) ---------------- */
+const AudioFX = (() => {
+  let ctx = null, muted = false;
+  const ac = () => { if(!ctx) ctx = new (window.AudioContext||window.webkitAudioContext)(); if(ctx.state==="suspended") ctx.resume(); return ctx; };
+  function tone(freq, dur, type="sine", vol=0.18, slideTo=null, delay=0){
+    if(muted) return;
+    try{
+      const c = ac(), t = c.currentTime + delay;
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t+dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t+0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+      o.connect(g); g.connect(c.destination);
+      o.start(t); o.stop(t+dur+0.05);
+    }catch(e){}
+  }
+  function noise(dur=0.15, vol=0.12, delay=0){
+    if(muted) return;
+    try{
+      const c = ac(), t = c.currentTime + delay;
+      const len = Math.floor(c.sampleRate*dur);
+      const buf = c.createBuffer(1,len,c.sampleRate), d = buf.getChannelData(0);
+      for(let i=0;i<len;i++) d[i] = (Math.random()*2-1)*(1-i/len);
+      const src = c.createBufferSource(); src.buffer = buf;
+      const f = c.createBiquadFilter(); f.type="lowpass"; f.frequency.value=900;
+      const g = c.createGain(); g.gain.value = vol;
+      src.connect(f); f.connect(g); g.connect(c.destination); src.start(t);
+    }catch(e){}
+  }
+  return {
+    toggleMute(){ muted = !muted; return muted; },
+    move(){ tone(180,0.07,"triangle",0.06,140); },
+    merge(tier){ const f = 220*Math.pow(1.12,tier); tone(f,0.16,"sine",0.2,f*1.5); tone(f*2,0.12,"triangle",0.08,null,0.03); },
+    bigMerge(tier){ const f=180*Math.pow(1.1,tier); tone(f,0.3,"sawtooth",0.1,f*2); tone(f*3,0.25,"sine",0.14,f*4,0.05); noise(0.2,0.1,0.02); },
+    hurt(){ tone(140,0.25,"sawtooth",0.16,70); noise(0.18,0.14); },
+    slay(){ tone(500,0.12,"square",0.1,900); noise(0.12,0.1); },
+    spawn(){ tone(660,0.06,"sine",0.05,880); },
+    draft(){ [523,659,784,1046].forEach((f,i)=>tone(f,0.18,"sine",0.12,null,i*0.07)); },
+    floorUp(){ [392,523,659,880].forEach((f,i)=>tone(f,0.22,"triangle",0.13,null,i*0.09)); },
+    gameover(){ [440,349,293,220,146].forEach((f,i)=>tone(f,0.4,"sawtooth",0.09,f*0.8,i*0.16)); },
+    warn(){ tone(880,0.1,"square",0.07); tone(880,0.1,"square",0.07,null,0.15); },
+    relicPick(){ tone(784,0.15,"sine",0.15); tone(1175,0.25,"sine",0.12,null,0.08); }
+  };
+})();
+
+/* ---------------- 背景 & 粒子画布 ---------------- */
+const bgC = $("#bgCanvas"), fxC = $("#fxCanvas");
+const bgX = bgC.getContext("2d"), fxX = fxC.getContext("2d");
+let W=0, H=0;
+function resizeCanvas(){
+  W = window.innerWidth; H = window.innerHeight;
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  [bgC,fxC].forEach(c=>{ c.width=W*dpr; c.height=H*dpr; c.style.width=W+"px"; c.style.height=H+"px"; });
+  bgX.setTransform(dpr,0,0,dpr,0,0); fxX.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener("resize", resizeCanvas); resizeCanvas();
+
+/* 背景星尘 */
+const stars = Array.from({length:70},()=>({ x:Math.random(), y:Math.random(), r:rand(0.5,2.2), s:rand(0.00005,0.00035), hue:choice([258,190,320]), tw:rand(0,6.28) }));
+/* 上升魂火余烬 */
+const embers = Array.from({length:26},()=>({ x:Math.random(), y:Math.random(), r:rand(1,3), v:rand(0.0004,0.0016), drift:rand(-0.0003,0.0003), hue:choice([258,172,340]) }));
+
+/* 爆发粒子池 */
+const particles = [];
+function burst(x, y, color, n=18, power=5, grav=0.12){
+  for(let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, sp = rand(power*0.3, power);
+    particles.push({ x, y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp - power*0.35,
+      life:1, decay:rand(0.015,0.035), r:rand(1.5,4.5), color, grav });
+  }
+  if(particles.length>600) particles.splice(0, particles.length-600);
+}
+
+let mx=0.5, my=0.5;
+window.addEventListener("pointermove", e=>{ mx=e.clientX/W; my=e.clientY/H; });
+
+function drawBG(t){
+  bgX.clearRect(0,0,W,H);
+  const px = (mx-0.5)*14, py = (my-0.5)*14;
+  for(const s of stars){
+    s.y -= s.s; if(s.y<-0.02) s.y=1.02;
+    const a = 0.25 + 0.55*Math.abs(Math.sin(t*0.001 + s.tw));
+    bgX.beginPath();
+    bgX.arc(s.x*W + px*s.r*0.4, s.y*H + py*s.r*0.4, s.r, 0, 6.283);
+    bgX.fillStyle = `hsla(${s.hue},80%,75%,${a})`;
+    bgX.fill();
+  }
+  for(const e of embers){
+    e.y -= e.v; e.x += e.drift + Math.sin(t*0.001+e.y*20)*0.0004;
+    if(e.y<-0.03){ e.y=1.03; e.x=Math.random(); }
+    const g = bgX.createRadialGradient(e.x*W,e.y*H,0,e.x*W,e.y*H,e.r*4);
+    g.addColorStop(0,`hsla(${e.hue},90%,70%,.5)`); g.addColorStop(1,"transparent");
+    bgX.fillStyle=g; bgX.beginPath(); bgX.arc(e.x*W,e.y*H,e.r*4,0,6.283); bgX.fill();
+  }
+}
+function drawFX(){
+  fxX.clearRect(0,0,W,H);
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=p.grav; p.vx*=0.985; p.life-=p.decay;
+    if(p.life<=0){ particles.splice(i,1); continue; }
+    fxX.globalAlpha = p.life;
+    fxX.beginPath(); fxX.arc(p.x,p.y,p.r*p.life+0.4,0,6.283);
+    fxX.fillStyle = p.color; fxX.fill();
+  }
+  fxX.globalAlpha = 1;
+}
+(function loop(t){ drawBG(t||0); drawFX(); requestAnimationFrame(loop); })();
+</script>
+<script>
+"use strict";
+/* ---------------- 常量 ---------------- */
+const N = 4, GAP = 10, PAD = 12;
+const RUNES = ["✦","🔥","💧","🌿","⚡","❄️","🌙","☀️","💠","👑","🌟","♾️"];
+const MONSTER_RUNES = ["👾","👹","💀","🕷️","🐙","😈"];
+const tierOf = v => Math.round(Math.log2(v));
+
+/* ---------------- 遗物定义 ---------------- */
+const RELICS = [
+ {id:"melt",    ico:"🔥", name:"熔炉之心", rar:"稀有", ds:"新生成的魂火有 20% 概率直接提升一级"},
+ {id:"clover",  ico:"🍀", name:"深渊幸运草", rar:"普通", ds:"新魂火为 4 级的概率由 10% 提升至 30%"},
+ {id:"leech",   ico:"💚", name:"凝血之种", rar:"普通", ds:"每次融合回复 1 点生命"},
+ {id:"greed",   ico:"💰", name:"贪婪印记", rar:"普通", ds:"获得的所有灵魂结晶 +50%"},
+ {id:"lucky",   ico:"🎲", name:"幸运双子", rar:"稀有", ds:"12% 概率使融合产物额外再升一级"},
+ {id:"slayer",  ico:"⚔️", name:"巨人杀手", rar:"史诗", ds:"魂火值 ≥ 魔物时，可直接将其撞碎"},
+ {id:"blast",   ico:"💥", name:"爆破裂痕", rar:"稀有", ds:"融合时 30% 概率引爆并摧毁一个相邻魔物"},
+ {id:"echo",    ico:"🌀", name:"分裂回响", rar:"史诗", ds:"18% 概率在空格中复制一份融合产物"},
+ {id:"frost",   ico:"❄️", name:"冰霜新星", rar:"稀有", ds:"每第 5 步，冻结全场魔物一回合（无法攻击）"},
+ {id:"siphon",  ico:"🩸", name:"灵魂虹吸", rar:"普通", ds:"每消灭一只魔物回复 3 点生命"},
+ {id:"hourglass",ico:"⏳", name:"时之沙漏", rar:"普通", ds:"侵蚀值上限 +4，深渊更难吞噬你"},
+ {id:"twins",   ico:"🌟", name:"双生魂火", rar:"稀有", ds:"每层初始额外生成 2 个魂火"},
+ {id:"dirge",   ico:"🔱", name:"湮灭颂歌", rar:"史诗", ds:"每步的首次融合，会直接湮灭场上最弱的一只魔物"},
+ {id:"thorns",  ico:"🌵", name:"荆棘反甲", rar:"稀有", ds:"受到伤害时 50% 概率反噬，随机杀死一只魔物"},
+ {id:"barrier", ico:"🛡️", name:"深渊屏障", rar:"普通", ds:"每一步受到的第一次伤害 -2"}
+];
+const RELIC_MAP = Object.fromEntries(RELICS.map(r=>[r.id,r]));
+
+/* ---------------- 全局状态 ---------------- */
+const S = {
+  floor:1, hp:30, maxHp:30, score:0,
+  erosion:0, erosionMax:10,
+  relics:new Set(), tiles:new Map(), nextId:1,
+  grid:[], blocked:new Set(),
+  target:64, floorCfg:null,
+  animating:false, over:false, drafting:false, started:false,
+  moves:0, mergesThisMove:0, firstMergeDone:false, shieldUsed:false, frozen:false,
+  stats:{ merges:0, slain:0, maxTile:2, maxCombo:0 },
+  maxTileThisFloor:2
+};
+const has = id => S.relics.has(id);
+const erosionMax = () => 10 + (has("hourglass")?4:0);
+
+/* ---------------- 棋盘基础 ---------------- */
+const boardEl = $("#board"), tileLayer = $("#tileLayer");
+let cellPx = 80;
+const posOf = i => PAD + i*(cellPx+GAP);
+
+function layoutBoard(){
+  const size = boardEl.clientWidth;
+  cellPx = (size - PAD*2 - GAP*(N-1)) / N;
+  document.querySelectorAll(".cellGhost").forEach(g=>{
+    const r=+g.dataset.r, c=+g.dataset.c;
+    g.style.width=g.style.height=cellPx+"px";
+    g.style.left=posOf(c)+"px"; g.style.top=posOf(r)+"px";
+  });
+  S.tiles.forEach(t=>{
+    t.el.style.width=t.el.style.height=cellPx+"px";
+    gsap.set(t.el,{x:posOf(t.c),y:posOf(t.r)});
+  });
+}
+window.addEventListener("resize", ()=>{ if(S.started) layoutBoard(); });
+
+function buildGhosts(){
+  document.querySelectorAll(".cellGhost").forEach(g=>g.remove());
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const g=document.createElement("div");
+    g.className="cellGhost"+(S.blocked.has(r+","+c)?" blocked":"");
+    g.dataset.r=r; g.dataset.c=c;
+    boardEl.insertBefore(g, tileLayer);
+  }
+  layoutBoard();
+}
+
+function emptyCells(){
+  const out=[];
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++)
+    if(!S.grid[r][c] && !S.blocked.has(r+","+c)) out.push({r,c});
+  return out;
+}
+
+/* ---------------- 方块 ---------------- */
+function tileColor(t){
+  if(t.monster) return `linear-gradient(150deg, hsl(${345+t.tier*6} 70% ${26+t.tier*2}%), hsl(${280} 60% ${14}%))`;
+  const hue = (258 - t.tier*26 + 360*3)%360;
+  const li = 30 + Math.min(t.tier*3, 26);
+  return `linear-gradient(150deg, hsl(${hue} 75% ${li+16}%), hsl(${hue} 70% ${li}%))`;
+}
+function tileGlow(t){
+  if(t.monster) return `0 0 ${10+t.tier*3}px rgba(255,60,90,.45)`;
+  const hue = (258 - t.tier*26 + 360*3)%360;
+  return `0 0 ${8+t.tier*3}px hsla(${hue} 90% 65% / .55)`;
+}
+function renderFace(t){
+  const rune = t.monster ? MONSTER_RUNES[Math.min(t.tier-1, MONSTER_RUNES.length-1)]
+                         : RUNES[Math.min(t.tier-1, RUNES.length-1)];
+  t.el.querySelector(".rune").textContent = rune;
+  t.el.querySelector(".val").textContent = t.value;
+  const atkEl = t.el.querySelector(".atk");
+  if(atkEl) atkEl.textContent = t.monster ? "⚔"+t.tier : "";
+  const face = t.el.querySelector(".face");
+  face.style.background = tileColor(t);
+  face.style.boxShadow = tileGlow(t);
+  face.style.color = t.monster ? "#ffd6de" : "#fff";
+}
+function makeTile(r,c,value,monster=false,animate=true){
+  const id = S.nextId++;
+  const el = document.createElement("div");
+  el.className = "tile"+(monster?" monster":"");
+  el.innerHTML = `<div class="face"><span class="rune"></span><span class="val"></span><span class="atk"></span></div>`;
+  tileLayer.appendChild(el);
+  const t = { id, r, c, value, tier:tierOf(value), monster, el, merged:false };
+  el.style.width=el.style.height=cellPx+"px";
+  S.tiles.set(id,t); S.grid[r][c]=id;
+  renderFace(t);
+  gsap.set(el,{x:posOf(c),y:posOf(r)});
+  if(animate){
+    gsap.fromTo(el,{scale:0,rotation:rand(-14,14)},{scale:1,rotation:0,duration:.34,ease:"back.out(2.2)"});
+    AudioFX.spawn();
+  }
+  return t;
+}
+function removeTile(t){
+  S.tiles.delete(t.id);
+  if(S.grid[t.r] && S.grid[t.r][t.c]===t.id) S.grid[t.r][t.c]=null;
+  t.el.remove();
+}
+function cellCenter(r,c){
+  const rect = boardEl.getBoundingClientRect();
+  return { x: rect.left + posOf(c) + cellPx/2, y: rect.top + posOf(r) + cellPx/2 };
+}
+</script>
+<script>
+"use strict";
+/* ---------------- 伤害 / 治疗 ---------------- */
+function shakeBoard(power=6){
+  gsap.fromTo("#boardWrap",{x:-power},{x:0,duration:.5,ease:"elastic.out(1,0.28)"});
+}
+function hardShake(){
+  const tl = gsap.timeline();
+  for(let i=0;i<6;i++) tl.to("#boardWrap",{x:rand(-9,9),y:rand(-7,7),duration:.045});
+  tl.to("#boardWrap",{x:0,y:0,duration:.25,ease:"power2.out"});
+}
+function vignetteFlash(){
+  gsap.fromTo("#vignette",{opacity:0},{opacity:1,duration:.08,yoyo:true,repeat:1,ease:"power1.in"});
+}
+function damage(n, reason){
+  if(S.over||n<=0) return;
+  if(has("shieldless")) n = n; /* 占位无效遗物保护（不会命中） */
+  if(!S.shieldUsed && S.relics.has("barrier")) n = Math.max(0, n-2);
+  S.shieldUsed = true;
+  if(n<=0){ toast("🛡 深渊屏障挡下了伤害"); return; }
+  S.hp = Math.max(0, S.hp - n);
+  vignetteFlash(); hardShake(); AudioFX.hurt();
+  floater(window.innerWidth/2, 90, "-"+n+" ❤", "#ff6b87");
+  updateHUD();
+  if(has("thorns") && Math.random()<0.5){
+    const ms = [...S.tiles.values()].filter(t=>t.monster);
+    if(ms.length){ const m = choice(ms); slayMonsterFX(m, "荆棘反噬"); }
+  }
+  if(S.hp<=0) gameOver(reason||"生命被深渊耗尽");
+}
+function heal(n){
+  if(n<=0||S.over) return;
+  const before = S.hp;
+  S.hp = Math.min(S.maxHp, S.hp+n);
+  if(S.hp>before){ floater(window.innerWidth/2, 90, "+"+(S.hp-before)+" ❤", "#7CFFB2"); updateHUD(); }
+}
+
+/* ---------------- 浮动文字 / 提示 / 横幅 ---------------- */
+function floater(x,y,text,color){
+  const el = document.createElement("div");
+  el.className="floater"; el.textContent=text; el.style.color=color||"#fff";
+  el.style.left=x+"px"; el.style.top=y+"px";
+  document.body.appendChild(el);
+  gsap.fromTo(el,{y:0,opacity:1,scale:.7},{y:-70,opacity:0,scale:1.15,duration:1.1,ease:"power2.out",onComplete:()=>el.remove()});
+}
+let toastTimer=null;
+function toast(msg){
+  const t=$("#toast"); t.textContent=msg;
+  gsap.to(t,{opacity:1,y:-20,duration:.25,ease:"power2.out"});
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>gsap.to(t,{opacity:0,y:0,duration:.3}),1800);
+}
+function banner(text,color){
+  const b=$("#banner"); b.textContent=text; b.style.color=color||"#fff";
+  b.style.textShadow=`0 0 30px ${color||"#fff"}`;
+  gsap.timeline()
+    .fromTo(b,{opacity:0,scale:.6},{opacity:1,scale:1,duration:.35,ease:"back.out(2)"})
+    .to(b,{opacity:0,scale:1.25,duration:.5,ease:"power2.in"},"+=0.8");
+}
+
+/* ---------------- 分数 ---------------- */
+function addScore(base, x, y){
+  let gain = Math.round(base * (has("greed")?1.5:1));
+  S.score += gain;
+  if(x!==undefined) floater(x, y, "+"+gain, "#ffd166");
+  gsap.fromTo("#scoreVal",{scale:1.35},{scale:1,duration:.3,ease:"back.out(3)"});
+  updateHUD();
+}
+
+/* ---------------- 怪物消灭 ---------------- */
+function slayMonsterFX(m, label){
+  const p = cellCenter(m.r, m.c);
+  burst(p.x, p.y, "#ff5d7e", 22, 6);
+  removeTile(m);
+  S.stats.slain++;
+  AudioFX.slay();
+  if(label) floater(p.x, p.y, label, "#ff8fa3");
+  heal(has("siphon")?3:1);
+}
+function adjacentMonster(r,c){
+  for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+    if(!dr&&!dc) continue;
+    const rr=r+dr, cc=c+dc;
+    if(rr<0||cc<0||rr>=N||cc>=N) continue;
+    const id=S.grid[rr][cc];
+    if(id && S.tiles.get(id).monster) return S.tiles.get(id);
+  }
+  return null;
+}
+
+/* ---------------- 楼层生成 ---------------- */
+function floorConfig(f){
+  const boss = f%3===0;
+  return {
+    boss,
+    target: Math.min(Math.pow(2, 5+f), 4096),
+    obstacles: f<2 ? 0 : Math.min(4, randInt(1, 1+Math.floor(f/2)) + (boss?1:0)),
+    monsters:  f<2 ? 0 : Math.min(3, 1+Math.floor(f/3)) + (boss?2:0),
+    monsterTier: clamp(1+Math.floor(f/3)+(boss?1:0), 1, 6),
+    initTiles: 2 + Math.min(2, Math.floor(f/3)) + (has("twins")?2:0),
+    monsterSpawnChance: f<2 ? 0 : Math.min(0.24, 0.08 + f*0.012 + (boss?0.08:0)),
+    extraSpawnChance: f>=4 ? 0.4 : 0
+  };
+}
+function setupFloor(){
+  const cfg = S.floorCfg = floorConfig(S.floor);
+  S.target = cfg.target; S.maxTileThisFloor = 2; S.erosion = 0;
+  S.tiles.forEach(t=>t.el.remove());
+  S.tiles.clear();
+  S.grid = Array.from({length:N},()=>Array(N).fill(null));
+  S.blocked = new Set();
+  let guard=0;
+  while(S.blocked.size<cfg.obstacles && guard++<200){
+    const k = randInt(0,N-1)+","+randInt(0,N-1);
+    if(k!=="0,0"&&k!=="0,1"&&k!=="1,0") S.blocked.add(k);
+  }
+  buildGhosts();
+  for(let i=0;i<cfg.initTiles;i++) spawnRandomTile(false,true);
+  guard=0;
+  let placed=0;
+  while(placed<cfg.monsters && guard++<100){
+    if(spawnMonster(cfg.monsterTier)) placed++;
+  }
+  updateHUD();
+}
+function spawnRandomTile(allowMonster=true, instant=false){
+  const cfg = S.floorCfg || floorConfig(1);
+  if(allowMonster && Math.random()<cfg.monsterSpawnChance){ spawnMonster(cfg.monsterTier); return; }
+  const cells = emptyCells(); if(!cells.length) return;
+  const {r,c} = choice(cells);
+  let v = Math.random() < (has("clover")?0.30:0.10) ? 4 : 2;
+  if(has("melt") && Math.random()<0.20) v*=2;
+  makeTile(r,c,v,false,!instant);
+}
+function spawnMonster(tier){
+  const cells = emptyCells(); if(!cells.length) return false;
+  const {r,c} = choice(cells);
+  makeTile(r,c,Math.pow(2,tier),true,true);
+  return true;
+}
+</script>
+<script>
+"use strict";
+/* ============================================================
+   2048 移动 / 融合引擎（含障碍格、魔物、遗物交互）
+   ============================================================ */
+function computeMove(dr, dc){
+  const movements=[], merges=[], slays=[], captures=[];
+  let anyMove=false;
+  const lines=[];
+  if(dc!==0){
+    for(let r=0;r<N;r++){ const line=[]; for(let c=0;c<N;c++) line.push({r,c}); if(dc===1) line.reverse(); lines.push(line); }
+  }else{
+    for(let c=0;c<N;c++){ const line=[]; for(let r=0;r<N;r++) line.push({r,c}); if(dr===1) line.reverse(); lines.push(line); }
+  }
+  const interact = (slotT, inT) => {
+    if(!slotT.monster && !inT.monster && slotT.value===inT.value) return "merge";
+    if(slotT.monster && inT.monster && slotT.value===inT.value) return "slay";
+    if(slotT.monster && !inT.monster && has("slayer") && inT.value>=slotT.value) return "capture";
+    return null;
+  };
+  for(const line of lines){
+    let seg=[];
+    const flush=()=>{ if(seg.length) processSeg(seg); seg=[]; };
+    for(const cl of line){
+      if(S.blocked.has(cl.r+","+cl.c)) flush();
+      else seg.push(cl);
+    }
+    flush();
+  }
+  function processSeg(cells){
+    const placed=[]; // {t, cell, merged}
+    for(const cl of cells){
+      const id=S.grid[cl.r][cl.c]; if(!id) continue;
+      const t=S.tiles.get(id);
+      const last=placed[placed.length-1];
+      const act = last && !last.merged ? interact(last.t, t) : null;
+      if(act==="merge"){
+        movements.push({t, toR:last.cell.r, toC:last.cell.c});
+        merges.push({slot:last.t, consumed:t, r:last.cell.r, c:last.cell.c});
+        last.merged=true; anyMove=true;
+      }else if(act==="slay"){
+        movements.push({t, toR:last.cell.r, toC:last.cell.c});
+        slays.push({a:last.t, b:t, r:last.cell.r, c:last.cell.c});
+        placed.pop(); anyMove=true;
+      }else if(act==="capture"){
+        movements.push({t, toR:last.cell.r, toC:last.cell.c});
+        captures.push({t, m:last.t, r:last.cell.r, c:last.cell.c});
+        placed[placed.length-1]={t, cell:last.cell, merged:true}; anyMove=true;
+      }else{
+        const cell=cells[placed.length];
+        placed.push({t, cell, merged:false});
+        if(t.r!==cell.r||t.c!==cell.c){ movements.push({t, toR:cell.r, toC:cell.c}); anyMove=true; }
+      }
+    }
+  }
+  if(!anyMove && !merges.length && !slays.length && !captures.length) return null;
+  return {movements, merges, slays, captures};
+}
+
+async function doMove(dr, dc){
+  if(S.animating||S.over||S.drafting||!S.started) return;
+  const res = computeMove(dr,dc);
+  if(!res){
+    gsap.fromTo("#boardWrap",{x:dr!==0?0:-5*dc, y:dr!==0?-5*dr:0},{x:0,y:0,duration:.3,ease:"elastic.out(1,0.3)"});
+    AudioFX.move();
+    return;
+  }
+  S.animating=true; S.moves++;
+  S.mergesThisMove=0; S.firstMergeDone=false; S.shieldUsed=false;
+  AudioFX.move();
+
+  /* --- 逻辑应用（先改数据，再做视觉迁移） --- */
+  const {movements, merges, slays, captures} = res;
+  for(const m of movements){ m.t.r=m.toR; m.t.c=m.toC; }
+  for(const sl of slays){ S.tiles.delete(sl.a.id); S.tiles.delete(sl.b.id); }
+  for(const cp of captures){ S.tiles.delete(cp.m.id); }
+  for(const mg of merges){ S.tiles.delete(mg.consumed.id); }
+  S.grid = Array.from({length:N},()=>Array(N).fill(null));
+  S.tiles.forEach(t=>{ S.grid[t.r][t.c]=t.id; });
+
+  /* --- 滑移动画 --- */
+  for(const m of movements){
+    gsap.to(m.t.el,{x:posOf(m.toC), y:posOf(m.toR), duration:.13, ease:"power2.inOut"});
+  }
+  for(const sl of slays){ // 被撞毁的魔物跟随滑动
+    gsap.to([sl.a.el, sl.b.el],{x:posOf(sl.c), y:posOf(sl.r), duration:.13, ease:"power2.inOut"});
+  }
+  for(const cp of captures){
+    gsap.to(cp.m.el,{x:posOf(cp.c), y:posOf(cp.r), duration:.13, ease:"power2.inOut"});
+  }
+  await wait(140);
+
+  /* --- 消灭结算 --- */
+  for(const sl of slays){
+    const p=cellCenter(sl.r,sl.c);
+    gsap.to([sl.a.el,sl.b.el],{scale:0,rotation:90,duration:.25,ease:"back.in(2)",onComplete:()=>{sl.a.el.remove();sl.b.el.remove();}});
+    burst(p.x,p.y,"#ff5d7e",26,7);
+    floater(p.x,p.y,"净化!","#ff8fa3");
+    S.stats.slain+=2; AudioFX.slay();
+    addScore(sl.a.value+sl.b.value, p.x, p.y);
+    heal(has("siphon")?3:1);
+  }
+  for(const cp of captures){
+    const p=cellCenter(cp.r,cp.c);
+    gsap.to(cp.m.el,{scale:0,rotation:-60,duration:.22,ease:"back.in(2)",onComplete:()=>cp.m.el.remove()});
+    burst(p.x,p.y,"#ffd166",18,6);
+    S.stats.slain++; AudioFX.slay();
+    addScore(cp.m.value, p.x, p.y);
+    heal(has("siphon")?3:1);
+    gsap.fromTo(cp.t.el,{scale:1.18},{scale:1,duration:.3,ease:"elastic.out(1.4,0.4)"});
+  }
+
+  /* --- 融合结算（弹性缩放 + 粒子 + 连击） --- */
+  let combo=0;
+  for(const mg of merges){
+    combo++; S.mergesThisMove++; S.stats.merges++;
+    S.stats.maxCombo=Math.max(S.stats.maxCombo,combo);
+    const t=mg.slot;
+    let nv=t.value*2;
+    let luckyHit=false;
+    if(has("lucky")&&Math.random()<0.12){ nv*=2; luckyHit=true; }
+    t.value=nv; t.tier=tierOf(nv); t.merged=true;
+    renderFace(t);
+    gsap.to(mg.consumed.el,{scale:0,duration:.16,ease:"power1.in",onComplete:()=>mg.consumed.el.remove()});
+    const p=cellCenter(mg.r,mg.c);
+    const big = nv>=128;
+    gsap.timeline()
+      .to(t.el,{scale:big?1.34:1.22,duration:.1,ease:"power2.out"})
+      .to(t.el,{scale:1,duration:.45,ease:"elastic.out(1.6,0.35)"});
+    const hue=(258 - t.tier*26 + 360*3)%360;
+    burst(p.x,p.y,`hsl(${hue} 90% 68%)`, big?30:14, big?8:5);
+    if(big) shakeBoard(5);
+    if(luckyHit) floater(p.x,p.y-26,"🎲 幸运暴击!","#ffd166");
+    (big?AudioFX.bigMerge:AudioFX.merge)(t.tier);
+    addScore(nv*(1+0.2*(combo-1)), p.x, p.y);
+    if(has("leech")) heal(1);
+    S.maxTileThisFloor=Math.max(S.maxTileThisFloor,nv);
+    S.stats.maxTile=Math.max(S.stats.maxTile,nv);
+
+    if(has("blast")&&Math.random()<0.30){
+      const m=adjacentMonster(mg.r,mg.c);
+      if(m){ slayMonsterFX(m,"💥 爆裂"); }
+    }
+    if(has("dirge")&&!S.firstMergeDone){
+      const ms=[...S.tiles.values()].filter(x=>x.monster).sort((a,b)=>a.value-b.value);
+      if(ms.length) slayMonsterFX(ms[0],"🔱 湮灭");
+    }
+    S.firstMergeDone=true;
+    if(has("echo")&&Math.random()<0.18){
+      const cells=emptyCells();
+      if(cells.length){ const e=choice(cells); makeTile(e.r,e.c,nv,false,true); floater(p.x,p.y-48,"🌀 回响复制","#9a8cff"); }
+    }
+  }
+  await wait(120);
+
+  /* --- 新方块生成 --- */
+  const cfg=S.floorCfg;
+  spawnRandomTile(true);
+  if(Math.random()<cfg.extraSpawnChance) spawnRandomTile(true);
+
+  /* --- 魔物攻击阶段 --- */
+  let frozenNow=false;
+  if(has("frost")&&S.moves%5===0){
+    const ms=[...S.tiles.values()].filter(t=>t.monster);
+    if(ms.length){ frozenNow=true; toast("❄ 冰霜新星冻结了全场魔物"); }
+  }
+  if(!frozenNow){
+    let dmg=0;
+    S.tiles.forEach(t=>{ if(t.monster) dmg+=t.tier; });
+    if(dmg>0){
+      await wait(90);
+      S.tiles.forEach(t=>{ if(t.monster) gsap.fromTo(t.el,{scale:1.15},{scale:1,duration:.35,ease:"elastic.out(1.5,0.4)"}); });
+      damage(dmg,"被深渊魔物吞噬");
+    }
+  }
+
+  /* --- 侵蚀机制 --- */
+  if(S.mergesThisMove>0) S.erosion=Math.max(0,S.erosion-3);
+  else{
+    S.erosion++;
+    if(S.erosion>=erosionMax()){
+      S.erosion=0;
+      banner("侵 蚀 爆 发","#b39dff");
+      AudioFX.warn();
+      damage(S.floor,"被深渊侵蚀吞没");
+    }else if(S.erosion>=erosionMax()-2){
+      toast("⚠ 侵蚀逼近！停下不动会被深渊吞噬");
+      AudioFX.warn();
+    }
+  }
+  updateHUD();
+
+  /* --- 胜利 / 失败判定 --- */
+  if(!S.over && S.maxTileThisFloor>=S.target){ S.animating=false; floorClear(); return; }
+  if(!S.over) checkStuck();
+  S.animating=false;
+}
+
+function checkStuck(){
+  if(emptyCells().length>0) return;
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const id=S.grid[r][c]; if(!id) continue;
+    const t=S.tiles.get(id);
+    for(const [dr,dc] of [[0,1],[1,0]]){
+      const rr=r+dr,cc=c+dc; if(rr>=N||cc>=N) continue;
+      const id2=S.grid[rr][cc]; if(!id2) return;
+      const o=S.tiles.get(id2);
+      if(!t.monster&&!o.monster&&t.value===o.value) return;
+      if(t.monster&&o.monster&&t.value===o.value) return;
+      if(has("slayer")){
+        if(!t.monster&&o.monster&&t.value>=o.value) return;
+        if(t.monster&&!o.monster&&o.value>=t.value) return;
+      }
+    }
+  }
+  gameOver("棋盘被深渊彻底堵死");
+}
+</script>
+<script>
+"use strict";
+/* ---------------- HUD ---------------- */
+function updateHUD(){
+  $("#hpFill").style.width = (S.hp/S.maxHp*100)+"%";
+  $("#hpNum").textContent = S.hp+"/"+S.maxHp;
+  $("#erFill").style.width = (S.erosion/erosionMax()*100)+"%";
+  $("#erNum").textContent = S.erosion+"/"+erosionMax();
+  $("#scoreVal").textContent = S.score.toLocaleString();
+  const boss = S.floorCfg && S.floorCfg.boss;
+  $("#floorName").textContent = "第 "+S.floor+" 层"+(boss?" · 魔物巢穴":"");
+  $("#floorName").classList.toggle("boss", !!boss);
+  $("#targetVal").textContent = "融合出 "+S.target+" 级魂火（当前 "+S.maxTileThisFloor+"）";
+}
+function renderRelicBar(){
+  const bar=$("#relicBar"); bar.innerHTML="";
+  S.relics.forEach(id=>{
+    const r=RELIC_MAP[id];
+    const d=document.createElement("div");
+    d.className="relicChip"; d.textContent=r.ico; d.title=r.name+" — "+r.ds;
+    bar.appendChild(d);
+    gsap.from(d,{scale:0,duration:.4,ease:"back.out(2.5)"});
+  });
+}
+
+/* ---------------- 层突破 & 遗物三选一 ---------------- */
+async function floorClear(){
+  S.drafting=true;
+  banner("✦ 层 数 突 破 ✦","#00e5c3");
+  AudioFX.floorUp();
+  const rect=boardEl.getBoundingClientRect();
+  for(let i=0;i<5;i++)
+    setTimeout(()=>burst(rect.left+Math.random()*rect.width, rect.top+Math.random()*rect.height, choice(["#00e5c3","#ffd166","#9a8cff"]), 22, 7), i*120);
+  heal(6);
+  await wait(1300);
+  const pool = RELICS.filter(r=>!S.relics.has(r.id));
+  if(pool.length===0){ toast("你已集齐所有遗物！"); nextFloor(); return; }
+  showDraft(pool);
+}
+function showDraft(pool){
+  const picks = shuffle(pool).slice(0,3);
+  const box=$("#draftCards"); box.innerHTML="";
+  for(const r of picks){
+    const card=document.createElement("div");
+    card.className="draftCard";
+    card.innerHTML=`<div class="ico">${r.ico}</div><div class="nm">${r.name}</div><div class="rar">◈ ${r.rar} ◈</div><div class="ds">${r.ds}</div>`;
+    card.onclick=()=>pickRelic(r);
+    box.appendChild(card);
+  }
+  $("#draftScreen").classList.add("show");
+  AudioFX.draft();
+  gsap.fromTo(".draftCard",{y:60,opacity:0,rotationY:35},{y:0,opacity:1,rotationY:0,duration:.55,stagger:.12,ease:"back.out(1.6)"});
+}
+function pickRelic(r){
+  S.relics.add(r.id);
+  AudioFX.relicPick();
+  renderRelicBar();
+  toast(r.ico+" 获得遗物「"+r.name+"」");
+  gsap.to(".draftCard",{y:-40,opacity:0,duration:.3,stagger:.06,ease:"power2.in"});
+  setTimeout(()=>{ $("#draftScreen").classList.remove("show"); nextFloor(); }, 420);
+}
+function nextFloor(){
+  S.floor++;
+  setupFloor();
+  banner("第 "+S.floor+" 层"+(S.floorCfg.boss?" · 魔物巢穴":""), S.floorCfg.boss?"#ff4d6d":"#e8e4ff");
+  S.drafting=false;
+}
+
+/* ---------------- 游戏结束 / 重开 ---------------- */
+function gameOver(reason){
+  if(S.over) return;
+  S.over=true;
+  AudioFX.gameover();
+  vignetteFlash(); hardShake();
+  const best = Math.max(S.score, +(localStorage.getItem("abyss_best")||0));
+  localStorage.setItem("abyss_best", best);
+  setTimeout(()=>{
+    $("#goReason").textContent = "☠ "+reason;
+    $("#goStats").innerHTML = [
+      ["抵达层数","第 "+S.floor+" 层"],
+      ["灵魂结晶",S.score.toLocaleString()],
+      ["历史最佳",best.toLocaleString()],
+      ["总步数",S.moves],
+      ["融合次数",S.stats.merges],
+      ["消灭魔物",S.stats.slain],
+      ["最大魂火",S.stats.maxTile],
+      ["最高连击","×"+S.stats.maxCombo]
+    ].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+    $("#goRelics").innerHTML = [...S.relics].map(id=>`<div class="relicChip" title="${RELIC_MAP[id].name}">${RELIC_MAP[id].ico}</div>`).join("");
+    $("#overScreen").classList.add("show");
+    gsap.fromTo("#overScreen > *",{y:30,opacity:0},{y:0,opacity:1,duration:.5,stagger:.08,ease:"power2.out"});
+  }, 700);
+}
+function resetRun(){
+  S.floor=1; S.hp=30; S.maxHp=30; S.score=0;
+  S.erosion=0; S.relics=new Set(); S.tiles.forEach(t=>t.el.remove());
+  S.tiles.clear(); S.nextId=1; S.moves=0;
+  S.over=false; S.drafting=false; S.animating=false;
+  S.stats={merges:0,slain:0,maxTile:2,maxCombo:0};
+  renderRelicBar();
+  setupFloor();
+  updateHUD();
+}
+
+/* ---------------- 输入 ---------------- */
+const DIRS = { ArrowUp:[-1,0], ArrowDown:[1,0], ArrowLeft:[0,-1], ArrowRight:[0,1],
+  w:[-1,0], s:[1,0], a:[0,-1], d:[0,1], W:[-1,0], S:[1,0], A:[0,-1], D:[0,1] };
+window.addEventListener("keydown", e=>{
+  if(DIRS[e.key]!==undefined){ e.preventDefault(); const [dr,dc]=DIRS[e.key]; doMove(dr,dc); }
+});
+let touchStart=null;
+window.addEventListener("pointerdown", e=>{ touchStart={x:e.clientX,y:e.clientY}; });
+window.addEventListener("pointerup", e=>{
+  if(!touchStart) return;
+  const dx=e.clientX-touchStart.x, dy=e.clientY-touchStart.y;
+  touchStart=null;
+  if(Math.hypot(dx,dy)<28) return;
+  if(Math.abs(dx)>Math.abs(dy)) doMove(0, dx>0?1:-1);
+  else doMove(dy>0?1:-1, 0);
+});
+
+/* ---------------- 音效开关 ---------------- */
+$("#muteBtn").addEventListener("click", ()=>{
+  const m = AudioFX.toggleMute();
+  $("#muteBtn").textContent = m?"🔇":"🔊";
+});
+
+/* ---------------- 启动 ---------------- */
+$("#startBtn").addEventListener("click", ()=>{
+  gsap.to("#startScreen",{opacity:0,duration:.4,onComplete:()=>$("#startScreen").classList.remove("show")});
+  S.started=true;
+  resetRun();
+  banner("第 1 层","#e8e4ff");
+  toast("滑动融合魂火，达成目标即可下潜");
+});
+$("#retryBtn").addEventListener("click", ()=>{
+  $("#overScreen").classList.remove("show");
+  resetRun();
+  banner("第 1 层","#e8e4ff");
+});
+</script>
+</body>
+</html>

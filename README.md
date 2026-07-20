@@ -24,7 +24,7 @@
 | 模型 | 01 | 02 | 03 | 04 | 05 |
 | --- | --- | --- | --- | --- | --- |
 | DeepSeek | [已归档](answers/01-2048-roguelike/deepseek/) | [已归档](answers/02-fpv-drone-simulator/deepseek/) | [已归档](answers/03-racing-telemetry-analyzer/deepseek/) | [已归档](answers/04-balatro-web/deepseek/) | [已归档](answers/05-double-wishbone-suspension/deepseek/) |
-| Kimi K3 | 待补充 | [已归档](answers/02-fpv-drone-simulator/kimi-k3/) | 待补充 | [已归档](answers/04-balatro-web/kimi-k3/) | 待补充 |
+| Kimi K3 | [已归档](answers/01-2048-roguelike/kimi-k3/) | [已归档](answers/02-fpv-drone-simulator/kimi-k3/) | 待补充 | [已归档](answers/04-balatro-web/kimi-k3/) | 待补充 |
 | GLM 5.2 | 待补充 | 待补充 | 待补充 | 待补充 | 待补充 |
 | Qwen 3.8 Max Preview | 待补充 | 待补充 | 待补充 | 待补充 | 待补充 |
 | GPT 5.6 Sol | 待补充 | 待补充 | 待补充 | 待补充 | 待补充 |

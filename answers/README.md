@@ -5,7 +5,8 @@
 ```text
 answers/
 ├── 01-2048-roguelike/
-│   └── deepseek/
+│   ├── deepseek/
+│   └── kimi-k3/
 ├── 02-fpv-drone-simulator/
 │   ├── deepseek/
 │   └── kimi-k3/
