@@ -11,16 +11,21 @@ answers/
 ├── 03-racing-telemetry-analyzer/
 │   └── deepseek/
 ├── 04-balatro-web/
-│   └── deepseek/
+│   ├── deepseek/
+│   └── kimi-k3/
 └── 05-double-wishbone-suspension/
     └── deepseek/
 ```
 
-新增模型时，在对应题号目录下创建模型目录，例如：
+最终对比模型及目录名：
 
-```text
-answers/01-2048-roguelike/qwen/
-answers/01-2048-roguelike/kimi/
-```
+| 模型 | 目录名 |
+| --- | --- |
+| DeepSeek | `deepseek` |
+| Kimi K3 | `kimi-k3` |
+| GLM 5.2 | `glm-5.2` |
+| Qwen 3.8 Max Preview | `qwen-3.8-max-preview` |
+| GPT 5.6 Sol | `gpt-5.6-sol` |
+| Opus 4.8 | `opus-4.8` |
 
-所有答案均按模型原始输出归档，不主动修正代码或合并文件。第 04 题的 DeepSeek 输出本身是多文件网页，因此保留其 `css/`、`js/` 目录结构。
+新增结果时，在对应题号目录下创建模型目录。所有答案均按模型原始输出归档，不主动修正代码或合并文件。第 04 题的 DeepSeek 与 Kimi K3 输出均为多文件网页，因此保留其原始目录结构。
