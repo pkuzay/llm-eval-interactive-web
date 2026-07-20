@@ -15,12 +15,18 @@
 ## 记录约定
 
 - 提示词原文保存在 `prompts/`。
-- 模型生成的原始单文件答案保存在 `answers/<model>/`，不修改模型输出。
-- 运行截图、录屏或其他证据保存在 `artifacts/<model>/`。
-- 每个答案文件沿用题目编号和指定的产物类型，例如 `answers/<model>/01-2048-roguelike.html` 或 `answers/<model>/03-racing-telemetry-analyzer.py`。
+- 模型生成的原始答案保存在 `answers/<题号>/<model>/`，不修改模型输出。
+- 运行截图、录屏或其他证据保存在 `artifacts/<题号>/<model>/`。
+- 每道题下面按模型分别建立目录，便于横向比较同一道题的不同回答。
 
-## 模型答案
+## 答案索引
 
-| 模型 | 答案目录 | 收录题目 |
-| --- | --- | --- |
-| DeepSeek | [`answers/deepseek/`](answers/deepseek/) | 01-05 |
+| 题号 | DeepSeek 答案 |
+| --- | --- |
+| 01 | [`answers/01-2048-roguelike/deepseek/`](answers/01-2048-roguelike/deepseek/) |
+| 02 | [`answers/02-fpv-drone-simulator/deepseek/`](answers/02-fpv-drone-simulator/deepseek/) |
+| 03 | [`answers/03-racing-telemetry-analyzer/deepseek/`](answers/03-racing-telemetry-analyzer/deepseek/) |
+| 04 | [`answers/04-balatro-web/deepseek/`](answers/04-balatro-web/deepseek/) |
+| 05 | [`answers/05-double-wishbone-suspension/deepseek/`](answers/05-double-wishbone-suspension/deepseek/) |
+
+更多目录说明见 [`answers/README.md`](answers/README.md)。
