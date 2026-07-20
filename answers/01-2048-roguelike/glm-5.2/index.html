@@ -1,0 +1,1917 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALCHEMIA · 炼金塔</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep: #08050f;
+  --bg-mid: #14092a;
+  --bg-card: #1c0f35;
+  --bg-card-light: #2a1845;
+  --gold: #d4a056;
+  --gold-bright: #f5d27a;
+  --emerald: #5fb878;
+  --crimson: #c83e3e;
+  --violet: #8b5cf6;
+  --frost: #6dd5ed;
+  --text: #f0e6d2;
+  --text-muted: #8a7a9a;
+  --border: rgba(212, 160, 86, 0.25);
+  --border-bright: rgba(212, 160, 86, 0.5);
+  --cell-size: 84px;
+  --gap: 10px;
+  --board-pad: 12px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  background: var(--bg-deep);
+  color: var(--text);
+  position: relative;
+}
+
+#stars { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(circle at 15% 25%, rgba(139, 92, 246, 0.10), transparent 50%),
+    radial-gradient(circle at 85% 75%, rgba(212, 160, 86, 0.07), transparent 50%),
+    radial-gradient(circle at 50% 110%, rgba(200, 62, 62, 0.06), transparent 50%);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.app {
+  position: relative;
+  z-index: 2;
+  height: 100vh;
+  padding: 14px 20px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* === 顶部状态栏 === */
+.topbar {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, rgba(28, 15, 53, 0.8), rgba(20, 9, 42, 0.6));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+
+.title-wrap { display: flex; align-items: center; gap: 16px; }
+
+.title-mark { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+.title-mark svg { animation: rotate 30s linear infinite; }
+
+.title {
+  font-family: 'Cinzel', serif;
+  font-weight: 900;
+  font-size: 26px;
+  color: var(--gold-bright);
+  letter-spacing: 6px;
+  text-shadow: 0 0 30px rgba(245, 210, 122, 0.4);
+  line-height: 1;
+}
+
+.subtitle {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 4px;
+  margin-top: 4px;
+}
+
+.stats { display: flex; justify-content: flex-end; gap: 28px; }
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 72px;
+  position: relative;
+}
+
+.stat::after {
+  content: '';
+  position: absolute;
+  right: -14px;
+  top: 15%;
+  height: 70%;
+  width: 1px;
+  background: var(--border);
+}
+
+.stat:last-child::after { display: none; }
+
+.stat-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-family: 'Cinzel', serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gold-bright);
+  line-height: 1;
+  transition: color 200ms, transform 200ms;
+}
+
+.stat-value.hp { color: var(--crimson); }
+.stat-value.gold { color: var(--gold); }
+.stat-value.flash { animation: statFlash 500ms ease-out; }
+
+@keyframes statFlash {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.25); filter: brightness(1.5); }
+  100% { transform: scale(1); }
+}
+
+.hp-mini {
+  width: 100%;
+  height: 3px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 2px;
+  margin-top: 5px;
+  overflow: hidden;
+}
+
+.hp-mini-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--crimson), #ff6060);
+  transition: width 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === 主游戏区 === */
+.main {
+  display: grid;
+  grid-template-columns: 280px 1fr 280px;
+  gap: 20px;
+  align-items: start;
+  min-height: 0;
+}
+
+.panel {
+  background: linear-gradient(180deg, rgba(28, 15, 53, 0.7), rgba(20, 9, 42, 0.5));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  position: relative;
+}
+
+.panel-title {
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  letter-spacing: 4px;
+  color: var(--gold);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* === 敌人面板 === */
+.enemy-panel { text-align: center; }
+
+.enemy-portrait-wrap {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  margin: 0 auto 16px;
+}
+
+.enemy-portrait {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(200, 62, 62, 0.2), rgba(20, 9, 42, 0.8));
+  border: 2px solid var(--crimson);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(200, 62, 62, 0.3), inset 0 0 30px rgba(0,0,0,0.5);
+  transition: border-color 300ms, box-shadow 300ms;
+}
+
+.enemy-portrait.boss {
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 60px rgba(245, 210, 122, 0.5), inset 0 0 30px rgba(0,0,0,0.5);
+  animation: bossPulse 2s ease-in-out infinite;
+}
+
+@keyframes bossPulse {
+  0%, 100% { box-shadow: 0 0 60px rgba(245, 210, 122, 0.5), inset 0 0 30px rgba(0,0,0,0.5); }
+  50% { box-shadow: 0 0 90px rgba(245, 210, 122, 0.8), inset 0 0 30px rgba(0,0,0,0.5); }
+}
+
+.enemy-portrait svg {
+  width: 72%;
+  height: 72%;
+  filter: drop-shadow(0 0 12px currentColor);
+}
+
+.enemy-portrait.hit { animation: enemyHit 250ms ease-out; }
+
+@keyframes enemyHit {
+  0% { transform: scale(1); filter: brightness(1); }
+  30% { transform: scale(0.92); filter: brightness(2) hue-rotate(-20deg); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+.enemy-aura, .enemy-aura-2 {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.enemy-aura {
+  inset: -8px;
+  border: 1px dashed rgba(212, 160, 86, 0.3);
+  animation: rotate 20s linear infinite;
+}
+
+.enemy-aura-2 {
+  inset: -16px;
+  border: 1px solid rgba(212, 160, 86, 0.1);
+  animation: rotate 30s linear infinite reverse;
+}
+
+@keyframes rotate { to { transform: rotate(360deg); } }
+
+.enemy-name {
+  font-family: 'Cinzel', serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 2px;
+  margin-bottom: 4px;
+}
+
+.enemy-tier {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 3px;
+  margin-bottom: 14px;
+  text-transform: uppercase;
+}
+
+.enemy-tier.boss { color: var(--gold-bright); }
+.enemy-tier.elite { color: var(--violet); }
+
+.enemy-hp-bar {
+  height: 16px;
+  background: rgba(0,0,0,0.6);
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(255,255,255,0.1);
+  margin-bottom: 6px;
+}
+
+.enemy-hp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8a2828, var(--crimson), #ff6060);
+  border-radius: 7px;
+  transition: width 400ms cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  box-shadow: 0 0 10px rgba(200, 62, 62, 0.5);
+}
+
+.enemy-hp-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.3), transparent);
+  border-radius: 7px;
+}
+
+.enemy-hp-text {
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 14px;
+}
+
+.enemy-atk-display {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  letter-spacing: 1px;
+}
+
+.enemy-atk-display span {
+  color: var(--crimson);
+  font-weight: 700;
+  font-size: 16px;
+  font-family: 'Cinzel', serif;
+  margin-left: 6px;
+}
+
+/* === 游戏网格 === */
+.game-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.grid-board {
+  position: relative;
+  background: linear-gradient(135deg, rgba(20, 9, 42, 0.9), rgba(8, 5, 15, 0.9));
+  border: 1px solid var(--border-bright);
+  border-radius: 14px;
+  padding: var(--board-pad);
+  box-shadow:
+    0 0 80px rgba(212, 160, 86, 0.12),
+    inset 0 0 40px rgba(0,0,0,0.6),
+    0 10px 40px rgba(0,0,0,0.5);
+}
+
+.grid-bg {
+  display: grid;
+  grid-template-columns: repeat(4, var(--cell-size));
+  grid-template-rows: repeat(4, var(--cell-size));
+  gap: var(--gap);
+}
+
+.grid-cell {
+  background: rgba(255,255,255,0.025);
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.04);
+  position: relative;
+}
+
+.grid-cell::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 1px dashed rgba(212, 160, 86, 0.08);
+  border-radius: 6px;
+}
+
+.tile-container {
+  position: absolute;
+  top: var(--board-pad);
+  left: var(--board-pad);
+  pointer-events: none;
+}
+
+.tile {
+  position: absolute;
+  width: var(--cell-size);
+  height: var(--cell-size);
+  transform: translate(var(--x, 0), var(--y, 0));
+  transition: transform 140ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
+.tile-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: 28px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid transparent;
+}
+
+.tile-inner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent 50%, rgba(0,0,0,0.25));
+  pointer-events: none;
+  border-radius: 7px;
+}
+
+.tile-inner::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.tile.appear .tile-inner {
+  animation: tileAppear 280ms cubic-bezier(0.34, 1.56, 0.64, 1) 100ms backwards;
+}
+
+.tile.merged .tile-inner {
+  animation: tileMerge 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 120ms backwards;
+}
+
+@keyframes tileAppear {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes tileMerge {
+  0% { transform: scale(0.9); }
+  45% { transform: scale(1.32); }
+  100% { transform: scale(1); }
+}
+
+/* Tile 数值样式 */
+.tile-2 .tile-inner { background: linear-gradient(135deg, #3a2d4a, #2a1d3a); color: #b8a8c8; border-color: #4a3d5a; }
+.tile-4 .tile-inner { background: linear-gradient(135deg, #3a4d6a, #2a3d5a); color: #a8c8e8; border-color: #4a5d7a; }
+.tile-8 .tile-inner { background: linear-gradient(135deg, #5fb878, #4a9858); color: #fff; border-color: #6fc888; box-shadow: 0 0 16px rgba(95, 184, 120, 0.35); }
+.tile-16 .tile-inner { background: linear-gradient(135deg, #d4a056, #b48036); color: #fff; border-color: #e4b066; box-shadow: 0 0 18px rgba(212, 160, 86, 0.4); }
+.tile-32 .tile-inner { background: linear-gradient(135deg, #e87850, #c85830); color: #fff; border-color: #f88860; box-shadow: 0 0 22px rgba(232, 120, 80, 0.5); }
+.tile-64 .tile-inner { background: linear-gradient(135deg, #c83e3e, #a82828); color: #fff; border-color: #d84e4e; box-shadow: 0 0 26px rgba(200, 62, 62, 0.55); }
+.tile-128 .tile-inner { background: linear-gradient(135deg, #8b5cf6, #6b3cd6); color: #fff; border-color: #9b6cf6; box-shadow: 0 0 30px rgba(139, 92, 246, 0.55); font-size: 24px; }
+.tile-256 .tile-inner { background: linear-gradient(135deg, #6dd5ed, #4db5cd); color: #fff; border-color: #7de5fd; box-shadow: 0 0 32px rgba(109, 213, 237, 0.55); font-size: 24px; }
+.tile-512 .tile-inner { background: linear-gradient(135deg, #f5d27a, #d4b058); color: #2a1d3a; border-color: #ffe28a; box-shadow: 0 0 36px rgba(245, 210, 122, 0.6); font-size: 22px; }
+.tile-1024 .tile-inner { background: linear-gradient(135deg, #ff6b9d, #d83a7d); color: #fff; border-color: #ff7bad; box-shadow: 0 0 40px rgba(255, 107, 157, 0.7); font-size: 20px; }
+.tile-2048 .tile-inner { background: linear-gradient(135deg, #ffd700, #ff8c00); color: #fff; border-color: #ffe710; box-shadow: 0 0 50px rgba(255, 215, 0, 0.8); font-size: 18px; animation: tile2048Glow 2s ease-in-out infinite; }
+
+@keyframes tile2048Glow {
+  0%, 100% { box-shadow: 0 0 50px rgba(255, 215, 0, 0.8); }
+  50% { box-shadow: 0 0 80px rgba(255, 215, 0, 1); }
+}
+
+.controls-hint {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+}
+
+.key-hint {
+  display: inline-block;
+  padding: 3px 8px;
+  margin: 0 2px;
+  background: rgba(212, 160, 86, 0.1);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--gold);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+}
+
+/* === 遗物面板 === */
+.relic-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.relic-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: all 200ms;
+  animation: relicIn 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes relicIn {
+  0% { transform: translateX(20px) scale(0.9); opacity: 0; }
+  100% { transform: translateX(0) scale(1); opacity: 1; }
+}
+
+.relic-item:hover {
+  background: rgba(212, 160, 86, 0.1);
+  border-color: var(--gold);
+  transform: translateX(2px);
+}
+
+.relic-icon {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(212, 160, 86, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.relic-icon svg { width: 22px; height: 22px; }
+
+.relic-info { flex: 1; min-width: 0; }
+
+.relic-name {
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.relic-desc {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.relic-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.6;
+}
+
+/* === 弹窗 === */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(12px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 300ms;
+}
+
+.modal.active { display: flex; opacity: 1; }
+
+.modal-content {
+  max-width: 900px;
+  width: 90%;
+  text-align: center;
+  animation: modalContentIn 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modalContentIn {
+  0% { transform: translateY(30px) scale(0.95); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.modal-title {
+  font-family: 'Cinzel', serif;
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--gold-bright);
+  letter-spacing: 8px;
+  margin-bottom: 8px;
+  text-shadow: 0 0 30px rgba(245, 210, 122, 0.5);
+}
+
+.modal-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 3px;
+  margin-bottom: 32px;
+}
+
+.relic-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.relic-card {
+  background: linear-gradient(180deg, var(--bg-card-light), var(--bg-card));
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 20px;
+  cursor: pointer;
+  transition: all 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.relic-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent, var(--relic-color, var(--gold)));
+  opacity: 0;
+  transition: opacity 300ms;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+.relic-card::after {
+  content: '';
+  position: absolute;
+  top: -2px; left: -2px; right: -2px; bottom: -2px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--relic-color, var(--gold)), transparent 50%, var(--relic-color, var(--gold)));
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 300ms;
+}
+
+.relic-card:hover {
+  border-color: var(--relic-color, var(--gold));
+  transform: translateY(-10px) scale(1.04);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 40px var(--relic-glow, rgba(212, 160, 86, 0.3));
+}
+
+.relic-card:hover::before { opacity: 0.18; }
+
+.relic-card-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle, rgba(255,255,255,0.08), transparent 70%);
+  border-radius: 50%;
+}
+
+.relic-card-icon svg {
+  width: 48px;
+  height: 48px;
+  filter: drop-shadow(0 0 12px currentColor);
+}
+
+.relic-card-tier {
+  font-size: 10px;
+  letter-spacing: 3px;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.relic-card-name {
+  font-family: 'Cinzel', serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+  letter-spacing: 2px;
+}
+
+.relic-card-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* === 游戏结束 === */
+.end-content { max-width: 480px; }
+
+.end-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.end-stat {
+  background: rgba(28, 15, 53, 0.6);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.end-stat-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.end-stat-value {
+  font-family: 'Cinzel', serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--gold-bright);
+}
+
+.btn-primary {
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  padding: 14px 40px;
+  background: linear-gradient(135deg, var(--gold), #b48036);
+  color: var(--bg-deep);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 200ms;
+  text-transform: uppercase;
+  box-shadow: 0 4px 20px rgba(212, 160, 86, 0.4);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(212, 160, 86, 0.6);
+  filter: brightness(1.1);
+}
+
+.btn-primary:active { transform: translateY(0); }
+
+/* === 飘字 === */
+.float-text {
+  position: fixed;
+  font-family: 'Cinzel', serif;
+  font-weight: 900;
+  pointer-events: none;
+  z-index: 100;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.9), 0 0 20px currentColor;
+  animation: floatUp 900ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  transform: translate(-50%, 0);
+}
+
+.float-text.damage { color: #ff5050; font-size: 32px; }
+.float-text.crit { color: #ffd700; font-size: 44px; }
+.float-text.heal { color: var(--emerald); font-size: 24px; }
+.float-text.gold { color: var(--gold-bright); font-size: 22px; }
+.float-text.info { color: var(--frost); font-size: 22px; letter-spacing: 4px; }
+
+@keyframes floatUp {
+  0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; }
+  20% { transform: translate(-50%, -10px) scale(1.3); opacity: 1; }
+  100% { transform: translate(-50%, -80px) scale(1); opacity: 0; }
+}
+
+/* === 震动 === */
+.shake { animation: shakeAnim 350ms cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+.shake-strong { animation: shakeStrong 500ms cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+
+@keyframes shakeAnim {
+  10%, 90% { transform: translate3d(-2px, 0, 0); }
+  20%, 80% { transform: translate3d(4px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+  40%, 60% { transform: translate3d(6px, 0, 0); }
+}
+
+@keyframes shakeStrong {
+  10%, 90% { transform: translate3d(-4px, 1px, 0); }
+  20%, 80% { transform: translate3d(8px, -1px, 0); }
+  30%, 50%, 70% { transform: translate3d(-12px, 2px, 0); }
+  40%, 60% { transform: translate3d(12px, -2px, 0); }
+}
+
+/* === 闪光 === */
+.flash-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle, rgba(200, 62, 62, 0.5), transparent 70%);
+  pointer-events: none;
+  z-index: 999;
+  opacity: 0;
+}
+
+.flash-overlay.active { animation: flashAnim 300ms ease-out; }
+
+@keyframes flashAnim {
+  0% { opacity: 0.7; }
+  100% { opacity: 0; }
+}
+
+.particle {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.transition-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle, transparent, rgba(0,0,0,0.95));
+  z-index: 500;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 400ms;
+}
+
+.transition-overlay.active { opacity: 1; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
+::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 3px; }
+
+@media (max-width: 1100px) {
+  :root { --cell-size: 70px; --gap: 8px; }
+  .main { grid-template-columns: 240px 1fr 240px; gap: 14px; }
+}
+
+@media (max-width: 900px) {
+  :root { --cell-size: 60px; }
+  .main { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+  .enemy-panel, .relic-panel { min-height: auto; }
+  .relic-list { max-height: 200px; }
+  .stats { gap: 14px; }
+  .stat { min-width: 50px; }
+  .stat-value { font-size: 18px; }
+  .title { font-size: 20px; letter-spacing: 4px; }
+  .relic-cards { grid-template-columns: 1fr; }
+  .enemy-portrait-wrap { width: 120px; height: 120px; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="stars"></canvas>
+
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="title-wrap">
+      <div class="title-mark">
+        <svg viewBox="0 0 40 40" width="40" height="40">
+          <circle cx="20" cy="20" r="16" fill="none" stroke="#d4a056" stroke-width="1.5"/>
+          <path d="M 20 4 L 20 36 M 4 20 L 36 20" stroke="#d4a056" stroke-width="1.2" opacity="0.6"/>
+          <circle cx="20" cy="20" r="8" fill="none" stroke="#f5d27a" stroke-width="1.5"/>
+          <circle cx="20" cy="20" r="2.5" fill="#f5d27a"/>
+          <path d="M 8 8 L 12 12 M 32 8 L 28 12 M 8 32 L 12 28 M 32 32 L 28 28" stroke="#d4a056" stroke-width="1.2"/>
+        </svg>
+      </div>
+      <div>
+        <div class="title">ALCHEMIA</div>
+        <div class="subtitle">ELEMENTAL TOWER</div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">Layer</div>
+        <div class="stat-value" id="stat-level">1</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Vita</div>
+        <div class="stat-value hp" id="stat-hp">40</div>
+        <div class="hp-mini"><div class="hp-mini-fill" id="hp-mini-fill" style="width: 100%"></div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Aurum</div>
+        <div class="stat-value gold" id="stat-gold">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Score</div>
+        <div class="stat-value" id="stat-score">0</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="panel enemy-panel">
+      <div class="panel-title">
+        <span>FOE</span>
+        <span id="enemy-tier-badge" style="color: var(--text-muted); font-size: 10px;">TIER I</span>
+      </div>
+      <div class="enemy-portrait-wrap">
+        <div class="enemy-aura"></div>
+        <div class="enemy-aura-2"></div>
+        <div class="enemy-portrait" id="enemy-portrait"></div>
+      </div>
+      <div class="enemy-name" id="enemy-name">哥布林斥候</div>
+      <div class="enemy-tier" id="enemy-tier-text">COMMON</div>
+      <div class="enemy-hp-bar">
+        <div class="enemy-hp-fill" id="enemy-hp-fill" style="width: 100%"></div>
+      </div>
+      <div class="enemy-hp-text" id="enemy-hp-text">30 / 30</div>
+      <div class="enemy-atk-display">
+        <div>攻击<span id="enemy-atk">3</span></div>
+        <div>护甲<span id="enemy-def">0</span></div>
+      </div>
+    </section>
+
+    <section class="panel game-panel">
+      <div class="grid-board" id="grid-board">
+        <div class="grid-bg" id="grid-bg"></div>
+        <div class="tile-container" id="tile-container"></div>
+      </div>
+      <div class="controls-hint">
+        <span class="key-hint">W</span><span class="key-hint">A</span><span class="key-hint">S</span><span class="key-hint">D</span>
+        或方向键移动 · 触屏可滑动
+      </div>
+    </section>
+
+    <section class="panel relic-panel">
+      <div class="panel-title">
+        <span>RELICS</span>
+        <span id="relic-count" style="color: var(--text-muted); font-size: 10px;">0 / 12</span>
+      </div>
+      <div class="relic-list" id="relic-list">
+        <div class="relic-empty">击败敌人后<br>可选择圣物</div>
+      </div>
+    </section>
+  </main>
+
+  <footer style="text-align: center; font-size: 10px; color: var(--text-muted); letter-spacing: 3px;">
+    MERGE ELEMENTS · DEFEAT THE TOWER · CLAIM LEGENDARY RELICS
+  </footer>
+</div>
+
+<div class="modal" id="relic-modal">
+  <div class="modal-content">
+    <div class="modal-title">VICTORY</div>
+    <div class="modal-subtitle">CHOOSE A RELIC · 选择一件圣物</div>
+    <div class="relic-cards" id="relic-cards"></div>
+  </div>
+</div>
+
+<div class="modal" id="end-modal">
+  <div class="modal-content end-content">
+    <div class="modal-title" id="end-title">DEFEATED</div>
+    <div class="modal-subtitle" id="end-subtitle">炼金塔将你吞噬</div>
+    <div class="end-stats" id="end-stats"></div>
+    <button class="btn-primary" id="restart-btn">再次挑战</button>
+  </div>
+</div>
+
+<div class="flash-overlay" id="flash-overlay"></div>
+<div class="transition-overlay" id="transition-overlay"></div>
+
+<script>
+// ============ 常量 ============
+const GRID_SIZE = 4;
+const CELL_SIZE = 84;
+const GAP = 10;
+
+// ============ 遗物定义 ============
+const RELICS = [
+  {
+    id: 'ember', name: '余烬之心', tier: 'UNCOMMON', color: '#e87850',
+    desc: '每次合并额外造成 30% 火焰伤害',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 C 12 2, 6 8, 6 14 C 6 18, 9 22, 12 22 C 15 22, 18 18, 18 14 C 18 11, 16 9, 14 9 C 14 6, 12 4, 12 2 Z"/></svg>',
+  },
+  {
+    id: 'frost', name: '冰霜印记', tier: 'RARE', color: '#6dd5ed',
+    desc: '每 3 次合并冻结敌人 1 回合（跳过其攻击）',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 L12 22 M2 12 L22 12 M5 5 L19 19 M19 5 L5 19"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>',
+  },
+  {
+    id: 'lightning', name: '雷电符文', tier: 'RARE', color: '#f5d27a',
+    desc: '合并值 ≥ 32 时触发连锁闪电，额外 50% 伤害',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 L4 14 L11 14 L9 22 L20 10 L13 10 Z"/></svg>',
+  },
+  {
+    id: 'lifesteal', name: '生命汲取', tier: 'UNCOMMON', color: '#c83e3e',
+    desc: '每次合并回复 1 点生命',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21 C 12 21, 4 13, 4 8 C 4 5, 6 3, 9 3 C 10 3, 11 4, 12 5 C 13 4, 14 3, 15 3 C 18 3, 20 5, 20 8 C 20 13, 12 21, 12 21 Z"/></svg>',
+  },
+  {
+    id: 'crit', name: '暴击之眼', tier: 'RARE', color: '#ff6b9d',
+    desc: '20% 概率造成 2 倍伤害',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5 C 5 5, 2 12, 2 12 C 2 12, 5 19, 12 19 C 19 19, 22 12, 22 12 C 22 12, 19 5, 12 5 Z M 12 9 A 3 3 0 0 1 12 15 A 3 3 0 0 1 12 9 Z"/></svg>',
+  },
+  {
+    id: 'overload', name: '元素过载', tier: 'UNCOMMON', color: '#8b5cf6',
+    desc: '新方块出现 4 的概率 +30%',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 L14 9 L22 9 L16 14 L18 21 L12 17 L6 21 L8 14 L2 9 L10 9 Z"/></svg>',
+  },
+  {
+    id: 'bulwark', name: '铁壁护盾', tier: 'UNCOMMON', color: '#a8a8b8',
+    desc: '每次受到的伤害减少 2 点（最低 1）',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 L4 6 L4 12 C 4 17, 8 21, 12 22 C 16 21, 20 17, 20 12 L 20 6 Z"/></svg>',
+  },
+  {
+    id: 'hourglass', name: '时之沙漏', tier: 'RARE', color: '#d4a056',
+    desc: '每层开始获得 15 点临时护盾',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2 L18 2 L18 6 L14 12 L18 18 L18 22 L6 22 L6 18 L10 12 L6 6 Z"/><path d="M8 4 L16 4 L13 8 L11 8 Z" fill="currentColor"/></svg>',
+  },
+  {
+    id: 'meditation', name: '冥想符', tier: 'RARE', color: '#5fb878',
+    desc: '连续 3 次无合并移动后，下次合并伤害翻倍',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>',
+  },
+  {
+    id: 'molten', name: '熔火核心', tier: 'LEGENDARY', color: '#ff6b9d',
+    desc: '合并值 ≥ 64 时，额外造成 30 点伤害',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 C 8 6, 6 10, 6 14 C 6 18, 9 22, 12 22 C 15 22, 18 18, 18 14 C 18 12, 17 10, 15 10 C 15 7, 13 4, 12 2 Z"/><circle cx="10" cy="15" r="2" fill="#fff" opacity="0.5"/></svg>',
+  },
+  {
+    id: 'phoenix', name: '凤凰之羽', tier: 'LEGENDARY', color: '#ff8c00',
+    desc: '死亡时复活，恢复 50% 生命（一次性）',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 C 8 4, 6 8, 6 12 C 6 16, 8 20, 12 22 C 16 20, 18 16, 18 12 C 18 8, 16 4, 12 2 Z M 12 6 L 13 10 L 17 11 L 13 12 L 12 16 L 11 12 L 7 11 L 11 10 Z"/></svg>',
+  },
+  {
+    id: 'greed', name: '贪婪契约', tier: 'UNCOMMON', color: '#f5d27a',
+    desc: '击败敌人额外获得 15 金币',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9 8 L9 16 M15 8 L15 16 M9 12 L15 12"/></svg>',
+  },
+];
+
+// ============ 敌人定义 ============
+const ENEMIES = [
+  { name: '哥布林斥候', svg: 'goblin', color: '#5fb878' },
+  { name: '暗影蝙蝠', svg: 'bat', color: '#8b5cf6' },
+  { name: '石化守卫', svg: 'gargoyle', color: '#a8a8b8' },
+  { name: '烈焰祭司', svg: 'priest', color: '#e87850' },
+  { name: '深渊触手', svg: 'tentacle', color: '#6b3cd6' },
+  { name: '雷霆巨像', svg: 'colossus', color: '#f5d27a' },
+  { name: '暗影领主', svg: 'lord', color: '#8b3cd6' },
+  { name: '远古龙王', svg: 'dragon', color: '#c83e3e' },
+];
+
+const ENEMY_SVGS = {
+  goblin: `<svg viewBox="0 0 100 100" style="color:#5fb878"><circle cx="50" cy="50" r="35" fill="#3a5a3a"/><path d="M 15 35 L 30 45 L 22 50 Z" fill="#3a5a3a"/><path d="M 85 35 L 70 45 L 78 50 Z" fill="#3a5a3a"/><circle cx="38" cy="48" r="5" fill="#ff4040"/><circle cx="62" cy="48" r="5" fill="#ff4040"/><path d="M 35 65 L 40 70 L 45 65 L 50 70 L 55 65 L 60 70 L 65 65" stroke="#1a0a0a" fill="none" stroke-width="2.5"/></svg>`,
+  bat: `<svg viewBox="0 0 100 100" style="color:#8b5cf6"><path d="M 50 35 C 45 30, 35 25, 20 30 C 30 40, 25 50, 30 55 C 40 50, 45 55, 50 60 C 55 55, 60 50, 70 55 C 75 50, 70 40, 80 30 C 65 25, 55 30, 50 35 Z" fill="#5a3a8a"/><circle cx="50" cy="50" r="12" fill="#3a2a6a"/><circle cx="45" cy="48" r="3" fill="#ff4040"/><circle cx="55" cy="48" r="3" fill="#ff4040"/><path d="M 47 55 L 50 58 L 53 55" stroke="#fff" fill="none" stroke-width="1.5"/></svg>`,
+  gargoyle: `<svg viewBox="0 0 100 100" style="color:#a8a8b8"><path d="M 20 30 L 30 25 L 50 20 L 70 25 L 80 30 L 80 60 L 75 70 L 60 75 L 50 80 L 40 75 L 25 70 L 20 60 Z" fill="#5a5a6a"/><circle cx="38" cy="45" r="4" fill="#ff4040"/><circle cx="62" cy="45" r="4" fill="#ff4040"/><path d="M 35 60 L 45 65 L 50 60 L 55 65 L 65 60 L 60 70 L 50 75 L 40 70 Z" fill="#1a1a2a"/><path d="M 30 35 L 25 25 M 70 35 L 75 25" stroke="#5a5a6a" stroke-width="3"/></svg>`,
+  priest: `<svg viewBox="0 0 100 100" style="color:#e87850"><path d="M 50 15 L 35 35 L 30 60 L 35 80 L 50 85 L 65 80 L 70 60 L 65 35 Z" fill="#8a2828"/><circle cx="50" cy="40" r="10" fill="#1a0a0a"/><circle cx="46" cy="38" r="2.5" fill="#ffaa00"/><circle cx="54" cy="38" r="2.5" fill="#ffaa00"/><path d="M 45 50 L 50 55 L 55 50" stroke="#ffaa00" fill="none" stroke-width="2"/><path d="M 50 60 L 50 70 M 45 65 L 55 65" stroke="#ffaa00" stroke-width="2"/></svg>`,
+  tentacle: `<svg viewBox="0 0 100 100" style="color:#6b3cd6"><circle cx="50" cy="50" r="25" fill="#4a2a8a"/><path d="M 30 50 Q 15 40, 20 25 M 70 50 Q 85 40, 80 25 M 35 65 Q 25 80, 30 90 M 65 65 Q 75 80, 70 90 M 50 75 Q 50 90, 45 95" stroke="#4a2a8a" stroke-width="6" fill="none" stroke-linecap="round"/><circle cx="42" cy="45" r="4" fill="#ff40ff"/><circle cx="58" cy="45" r="4" fill="#ff40ff"/><circle cx="50" cy="55" r="3" fill="#ff40ff"/></svg>`,
+  colossus: `<svg viewBox="0 0 100 100" style="color:#f5d27a"><rect x="25" y="30" width="50" height="55" fill="#8a7050" rx="3"/><rect x="35" y="15" width="30" height="20" fill="#8a7050" rx="2"/><circle cx="42" cy="25" r="3" fill="#ffaa00"/><circle cx="58" cy="25" r="3" fill="#ffaa00"/><rect x="40" y="40" width="20" height="3" fill="#3a2a1a"/><rect x="38" y="50" width="4" height="20" fill="#3a2a1a"/><rect x="58" y="50" width="4" height="20" fill="#3a2a1a"/><path d="M 30 35 L 25 50 M 70 35 L 75 50" stroke="#8a7050" stroke-width="4"/></svg>`,
+  lord: `<svg viewBox="0 0 100 100" style="color:#8b3cd6"><path d="M 30 20 L 40 35 L 35 50 L 30 80 L 50 75 L 70 80 L 65 50 L 60 35 L 70 20 L 55 30 L 50 25 L 45 30 Z" fill="#5a2a8a"/><circle cx="42" cy="45" r="5" fill="#ff40ff"/><circle cx="58" cy="45" r="5" fill="#ff40ff"/><path d="M 40 60 L 45 65 L 50 60 L 55 65 L 60 60" stroke="#ff40ff" fill="none" stroke-width="2"/><path d="M 25 35 L 15 25 M 75 35 L 85 25" stroke="#5a2a8a" stroke-width="4"/></svg>`,
+  dragon: `<svg viewBox="0 0 100 100" style="color:#c83e3e"><path d="M 20 50 C 25 35, 35 25, 50 25 C 65 25, 75 35, 80 50 C 75 65, 65 75, 50 75 C 35 75, 25 65, 20 50 Z" fill="#8a2828"/><path d="M 15 45 L 25 50 L 15 55 M 85 45 L 75 50 L 85 55" fill="#8a2828"/><path d="M 30 30 L 35 20 L 40 25 M 60 25 L 65 20 L 70 30" fill="#8a2828"/><circle cx="40" cy="48" r="5" fill="#ffaa00"/><circle cx="60" cy="48" r="5" fill="#ffaa00"/><path d="M 35 60 L 40 65 L 45 60 L 50 65 L 55 60 L 60 65 L 65 60" stroke="#1a0a0a" fill="none" stroke-width="2"/></svg>`,
+};
+
+// ============ 游戏状态 ============
+const state = {
+  grid: [],
+  tiles: [],
+  tileIdCounter: 0,
+  playerHP: 40,
+  playerMaxHP: 40,
+  playerShield: 0,
+  level: 1,
+  score: 0,
+  gold: 0,
+  enemy: null,
+  relics: [],
+  isAnimating: false,
+  isGameOver: false,
+  noMergeCount: 0,
+  freezeCount: 0,
+  mergeCount: 0,
+  phoenixUsed: false,
+};
+
+// ============ 初始化 ============
+function init() {
+  state.grid = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
+  state.tiles = [];
+  state.tileIdCounter = 0;
+  state.playerHP = 40;
+  state.playerMaxHP = 40;
+  state.playerShield = 0;
+  state.level = 1;
+  state.score = 0;
+  state.gold = 0;
+  state.relics = [];
+  state.isAnimating = false;
+  state.isGameOver = false;
+  state.noMergeCount = 0;
+  state.freezeCount = 0;
+  state.mergeCount = 0;
+  state.phoenixUsed = false;
+  
+  document.getElementById('tile-container').innerHTML = '';
+  renderGrid();
+  spawnEnemy();
+  addRandomTile();
+  addRandomTile();
+  renderTiles();
+  updateUI();
+}
+
+// ============ 生成敌人 ============
+function spawnEnemy() {
+  const isBoss = state.level % 5 === 0;
+  const idx = Math.min(Math.floor((state.level - 1) / 2), ENEMIES.length - 1);
+  const enemyData = ENEMIES[idx];
+  
+  const baseHP = 25 + (state.level - 1) * 18;
+  const baseATK = 3 + Math.floor((state.level - 1) * 1.4);
+  
+  const hp = Math.floor(baseHP * (isBoss ? 1.6 : 1));
+  const atk = Math.floor(baseATK * (isBoss ? 1.25 : 1));
+  
+  state.enemy = {
+    name: isBoss ? `${enemyData.name}·王` : enemyData.name,
+    tier: isBoss ? 'BOSS' : (state.level % 3 === 0 ? 'ELITE' : 'COMMON'),
+    hp: hp,
+    maxHp: hp,
+    atk: atk,
+    def: 0,
+    svg: enemyData.svg,
+    color: enemyData.color,
+    isBoss: isBoss,
+  };
+  
+  // 触发入场遗物
+  if (state.relics.includes('hourglass')) {
+    state.playerShield += 15;
+  }
+}
+
+// ============ 添加随机方块 ============
+function addRandomTile() {
+  const empty = [];
+  for (let r = 0; r < GRID_SIZE; r++) {
+    for (let c = 0; c < GRID_SIZE; c++) {
+      if (!state.grid[r][c]) empty.push([r, c]);
+    }
+  }
+  if (empty.length === 0) return null;
+  
+  const [r, c] = empty[Math.floor(Math.random() * empty.length)];
+  let value = Math.random() < 0.9 ? 2 : 4;
+  
+  if (state.relics.includes('overload') && Math.random() < 0.35) {
+    value = 4;
+  }
+  
+  const tile = {
+    id: ++state.tileIdCounter,
+    value: value,
+    row: r,
+    col: c,
+    isNew: true,
+    merged: false,
+  };
+  state.grid[r][c] = tile;
+  state.tiles.push(tile);
+  return tile;
+}
+
+// ============ 移动逻辑 ============
+function move(direction) {
+  if (state.isAnimating || state.isGameOver) return;
+  if (document.getElementById('relic-modal').classList.contains('active')) return;
+  if (document.getElementById('end-modal').classList.contains('active')) return;
+  
+  // 重置标记
+  state.tiles.forEach(t => {
+    t.isNew = false;
+    t.merged = false;
+    t.toRemove = false;
+  });
+  
+  let moved = false;
+  let mergeEvents = [];
+  
+  const order = getTraversalOrder(direction);
+  for (const {r, c} of order) {
+    const tile = state.grid[r][c];
+    if (!tile) continue;
+    
+    const dest = findDestination(r, c, direction);
+    if (dest.mergeWith) {
+      const target = dest.mergeWith;
+      state.grid[r][c] = null;
+      tile.row = target.row;
+      tile.col = target.col;
+      tile.toRemove = true;
+      
+      const newValue = target.value * 2;
+      target.value = newValue;
+      target.merged = true;
+      
+      mergeEvents.push({ value: newValue, tile: target });
+      moved = true;
+    } else if (dest.r !== r || dest.c !== c) {
+      state.grid[r][c] = null;
+      state.grid[dest.r][dest.c] = tile;
+      tile.row = dest.r;
+      tile.col = dest.c;
+      moved = true;
+    }
+  }
+  
+  if (!moved) return;
+  
+  state.isAnimating = true;
+  renderTiles();
+  
+  setTimeout(() => {
+    // 删除被合并的方块
+    state.tiles = state.tiles.filter(t => !t.toRemove);
+    document.querySelectorAll('.tile').forEach(el => {
+      const id = parseInt(el.dataset.id);
+      if (!state.tiles.find(t => t.id === id)) el.remove();
+    });
+    
+    // 添加新方块
+    addRandomTile();
+    renderTiles();
+    
+    // 处理回合
+    processTurn(mergeEvents);
+    
+    state.isAnimating = false;
+    
+    // 检查是否游戏结束（网格满且无法移动）
+    if (!canMove()) {
+      setTimeout(() => {
+        showFloatText('窒息!', '#c83e3e', window.innerWidth / 2, window.innerHeight / 2, 'info');
+        state.playerHP = 0;
+        onPlayerDeath();
+      }, 400);
+    }
+  }, 160);
+}
+
+function getTraversalOrder(direction) {
+  const order = [];
+  const range = [0, 1, 2, 3];
+  let rows = [...range];
+  let cols = [...range];
+  
+  if (direction === 'down') rows.reverse();
+  if (direction === 'right') cols.reverse();
+  
+  for (const r of rows) {
+    for (const c of cols) {
+      order.push({ r, c });
+    }
+  }
+  return order;
+}
+
+function findDestination(r, c, direction) {
+  const tile = state.grid[r][c];
+  let dr = 0, dc = 0;
+  if (direction === 'up') dr = -1;
+  if (direction === 'down') dr = 1;
+  if (direction === 'left') dc = -1;
+  if (direction === 'right') dc = 1;
+  
+  let newR = r, newC = c;
+  while (true) {
+    const nextR = newR + dr;
+    const nextC = newC + dc;
+    if (nextR < 0 || nextR >= GRID_SIZE || nextC < 0 || nextC >= GRID_SIZE) break;
+    
+    const nextTile = state.grid[nextR][nextC];
+    if (nextTile) {
+      if (nextTile.value === tile.value && !nextTile.merged) {
+        return { r: nextR, c: nextC, mergeWith: nextTile };
+      }
+      break;
+    }
+    newR = nextR;
+    newC = nextC;
+  }
+  return { r: newR, c: newC, mergeWith: null };
+}
+
+function canMove() {
+  for (let r = 0; r < GRID_SIZE; r++) {
+    for (let c = 0; c < GRID_SIZE; c++) {
+      if (!state.grid[r][c]) return true;
+      const v = state.grid[r][c].value;
+      if (r > 0 && state.grid[r-1][c] && state.grid[r-1][c].value === v) return true;
+      if (r < GRID_SIZE - 1 && state.grid[r+1][c] && state.grid[r+1][c].value === v) return true;
+      if (c > 0 && state.grid[r][c-1] && state.grid[r][c-1].value === v) return true;
+      if (c < GRID_SIZE - 1 && state.grid[r][c+1] && state.grid[r][c+1].value === v) return true;
+    }
+  }
+  return false;
+}
+
+// ============ 回合处理 ============
+function processTurn(mergeEvents) {
+  let totalDamage = 0;
+  let critOccurred = false;
+  let lifestealCount = 0;
+  let bonusDamage = 0;
+  
+  mergeEvents.forEach(event => {
+    let dmg = event.value;
+    
+    if (state.relics.includes('ember')) {
+      bonusDamage += Math.floor(event.value * 0.3);
+    }
+    if (state.relics.includes('lightning') && event.value >= 32) {
+      bonusDamage += Math.floor(event.value * 0.5);
+    }
+    if (state.relics.includes('molten') && event.value >= 64) {
+      bonusDamage += 30;
+    }
+    
+    if (state.relics.includes('crit') && Math.random() < 0.2) {
+      dmg *= 2;
+      critOccurred = true;
+    }
+    
+    if (state.relics.includes('meditation') && state.noMergeCount >= 3) {
+      dmg *= 2;
+      state.noMergeCount = 0;
+      showFloatText('冥想爆发!', '#5fb878', window.innerWidth / 2, window.innerHeight / 2 - 100, 'info');
+    }
+    
+    totalDamage += dmg;
+    state.score += event.value;
+    state.mergeCount++;
+    
+    if (state.relics.includes('lifesteal')) lifestealCount += 1;
+  });
+  
+  totalDamage += bonusDamage;
+  
+  if (mergeEvents.length > 0) {
+    state.noMergeCount = 0;
+    dealDamageToEnemy(totalDamage, critOccurred);
+    
+    if (state.relics.includes('frost') && state.mergeCount % 3 === 0) {
+      state.freezeCount = 1;
+      showFloatText('FROZEN', '#6dd5ed', window.innerWidth / 2, window.innerHeight / 2 - 60, 'info');
+    }
+    
+    if (lifestealCount > 0) {
+      healPlayer(lifestealCount);
+    }
+  } else {
+    state.noMergeCount++;
+  }
+  
+  updateUI();
+  
+  if (state.enemy.hp <= 0) {
+    setTimeout(() => onEnemyDefeated(), 600);
+  } else {
+    setTimeout(() => enemyTurn(), 500);
+  }
+}
+
+// ============ 战斗 ============
+function dealDamageToEnemy(damage, isCrit) {
+  if (damage <= 0) return;
+  
+  state.enemy.hp = Math.max(0, state.enemy.hp - damage);
+  
+  const enemyEl = document.getElementById('enemy-portrait');
+  const rect = enemyEl.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  
+  const isHuge = damage >= 64;
+  showFloatText(`-${damage}`, isCrit ? '#ffd700' : (isHuge ? '#ff3030' : '#ff5050'), cx, rect.top + 20, isCrit ? 'crit' : 'damage');
+  
+  enemyEl.classList.remove('hit');
+  void enemyEl.offsetWidth;
+  enemyEl.classList.add('hit');
+  
+  if (isHuge || isCrit) {
+    document.getElementById('app').classList.remove('shake-strong');
+    void document.getElementById('app').offsetWidth;
+    document.getElementById('app').classList.add('shake-strong');
+    setTimeout(() => document.getElementById('app').classList.remove('shake-strong'), 500);
+  }
+  
+  const particleCount = isCrit ? 24 : (isHuge ? 16 : 8);
+  const color = isCrit ? '#ffd700' : (isHuge ? '#ff3030' : '#ff5050');
+  createParticles(cx, cy, color, particleCount);
+  
+  // 数值闪烁
+  const hpEl = document.getElementById('enemy-hp-text');
+  hpEl.classList.remove('flash');
+  void hpEl.offsetWidth;
+  hpEl.classList.add('flash');
+  
+  updateEnemyUI();
+}
+
+function enemyTurn() {
+  if (state.enemy.hp <= 0) return;
+  if (state.isGameOver) return;
+  
+  if (state.freezeCount > 0) {
+    state.freezeCount--;
+    showFloatText('SKIPPED', '#6dd5ed', window.innerWidth / 2, window.innerHeight / 2, 'info');
+    return;
+  }
+  
+  let damage = state.enemy.atk;
+  
+  if (state.relics.includes('bulwark')) {
+    damage = Math.max(1, damage - 2);
+  }
+  
+  // 先扣护盾
+  if (state.playerShield > 0) {
+    const absorbed = Math.min(state.playerShield, damage);
+    state.playerShield -= absorbed;
+    damage -= absorbed;
+    if (absorbed > 0) {
+      const hpEl = document.getElementById('stat-hp');
+      const rect = hpEl.getBoundingClientRect();
+      showFloatText(`护盾 -${absorbed}`, '#6dd5ed', rect.left + rect.width / 2, rect.top + 20, 'info');
+    }
+  }
+  
+  if (damage > 0) {
+    state.playerHP = Math.max(0, state.playerHP - damage);
+    
+    document.getElementById('app').classList.remove('shake');
+    void document.getElementById('app').offsetWidth;
+    document.getElementById('app').classList.add('shake');
+    setTimeout(() => document.getElementById('app').classList.remove('shake'), 400);
+    
+    document.getElementById('flash-overlay').classList.remove('active');
+    void document.getElementById('flash-overlay').offsetWidth;
+    document.getElementById('flash-overlay').classList.add('active');
+    setTimeout(() => document.getElementById('flash-overlay').classList.remove('active'), 300);
+    
+    const hpEl = document.getElementById('stat-hp');
+    const rect = hpEl.getBoundingClientRect();
+    showFloatText(`-${damage}`, '#ff5050', rect.left + rect.width / 2, rect.top + 20, 'damage');
+  }
+  
+  updateUI();
+  
+  if (state.playerHP <= 0) {
+    setTimeout(() => onPlayerDeath(), 400);
+  }
+}
+
+function healPlayer(amount) {
+  const before = state.playerHP;
+  state.playerHP = Math.min(state.playerMaxHP, state.playerHP + amount);
+  const healed = state.playerHP - before;
+  if (healed > 0) {
+    const hpEl = document.getElementById('stat-hp');
+    const rect = hpEl.getBoundingClientRect();
+    showFloatText(`+${healed}`, '#5fb878', rect.left + rect.width / 2, rect.top + 20, 'heal');
+  }
+}
+
+function onEnemyDefeated() {
+  const goldReward = 10 + state.level * 2 + (state.enemy.isBoss ? 30 : 0);
+  state.gold += goldReward;
+  
+  if (state.relics.includes('greed')) {
+    state.gold += 15;
+  }
+  
+  showFloatText(`+${goldReward} GOLD`, '#f5d27a', window.innerWidth / 2, window.innerHeight / 2, 'gold');
+  
+  // 敌人死亡特效
+  const enemyEl = document.getElementById('enemy-portrait');
+  const rect = enemyEl.getBoundingClientRect();
+  createParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, '#ffd700', 30);
+  
+  setTimeout(() => showRelicSelection(), 900);
+}
+
+function onPlayerDeath() {
+  if (state.relics.includes('phoenix') && !state.phoenixUsed) {
+    state.phoenixUsed = true;
+    state.playerHP = Math.floor(state.playerMaxHP * 0.5);
+    showFloatText('PHOENIX REVIVE!', '#ff8c00', window.innerWidth / 2, window.innerHeight / 2, 'info');
+    
+    const hpEl = document.getElementById('stat-hp');
+    const rect = hpEl.getBoundingClientRect();
+    createParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, '#ff8c00', 30);
+    
+    updateUI();
+    return;
+  }
+  
+  state.isGameOver = true;
+  
+  document.body.style.transition = 'filter 600ms';
+  document.body.style.filter = 'brightness(0.3) saturate(1.5) hue-rotate(-15deg)';
+  
+  setTimeout(() => {
+    showEndScreen();
+    document.body.style.filter = '';
+  }, 800);
+}
+
+function showRelicSelection() {
+  const available = RELICS.filter(r => !state.relics.includes(r.id));
+  if (available.length === 0) {
+    nextFloor();
+    return;
+  }
+  
+  const choices = [];
+  const pool = [...available];
+  for (let i = 0; i < Math.min(3, pool.length); i++) {
+    const idx = Math.floor(Math.random() * pool.length);
+    choices.push(pool[idx]);
+    pool.splice(idx, 1);
+  }
+  
+  const modal = document.getElementById('relic-modal');
+  const cardsEl = document.getElementById('relic-cards');
+  cardsEl.innerHTML = '';
+  
+  choices.forEach((relic, i) => {
+    const card = document.createElement('div');
+    card.className = 'relic-card';
+    card.style.setProperty('--relic-color', relic.color);
+    card.style.setProperty('--relic-glow', relic.color + '60');
+    card.style.animation = `modalContentIn 400ms cubic-bezier(0.34, 1.56, 0.64, 1) ${i * 80}ms backwards`;
+    card.innerHTML = `
+      <div class="relic-card-icon" style="color: ${relic.color}">${relic.icon}</div>
+      <div class="relic-card-tier" style="color: ${relic.color}">${relic.tier}</div>
+      <div class="relic-card-name">${relic.name}</div>
+      <div class="relic-card-desc">${relic.desc}</div>
+    `;
+    card.addEventListener('click', () => {
+      state.relics.push(relic.id);
+      modal.classList.remove('active');
+      setTimeout(() => {
+        nextFloor();
+        updateUI();
+      }, 300);
+    });
+    cardsEl.appendChild(card);
+  });
+  
+  modal.classList.add('active');
+}
+
+function nextFloor() {
+  state.level++;
+  spawnEnemy();
+  
+  state.grid = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
+  state.tiles = [];
+  document.getElementById('tile-container').innerHTML = '';
+  addRandomTile();
+  addRandomTile();
+  
+  renderTiles();
+  updateUI();
+  
+  const overlay = document.getElementById('transition-overlay');
+  overlay.classList.add('active');
+  setTimeout(() => overlay.classList.remove('active'), 400);
+  
+  showFloatText(`LAYER ${state.level}`, '#f5d27a', window.innerWidth / 2, window.innerHeight / 2, 'info');
+}
+
+function showEndScreen() {
+  const modal = document.getElementById('end-modal');
+  const titleEl = document.getElementById('end-title');
+  const subtitleEl = document.getElementById('end-subtitle');
+  const statsEl = document.getElementById('end-stats');
+  
+  titleEl.textContent = 'DEFEATED';
+  subtitleEl.textContent = `你倒在了第 ${state.level} 层`;
+  
+  statsEl.innerHTML = `
+    <div class="end-stat">
+      <div class="end-stat-label">到达层数</div>
+      <div class="end-stat-value">${state.level}</div>
+    </div>
+    <div class="end-stat">
+      <div class="end-stat-label">最终分数</div>
+      <div class="end-stat-value">${state.score}</div>
+    </div>
+    <div class="end-stat">
+      <div class="end-stat-label">获得圣物</div>
+      <div class="end-stat-value">${state.relics.length}</div>
+    </div>
+    <div class="end-stat">
+      <div class="end-stat-label">金币</div>
+      <div class="end-stat-value">${state.gold}</div>
+    </div>
+  `;
+  
+  modal.classList.add('active');
+}
+
+// ============ 渲染 ============
+function renderGrid() {
+  const gridBg = document.getElementById('grid-bg');
+  gridBg.innerHTML = '';
+  for (let i = 0; i < 16; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'grid-cell';
+    gridBg.appendChild(cell);
+  }
+}
+
+function renderTiles() {
+  const container = document.getElementById('tile-container');
+  
+  const currentIds = new Set(state.tiles.map(t => t.id));
+  container.querySelectorAll('.tile').forEach(el => {
+    if (!currentIds.has(parseInt(el.dataset.id))) {
+      el.remove();
+    }
+  });
+  
+  state.tiles.forEach(tile => {
+    let el = container.querySelector(`[data-id="${tile.id}"]`);
+    let isNewElement = false;
+    if (!el) {
+      el = document.createElement('div');
+      el.dataset.id = tile.id;
+      el.innerHTML = '<div class="tile-inner"></div>';
+      container.appendChild(el);
+      isNewElement = true;
+    }
+    
+    const x = tile.col * (CELL_SIZE + GAP);
+    const y = tile.row * (CELL_SIZE + GAP);
+    el.style.setProperty('--x', `${x}px`);
+    el.style.setProperty('--y', `${y}px`);
+    
+    const inner = el.querySelector('.tile-inner');
+    inner.textContent = tile.value;
+    
+    // 更新 class（保留动画 class）
+    el.classList.add('tile');
+    Array.from(el.classList).forEach(cls => {
+      if (/^tile-\d+$/.test(cls)) el.classList.remove(cls);
+    });
+    const valueClass = tile.value <= 2048 ? `tile-${tile.value}` : 'tile-2048';
+    el.classList.add(valueClass);
+    
+    if (isNewElement || tile.isNew) {
+      el.classList.remove('appear');
+      void el.offsetWidth;
+      el.classList.add('appear');
+    }
+    if (tile.merged) {
+      el.classList.remove('merged');
+      void el.offsetWidth;
+      el.classList.add('merged');
+    }
+  });
+}
+
+function updateUI() {
+  document.getElementById('stat-level').textContent = state.level;
+  
+  const hpText = state.playerShield > 0 
+    ? `${state.playerHP}+${state.playerShield}` 
+    : `${state.playerHP}`;
+  document.getElementById('stat-hp').textContent = hpText;
+  
+  document.getElementById('stat-gold').textContent = state.gold;
+  document.getElementById('stat-score').textContent = state.score;
+  
+  const hpPct = (state.playerHP / state.playerMaxHP) * 100;
+  document.getElementById('hp-mini-fill').style.width = `${hpPct}%`;
+  
+  updateEnemyUI();
+  updateRelicUI();
+}
+
+function updateEnemyUI() {
+  if (!state.enemy) return;
+  
+  document.getElementById('enemy-name').textContent = state.enemy.name;
+  
+  const tierEl = document.getElementById('enemy-tier-text');
+  tierEl.textContent = state.enemy.tier;
+  tierEl.className = 'enemy-tier ' + (state.enemy.isBoss ? 'boss' : (state.enemy.tier === 'ELITE' ? 'elite' : ''));
+  
+  document.getElementById('enemy-tier-badge').textContent = `TIER ${'I'.repeat(Math.min(state.level, 10))}`;
+  document.getElementById('enemy-atk').textContent = state.enemy.atk;
+  document.getElementById('enemy-def').textContent = state.enemy.def;
+  
+  const hpPct = (state.enemy.hp / state.enemy.maxHp) * 100;
+  document.getElementById('enemy-hp-fill').style.width = `${hpPct}%`;
+  document.getElementById('enemy-hp-text').textContent = `${state.enemy.hp} / ${state.enemy.maxHp}`;
+  
+  const portrait = document.getElementById('enemy-portrait');
+  portrait.innerHTML = ENEMY_SVGS[state.enemy.svg] || '';
+  portrait.classList.toggle('boss', state.enemy.isBoss);
+}
+
+function updateRelicUI() {
+  const listEl = document.getElementById('relic-list');
+  const countEl = document.getElementById('relic-count');
+  
+  countEl.textContent = `${state.relics.length} / ${RELICS.length}`;
+  
+  if (state.relics.length === 0) {
+    listEl.innerHTML = '<div class="relic-empty">击败敌人后<br>可选择圣物</div>';
+    return;
+  }
+  
+  listEl.innerHTML = '';
+  state.relics.forEach(relicId => {
+    const relic = RELICS.find(r => r.id === relicId);
+    if (!relic) return;
+    
+    const item = document.createElement('div');
+    item.className = 'relic-item';
+    item.innerHTML = `
+      <div class="relic-icon" style="color: ${relic.color}; border-color: ${relic.color}40;">${relic.icon}</div>
+      <div class="relic-info">
+        <div class="relic-name" style="color: ${relic.color};">${relic.name}</div>
+        <div class="relic-desc">${relic.desc}</div>
+      </div>
+    `;
+    listEl.appendChild(item);
+  });
+}
+
+// ============ 特效 ============
+function showFloatText(text, color, x, y, type = 'damage') {
+  const el = document.createElement('div');
+  el.className = `float-text ${type}`;
+  el.textContent = text;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  el.style.color = color;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 900);
+}
+
+function createParticles(x, y, color, count = 8) {
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const size = 4 + Math.random() * 6;
+    p.style.width = `${size}px`;
+    p.style.height = `${size}px`;
+    p.style.left = `${x}px`;
+    p.style.top = `${y}px`;
+    p.style.background = color;
+    p.style.boxShadow = `0 0 10px ${color}, 0 0 20px ${color}`;
+    document.body.appendChild(p);
+    
+    const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+    const speed = 80 + Math.random() * 80;
+    const dx = Math.cos(angle) * speed;
+    const dy = Math.sin(angle) * speed - 30;
+    
+    p.animate([
+      { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0)`, opacity: 0 }
+    ], {
+      duration: 700 + Math.random() * 300,
+      easing: 'cubic-bezier(0.4, 0, 0.2, 1)'
+    });
+    
+    setTimeout(() => p.remove(), 1000);
+  }
+}
+
+// ============ 星空背景 ============
+function initStars() {
+  const canvas = document.getElementById('stars');
+  const ctx = canvas.getContext('2d');
+  
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  
+  const stars = [];
+  for (let i = 0; i < 180; i++) {
+    stars.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 1.5 + 0.3,
+      a: Math.random(),
+      v: Math.random() * 0.015 + 0.003,
+      color: Math.random() < 0.25 ? '#d4a056' : (Math.random() < 0.4 ? '#8b5cf6' : '#ffffff')
+    });
+  }
+  
+  const orbs = [];
+  for (let i = 0; i < 8; i++) {
+    orbs.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: 80 + Math.random() * 100,
+      vx: (Math.random() - 0.5) * 0.25,
+      vy: (Math.random() - 0.5) * 0.25,
+      color: ['rgba(139, 92, 246, 0.07)', 'rgba(212, 160, 86, 0.06)', 'rgba(200, 62, 62, 0.05)'][i % 3]
+    });
+  }
+  
+  function animate() {
+    ctx.fillStyle = 'rgba(8, 5, 15, 0.35)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    orbs.forEach(o => {
+      const gradient = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.r);
+      gradient.addColorStop(0, o.color);
+      gradient.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+      ctx.fill();
+      
+      o.x += o.vx;
+      o.y += o.vy;
+      if (o.x < -o.r) o.x = canvas.width + o.r;
+      if (o.x > canvas.width + o.r) o.x = -o.r;
+      if (o.y < -o.r) o.y = canvas.height + o.r;
+      if (o.y > canvas.height + o.r) o.y = -o.r;
+    });
+    
+    stars.forEach(s => {
+      s.a += s.v;
+      if (s.a > 1 || s.a < 0.1) s.v = -s.v;
+      
+      ctx.globalAlpha = Math.max(0, s.a) * 0.85;
+      ctx.fillStyle = s.color;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+      
+      if (s.r > 1) {
+        ctx.globalAlpha = Math.max(0, s.a) * 0.3;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r * 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+    ctx.globalAlpha = 1;
+    
+    requestAnimationFrame(animate);
+  }
+  animate();
+}
+
+// ============ 输入 ============
+function handleKey(e) {
+  if (state.isGameOver) return;
+  if (document.getElementById('relic-modal').classList.contains('active')) return;
+  if (document.getElementById('end-modal').classList.contains('active')) return;
+  
+  let dir = null;
+  const k = e.key.toLowerCase();
+  if (e.key === 'ArrowUp' || k === 'w') dir = 'up';
+  if (e.key === 'ArrowDown' || k === 's') dir = 'down';
+  if (e.key === 'ArrowLeft' || k === 'a') dir = 'left';
+  if (e.key === 'ArrowRight' || k === 'd') dir = 'right';
+  
+  if (dir) {
+    e.preventDefault();
+    move(dir);
+  }
+}
+
+let touchStart = null;
+function handleTouchStart(e) {
+  if (e.touches.length === 1) {
+    touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }
+}
+function handleTouchEnd(e) {
+  if (!touchStart) return;
+  const touch = e.changedTouches[0];
+  const dx = touch.clientX - touchStart.x;
+  const dy = touch.clientY - touchStart.y;
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+  
+  if (Math.max(absDx, absDy) > 25) {
+    if (absDx > absDy) {
+      move(dx > 0 ? 'right' : 'left');
+    } else {
+      move(dy > 0 ? 'down' : 'up');
+    }
+  }
+  touchStart = null;
+}
+
+// ============ 启动 ============
+document.addEventListener('keydown', handleKey);
+document.getElementById('grid-board').addEventListener('touchstart', handleTouchStart, { passive: true });
+document.getElementById('grid-board').addEventListener('touchend', handleTouchEnd, { passive: true });
+document.getElementById('restart-btn').addEventListener('click', () => {
+  document.getElementById('end-modal').classList.remove('active');
+  init();
+});
+
+initStars();
+init();
+</script>
+</body>
+</html>
