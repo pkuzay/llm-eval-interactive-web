@@ -11,7 +11,8 @@ answers/
 ├── 02-fpv-drone-simulator/
 │   ├── deepseek/
 │   ├── kimi-k3/
-│   └── glm-5.2/
+│   ├── glm-5.2/
+│   └── qwen-3.8-max-preview/
 ├── 03-racing-telemetry-analyzer/
 │   ├── deepseek/
 │   ├── kimi-k3/
