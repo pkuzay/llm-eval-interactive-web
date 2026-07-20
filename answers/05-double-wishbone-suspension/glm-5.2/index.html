@@ -1,0 +1,1959 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>DA-SUSP // 双叉臂悬挂运动学分析系统</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Barlow+Condensed:wght@300;500;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-0: #0f1115;
+  --bg-1: #16181d;
+  --bg-2: #1c1f25;
+  --bg-3: #232730;
+  --bg-4: #2c313c;
+  --border-0: #2e333c;
+  --border-1: #3d434e;
+  --text-0: #d8dce2;
+  --text-1: #8a909a;
+  --text-2: #565c66;
+  --text-3: #383d45;
+  --accent: #ff7a18;
+  --accent-dim: #b85510;
+  --warn: #ffb800;
+  --info: #4dabf7;
+  --ok: #51cf66;
+  --err: #ff4d4d;
+  --c-upper: #4dabf7;
+  --c-lower: #51cf66;
+  --c-spindle: #ff4d4d;
+  --c-damper: #b8bdc6;
+  --c-tierod: #ffd43b;
+  --c-wheel: #6a707a;
+  --c-knuckle: #9aa0a8;
+  --c-chassis: #4a4f58;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-0);
+  color: var(--text-0);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  overflow: hidden;
+  user-select: none;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: 34px 1fr 22px;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* 顶部 */
+.topbar {
+  display: flex;
+  align-items: center;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border-0);
+  padding: 0 12px;
+  gap: 24px;
+}
+.topbar .logo {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+.topbar .logo span { color: var(--text-0); font-weight: 300; }
+.topbar .breadcrumb {
+  display: flex;
+  gap: 10px;
+  color: var(--text-1);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+.topbar .breadcrumb .sep { color: var(--text-3); }
+.topbar .session {
+  margin-left: auto;
+  display: flex;
+  gap: 18px;
+  color: var(--text-1);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+.topbar .session .item { display: flex; gap: 6px; }
+.topbar .session .label { color: var(--text-2); }
+.topbar .session .value { color: var(--text-0); }
+
+/* 主区域 */
+.main {
+  display: grid;
+  grid-template-columns: 250px 1fr 340px;
+  overflow: hidden;
+}
+
+/* 左面板 */
+.left-panel {
+  background: var(--bg-1);
+  border-right: 1px solid var(--border-0);
+  overflow-y: auto;
+}
+.panel-section {
+  border-bottom: 1px solid var(--border-0);
+  padding: 10px 12px;
+}
+.panel-section .title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 9px;
+  color: var(--text-2);
+  letter-spacing: 0.12em;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+.panel-section .title .badge {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 9px;
+}
+.control { margin-bottom: 10px; }
+.control-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-1);
+  margin-bottom: 4px;
+  letter-spacing: 0.03em;
+}
+.control-label .value {
+  color: var(--text-0);
+  font-weight: 500;
+}
+input[type="range"] {
+  width: 100%;
+  height: 4px;
+  background: var(--bg-3);
+  appearance: none;
+  outline: none;
+  border: 1px solid var(--border-0);
+}
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 8px;
+  height: 14px;
+  background: var(--accent);
+  cursor: pointer;
+  border: none;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 8px;
+  height: 14px;
+  background: var(--accent);
+  cursor: pointer;
+  border: none;
+  border-radius: 0;
+}
+.button-group {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 3px;
+}
+.button-group.three { grid-template-columns: repeat(3, 1fr); }
+button.btn {
+  background: var(--bg-3);
+  border: 1px solid var(--border-0);
+  color: var(--text-1);
+  padding: 5px 6px;
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  text-align: left;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+}
+button.btn:hover {
+  background: var(--bg-4);
+  color: var(--text-0);
+}
+button.btn.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--text-0);
+}
+button.btn .indicator {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  background: var(--text-3);
+  margin-right: 6px;
+}
+button.btn.active .indicator { background: var(--accent); }
+.toggle-list .toggle {
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 10px;
+  color: var(--text-1);
+  cursor: pointer;
+  letter-spacing: 0.02em;
+}
+.toggle-list .toggle .check {
+  width: 11px;
+  height: 11px;
+  border: 1px solid var(--border-1);
+  margin-right: 8px;
+  background: var(--bg-2);
+  position: relative;
+  flex-shrink: 0;
+}
+.toggle-list .toggle input { display: none; }
+.toggle-list .toggle input:checked + .check::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  background: var(--accent);
+}
+.toggle-list .toggle input:checked ~ .label { color: var(--text-0); }
+
+/* 视口 */
+.viewport {
+  position: relative;
+  background: var(--bg-0);
+  overflow: hidden;
+}
+#mainCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.viewport-overlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 9px;
+  pointer-events: none;
+}
+.viewport-overlay .info-block {
+  background: rgba(15, 17, 21, 0.88);
+  border: 1px solid var(--border-0);
+  padding: 3px 7px;
+  letter-spacing: 0.05em;
+  display: flex;
+  gap: 6px;
+}
+.viewport-overlay .info-block .lbl { color: var(--text-2); }
+.viewport-overlay .info-block .val { color: var(--accent); font-weight: 500; }
+.viewport-legend {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(15, 17, 21, 0.88);
+  border: 1px solid var(--border-0);
+  padding: 6px 8px;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+.viewport-legend .lg-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+  color: var(--text-1);
+}
+.viewport-legend .lg-color {
+  width: 14px;
+  height: 2px;
+}
+.viewport-controls {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  gap: 3px;
+}
+.viewport-controls button {
+  background: rgba(15, 17, 21, 0.88);
+  border: 1px solid var(--border-0);
+  color: var(--text-1);
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 9px;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+}
+.viewport-controls button:hover { background: var(--bg-3); color: var(--text-0); }
+.viewport-controls button.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--text-0);
+}
+.viewport-axes {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 70px;
+  height: 70px;
+  pointer-events: none;
+}
+.viewport-scalebar {
+  position: absolute;
+  bottom: 50px;
+  right: 8px;
+  background: rgba(15, 17, 21, 0.88);
+  border: 1px solid var(--border-0);
+  padding: 3px 7px;
+  font-size: 9px;
+  color: var(--text-1);
+  letter-spacing: 0.05em;
+}
+
+/* 右面板 */
+.right-panel {
+  background: var(--bg-1);
+  border-left: 1px solid var(--border-0);
+  display: grid;
+  grid-template-rows: 1fr 1fr 1fr auto;
+  overflow: hidden;
+}
+.view-cell {
+  border-bottom: 1px solid var(--border-0);
+  position: relative;
+  overflow: hidden;
+}
+.view-cell .view-label {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  font-size: 9px;
+  color: var(--text-2);
+  letter-spacing: 0.1em;
+  z-index: 2;
+  background: rgba(15, 17, 21, 0.7);
+  padding: 2px 5px;
+  border: 1px solid var(--border-0);
+}
+.view-cell .view-info {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 9px;
+  color: var(--text-2);
+  z-index: 2;
+  background: rgba(15, 17, 21, 0.7);
+  padding: 2px 5px;
+  border: 1px solid var(--border-0);
+  letter-spacing: 0.05em;
+}
+.view-cell canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.data-panel {
+  padding: 8px 10px;
+  overflow-y: auto;
+  max-height: 200px;
+}
+.data-panel .title {
+  font-size: 9px;
+  color: var(--text-2);
+  letter-spacing: 0.12em;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+}
+.data-panel .title .live {
+  color: var(--ok);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.data-panel .title .live::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  background: var(--ok);
+  display: inline-block;
+  animation: blink 1s infinite;
+}
+@keyframes blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.3; }
+}
+.data-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border-0);
+  border: 1px solid var(--border-0);
+}
+.data-item {
+  background: var(--bg-1);
+  padding: 4px 6px;
+  font-size: 10px;
+}
+.data-item .lbl {
+  color: var(--text-2);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  display: block;
+  margin-bottom: 1px;
+  text-transform: uppercase;
+}
+.data-item .val {
+  color: var(--text-0);
+  font-weight: 500;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.data-item .val .unit {
+  color: var(--text-2);
+  font-size: 8px;
+  margin-left: 2px;
+  font-weight: 300;
+}
+.data-item.accent .val { color: var(--accent); }
+.data-item.warn .val { color: var(--warn); }
+
+/* 状态栏 */
+.statusbar {
+  background: var(--bg-1);
+  border-top: 1px solid var(--border-0);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 9px;
+  color: var(--text-1);
+  gap: 18px;
+  letter-spacing: 0.05em;
+}
+.statusbar .item { display: flex; gap: 6px; }
+.statusbar .item .lbl { color: var(--text-2); }
+.statusbar .item .val { color: var(--text-0); }
+.statusbar .status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.statusbar .status .dot {
+  width: 6px;
+  height: 6px;
+  background: var(--ok);
+}
+.statusbar .status .dot.warn { background: var(--warn); }
+.statusbar .status .dot.err { background: var(--err); }
+.statusbar .spacer { flex: 1; }
+
+/* 滚动条 */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg-1); }
+::-webkit-scrollbar-thumb { background: var(--border-0); }
+::-webkit-scrollbar-thumb:hover { background: var(--border-1); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="logo">DA-SUSP<span> // 双叉臂悬挂运动学分析</span></div>
+    <div class="breadcrumb">
+      <span>PROJECT</span><span class="sep">/</span>
+      <span>FRONT_SUSP_DA2</span><span class="sep">/</span>
+      <span>RH_ASSEMBLY</span><span class="sep">/</span>
+      <span>KINEMATIC_SOLVER</span>
+    </div>
+    <div class="session">
+      <div class="item"><span class="label">UNIT</span><span class="value">MM/DEG</span></div>
+      <div class="item"><span class="label">COORD</span><span class="value">ISO_VEHICLE</span></div>
+      <div class="item"><span class="label">ENG</span><span class="value">ENG-01</span></div>
+      <div class="item"><span class="label">SESSION</span><span class="value" id="sessionId">--</span></div>
+    </div>
+  </header>
+  
+  <div class="main">
+    <aside class="left-panel">
+      <div class="panel-section">
+        <div class="title"><span>JOUNCE / 轮跳模拟</span><span class="badge">M-01</span></div>
+        <div class="control">
+          <div class="control-label"><span>跳动位移</span><span class="value" id="jounceVal">0.0 mm</span></div>
+          <input type="range" id="jounceSlider" min="-100" max="100" value="0" step="0.5">
+        </div>
+        <div class="control">
+          <div class="control-label"><span>驱动频率</span><span class="value" id="freqVal">0.50 Hz</span></div>
+          <input type="range" id="freqSlider" min="5" max="200" value="50" step="1">
+        </div>
+        <div class="button-group three">
+          <button class="btn" data-jounce-mode="manual"><span class="indicator"></span>手动</button>
+          <button class="btn active" data-jounce-mode="auto"><span class="indicator"></span>正弦</button>
+          <button class="btn" data-jounce-mode="cycle"><span class="indicator"></span>扫频</button>
+        </div>
+      </div>
+      
+      <div class="panel-section">
+        <div class="title"><span>STEER / 转向模拟</span><span class="badge">M-02</span></div>
+        <div class="control">
+          <div class="control-label"><span>转向角度</span><span class="value" id="steerVal">0.0°</span></div>
+          <input type="range" id="steerSlider" min="-35" max="35" value="0" step="0.5">
+        </div>
+        <div class="control">
+          <div class="control-label"><span>扫频速度</span><span class="value" id="sweepVal">0.30 Hz</span></div>
+          <input type="range" id="sweepSlider" min="5" max="120" value="30" step="1">
+        </div>
+        <div class="button-group three">
+          <button class="btn active" data-steer-mode="manual"><span class="indicator"></span>手动</button>
+          <button class="btn" data-steer-mode="sine"><span class="indicator"></span>正弦</button>
+          <button class="btn" data-steer-mode="sweep"><span class="indicator"></span>扫频</button>
+        </div>
+      </div>
+      
+      <div class="panel-section">
+        <div class="title"><span>TRACE / 运动轨迹</span><span class="badge">M-03</span></div>
+        <div class="toggle-list">
+          <label class="toggle">
+            <input type="checkbox" id="showTraceSpindle" checked>
+            <span class="check"></span>
+            <span class="label">主销轴线轨迹</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="showTraceWheel" checked>
+            <span class="check"></span>
+            <span class="label">车轮中心轨迹</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="showTraceBall" checked>
+            <span class="check"></span>
+            <span class="label">球头节点轨迹</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="showTraceTierod">
+            <span class="check"></span>
+            <span class="label">转向拉杆外端轨迹</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="showEnvelope" checked>
+            <span class="check"></span>
+            <span class="label">运动包络范围</span>
+          </label>
+        </div>
+      </div>
+      
+      <div class="panel-section">
+        <div class="title"><span>DISPLAY / 显示选项</span><span class="badge">M-04</span></div>
+        <div class="toggle-list">
+          <label class="toggle">
+            <input type="checkbox" id="showGrid" checked>
+            <span class="check"></span>
+            <span class="label">参考网格地面</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="showChassis" checked>
+            <span class="check"></span>
+            <span class="label">车架副车架结构</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="showSpring" checked>
+            <span class="check"></span>
+            <span class="label">螺旋弹簧可视化</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="showKingpinExt" checked>
+            <span class="check"></span>
+            <span class="label">主销轴线延长</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="showContact" checked>
+            <span class="check"></span>
+            <span class="label">接地点与主销投影</span>
+          </label>
+        </div>
+      </div>
+      
+      <div class="panel-section">
+        <div class="title"><span>VIEW / 视图预设</span><span class="badge">M-05</span></div>
+        <div class="button-group">
+          <button class="btn" data-view="iso">ISO</button>
+          <button class="btn" data-view="front">FRONT</button>
+          <button class="btn" data-view="side">SIDE</button>
+          <button class="btn" data-view="top">TOP</button>
+          <button class="btn" data-view="reset">RESET</button>
+          <button class="btn" data-view="fit">FIT</button>
+        </div>
+      </div>
+      
+      <div class="panel-section">
+        <div class="title"><span>SIM / 模拟控制</span><span class="badge">M-06</span></div>
+        <div class="button-group">
+          <button class="btn" id="playPause"><span class="indicator"></span>PAUSE</button>
+          <button class="btn" id="resetTraces">CLEAR TRACE</button>
+        </div>
+        <div class="control" style="margin-top:8px">
+          <div class="control-label"><span>仿真速度</span><span class="value" id="speedVal">1.00x</span></div>
+          <input type="range" id="speedSlider" min="0" max="300" value="100" step="1">
+        </div>
+      </div>
+    </aside>
+    
+    <div class="viewport">
+      <canvas id="mainCanvas"></canvas>
+      <div class="viewport-overlay">
+        <div class="info-block"><span class="lbl">MODE</span><span class="val" id="ovMode">KINEMATIC</span></div>
+        <div class="info-block"><span class="lbl">VIEW</span><span class="val" id="ovView">PERSPECTIVE</span></div>
+        <div class="info-block"><span class="lbl">FPS</span><span class="val" id="ovFps">60</span></div>
+        <div class="info-block"><span class="lbl">SOLVE</span><span class="val" id="ovSolve">0.0ms</span></div>
+      </div>
+      <div class="viewport-legend">
+        <div class="lg-item"><span class="lg-color" style="background:#4dabf7"></span>UPPER ARM</div>
+        <div class="lg-item"><span class="lg-color" style="background:#51cf66"></span>LOWER ARM</div>
+        <div class="lg-item"><span class="lg-color" style="background:#ff4d4d"></span>KINGPIN / SPINDLE</div>
+        <div class="lg-item"><span class="lg-color" style="background:#ffd43b"></span>TIE ROD</div>
+        <div class="lg-item"><span class="lg-color" style="background:#b8bdc6"></span>DAMPER</div>
+        <div class="lg-item"><span class="lg-color" style="background:#ff7a18"></span>WHEEL CENTER</div>
+      </div>
+      <div class="viewport-scalebar">SCALE 1:8 // 100mm</div>
+      <div class="viewport-controls">
+        <button id="btnGrid" class="active">GRID</button>
+        <button id="btnLabels" class="active">LABELS</button>
+        <button id="btnAxis" class="active">AXIS</button>
+      </div>
+      <canvas class="viewport-axes" id="axesCanvas" width="140" height="140"></canvas>
+    </div>
+    
+    <aside class="right-panel">
+      <div class="view-cell">
+        <div class="view-label">FRONT VIEW // X-AXIS</div>
+        <div class="view-info" id="frontInfo">1:8</div>
+        <canvas id="frontCanvas"></canvas>
+      </div>
+      <div class="view-cell">
+        <div class="view-label">SIDE VIEW // Z-AXIS</div>
+        <div class="view-info" id="sideInfo">1:8</div>
+        <canvas id="sideCanvas"></canvas>
+      </div>
+      <div class="view-cell">
+        <div class="view-label">TOP VIEW // Y-AXIS</div>
+        <div class="view-info" id="topInfo">1:8</div>
+        <canvas id="topCanvas"></canvas>
+      </div>
+      <div class="data-panel">
+        <div class="title"><span>REAL-TIME PARAMETERS</span><span class="live">LIVE</span></div>
+        <div class="data-grid">
+          <div class="data-item accent"><span class="lbl">JOUNCE</span><span class="val" id="dJounce">0.0<span class="unit">mm</span></span></div>
+          <div class="data-item accent"><span class="lbl">STEER ANGLE</span><span class="val" id="dSteer">0.0<span class="unit">deg</span></span></div>
+          <div class="data-item"><span class="lbl">CAMBER</span><span class="val" id="dCamber">0.0<span class="unit">deg</span></span></div>
+          <div class="data-item"><span class="lbl">TOE</span><span class="val" id="dToe">0.0<span class="unit">deg</span></span></div>
+          <div class="data-item"><span class="lbl">CASTER</span><span class="val" id="dCaster">0.0<span class="unit">deg</span></span></div>
+          <div class="data-item"><span class="lbl">KPI</span><span class="val" id="dKpi">0.0<span class="unit">deg</span></span></div>
+          <div class="data-item"><span class="lbl">SCRUB RADIUS</span><span class="val" id="dScrub">0.0<span class="unit">mm</span></span></div>
+          <div class="data-item"><span class="lbl">MECH TRAIL</span><span class="val" id="dTrail">0.0<span class="unit">mm</span></span></div>
+          <div class="data-item"><span class="lbl">TRACK Δ</span><span class="val" id="dTrack">0.0<span class="unit">mm</span></span></div>
+          <div class="data-item"><span class="lbl">WHEEL BASE Δ</span><span class="val" id="dBase">0.0<span class="unit">mm</span></span></div>
+          <div class="data-item"><span class="lbl">DAMPER LEN</span><span class="val" id="dDamper">0.0<span class="unit">mm</span></span></div>
+          <div class="data-item"><span class="lbl">DAMPER Δ</span><span class="val" id="dDamperDelta">0.0<span class="unit">mm</span></span></div>
+          <div class="data-item warn"><span class="lbl">TIEROD LEN</span><span class="val" id="dTierod">0.0<span class="unit">mm</span></span></div>
+          <div class="data-item warn"><span class="lbl">BUMP STEER</span><span class="val" id="dBumpSteer">0.0<span class="unit">deg</span></span></div>
+          <div class="data-item"><span class="lbl">ROLL CENTER H</span><span class="val" id="dRollH">0.0<span class="unit">mm</span></span></div>
+          <div class="data-item"><span class="lbl">ROLL CENTER L</span><span class="val" id="dRollL">0.0<span class="unit">mm</span></span></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+  
+  <footer class="statusbar">
+    <div class="status"><span class="dot" id="statusDot"></span><span id="statusText">SOLVER ACTIVE</span></div>
+    <div class="item"><span class="lbl">METHOD</span><span class="val">ANALYTIC IK</span></div>
+    <div class="item"><span class="lbl">ITER</span><span class="val" id="stIter">3</span></div>
+    <div class="item"><span class="lbl">TOL</span><span class="val">1.0E-6</span></div>
+    <div class="item"><span class="lbl">DOF</span><span class="val">2</span></div>
+    <div class="item"><span class="lbl">CONST</span><span class="val">5</span></div>
+    <div class="spacer"></div>
+    <div class="item"><span class="lbl">VERSION</span><span class="val">DA-SUSP 2.1.0</span></div>
+    <div class="item"><span class="lbl">BUILD</span><span class="val">20240115</span></div>
+    <div class="item"><span class="lbl">LIC</span><span class="val">EDU-7741</span></div>
+  </footer>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ================== 悬挂几何参数 ==================
+// 坐标系: X=前向, Y=向上, Z=向右(车外侧)
+const SUSPENSION = {
+  // 上叉臂内端点（车架侧两个安装点）
+  upperInnerFront: new THREE.Vector3(-85, 410, 250),
+  upperInnerRear:  new THREE.Vector3(75, 410, 250),
+  upperArmLength: 220,
+  // 下叉臂内端点（副车架侧两个安装点）
+  lowerInnerFront: new THREE.Vector3(-100, 200, 200),
+  lowerInnerRear:  new THREE.Vector3(100, 200, 200),
+  lowerArmLength: 290,
+  // 转向节长度（上下球头之间）
+  spindleLength: 0, // 后续计算
+  // 转向节局部坐标系下关键点（相对下球头：Y=主销方向, Z=车轴外向, X=前向）
+  wheelCenterLocal: new THREE.Vector3(0, 95, 105),
+  tierodEndLocal: new THREE.Vector3(125, -25, -55),
+  // 车轮
+  wheelRadius: 300,
+  wheelWidth: 215,
+  // 转向拉杆内端（转向机输出端）
+  tierodInner: new THREE.Vector3(70, 215, 70),
+  // 减震器上端（塔顶）
+  damperUpper: new THREE.Vector3(-15, 580, 285),
+  damperLowerOnArmRatio: 0.72,
+  // 副车架
+  subframeY: 195,
+};
+
+const lowerInnerMid = new THREE.Vector3().addVectors(SUSPENSION.lowerInnerFront, SUSPENSION.lowerInnerRear).multiplyScalar(0.5);
+const upperInnerMid = new THREE.Vector3().addVectors(SUSPENSION.upperInnerFront, SUSPENSION.upperInnerRear).multiplyScalar(0.5);
+const lowerInnerDir = new THREE.Vector3().subVectors(SUSPENSION.lowerInnerRear, SUSPENSION.lowerInnerFront).normalize();
+const upperInnerDir = new THREE.Vector3().subVectors(SUSPENSION.upperInnerRear, SUSPENSION.upperInnerFront).normalize();
+
+// 静止状态下球头位置（α_l=α_u=0）
+const B_l_0 = lowerInnerMid.clone().add(new THREE.Vector3(0, 0, SUSPENSION.lowerArmLength));
+const B_u_0 = upperInnerMid.clone().add(new THREE.Vector3(0, 0, SUSPENSION.upperArmLength));
+SUSPENSION.spindleLength = B_l_0.distanceTo(B_u_0);
+
+// 静止主销方向（从下球头指向上球头）
+const K0 = new THREE.Vector3().subVectors(B_u_0, B_l_0).normalize();
+// 静止车轴方向（水平，垂直于K0，在+Z方向附近）
+const worldZ = new THREE.Vector3(0, 0, 1);
+const A0 = worldZ.clone().sub(K0.clone().multiplyScalar(K0.dot(worldZ))).normalize();
+// 静止前向（K0 × A0）
+const F0 = new THREE.Vector3().crossVectors(K0, A0).normalize();
+
+// 初始减震器长度（用于计算变化量）
+const initialDamper = (() => {
+  const armDir0 = new THREE.Vector3(0, 0, 1);
+  const damperLower0 = lowerInnerMid.clone().add(armDir0.multiplyScalar(SUSPENSION.lowerArmLength * SUSPENSION.damperLowerOnArmRatio));
+  return { lower: damperLower0, length: damperLower0.distanceTo(SUSPENSION.damperUpper) };
+})();
+
+const initialTierodLength = SUSPENSION.tierodInner.distanceTo(
+  (() => {
+    const tierodWorld = B_l_0.clone()
+      .add(F0.clone().multiplyScalar(SUSPENSION.tierodEndLocal.x))
+      .add(K0.clone().multiplyScalar(SUSPENSION.tierodEndLocal.y))
+      .add(A0.clone().multiplyScalar(SUSPENSION.tierodEndLocal.z));
+    return tierodWorld;
+  })()
+);
+
+// ================== 求解器 ==================
+// 已知轮跳h，求B_l, B_u以及上下叉臂摆角
+function solveSuspension(jounce) {
+  const L_l = SUSPENSION.lowerArmLength;
+  const L_u = SUSPENSION.upperArmLength;
+  const L_s = SUSPENSION.spindleLength;
+  
+  // 下叉臂摆角α_l：B_l.y = lowerInnerMid.y + L_l*sin(α_l)
+  // 跳动h对应B_l.y变化h（近似），故 sin(α_l) = h / L_l
+  const h = jounce;
+  const alpha_l = Math.asin(THREE.MathUtils.clamp(h / L_l, -0.95, 0.95));
+  const B_l = lowerInnerMid.clone().add(
+    new THREE.Vector3(0, L_l * Math.sin(alpha_l), L_l * Math.cos(alpha_l))
+  );
+  
+  // 求α_u使|B_u - B_l| = L_s
+  const dx = upperInnerMid.x - B_l.x;
+  const A = upperInnerMid.y - B_l.y;
+  const B = upperInnerMid.z - B_l.z;
+  const C2 = L_s * L_s - dx * dx;
+  if (C2 < 0) return null;
+  const C = Math.sqrt(C2);
+  const D = (C * C - A * A - B * B - L_u * L_u) / (2 * L_u);
+  
+  // 解 A*sin(α) + B*cos(α) = D
+  const R = Math.sqrt(A * A + B * B);
+  if (R < 1e-6) return null;
+  const phi = Math.atan2(B, A);
+  const ratio = D / R;
+  if (Math.abs(ratio) > 1) return null;
+  
+  const theta = Math.asin(ratio);
+  const au1 = theta - phi;
+  const au2 = Math.PI - theta - phi;
+  const alpha_u = Math.abs(au1) < Math.abs(au2) ? au1 : au2;
+  
+  const B_u = upperInnerMid.clone().add(
+    new THREE.Vector3(0, L_u * Math.sin(alpha_u), L_u * Math.cos(alpha_u))
+  );
+  
+  return { B_l, B_u, alpha_l, alpha_u };
+}
+
+// 计算转向节姿态及关键点位置
+function computeKnuckle(B_l, B_u, steerDelta) {
+  const K = new THREE.Vector3().subVectors(B_u, B_l).normalize();
+  // 跳动旋转：K0 -> K
+  const q_jounce = new THREE.Quaternion().setFromUnitVectors(K0, K);
+  const A_jounce = A0.clone().applyQuaternion(q_jounce);
+  // 转向旋转：绕当前K旋转delta
+  const q_steer = new THREE.Quaternion().setFromAxisAngle(K, steerDelta);
+  const A_final = A_jounce.clone().applyQuaternion(q_steer);
+  const F_final = new THREE.Vector3().crossVectors(K, A_final).normalize();
+  
+  function localToWorld(localPos) {
+    return B_l.clone()
+      .add(F_final.clone().multiplyScalar(localPos.x))
+      .add(K.clone().multiplyScalar(localPos.y))
+      .add(A_final.clone().multiplyScalar(localPos.z));
+  }
+  
+  const wheelCenter = localToWorld(SUSPENSION.wheelCenterLocal);
+  const tierodEnd = localToWorld(SUSPENSION.tierodEndLocal);
+  
+  return { wheelCenter, tierodEnd, axleDir: A_final, forwardDir: F_final, kingpinDir: K, localToWorld };
+}
+
+// 减震器下端位置（随下叉臂旋转）
+function computeDamper(alpha_l) {
+  const armDir = new THREE.Vector3(0, Math.sin(alpha_l), Math.cos(alpha_l));
+  const armNormal = new THREE.Vector3(0, Math.cos(alpha_l), -Math.sin(alpha_l));
+  const damperLower = lowerInnerMid.clone()
+    .add(armDir.clone().multiplyScalar(SUSPENSION.lowerArmLength * SUSPENSION.damperLowerOnArmRatio))
+    .add(armNormal.clone().multiplyScalar(20));
+  return { lower: damperLower, upper: SUSPENSION.damperUpper.clone(), length: damperLower.distanceTo(SUSPENSION.damperUpper) };
+}
+
+// 主销延长线与地面(y=0)交点
+function computeKingpinGround(B_l, K) {
+  if (Math.abs(K.y) < 1e-6) return null;
+  const t = -B_l.y / K.y;
+  return B_l.clone().add(K.clone().multiplyScalar(t));
+}
+
+// 计算各项角度参数
+function computeAngles(B_l, B_u, knuckle, jounce, steer) {
+  const K = knuckle.kingpinDir;
+  const A = knuckle.axleDir;
+  const F = knuckle.forwardDir;
+  
+  // 主销内倾角（前视图YZ平面内主销与垂直方向夹角，顶部向内为正）
+  const KPI = Math.atan2(-K.z, K.y) * 180 / Math.PI;
+  // 主销后倾角（侧视图XY平面内主销与垂直方向夹角，顶部向后为正）
+  const caster = Math.atan2(-K.x, K.y) * 180 / Math.PI;
+  // 外倾角（车轴在YZ平面与水平夹角，顶部向内为负外倾）
+  const camber = -Math.atan2(A.y, A.z) * 180 / Math.PI;
+  // 前束角（前向在XZ平面与X方向夹角，车轮前端向内为正前束）
+  const toe = Math.atan2(F.z, F.x) * 180 / Math.PI;
+  
+  return { KPI, caster, camber, toe };
+}
+
+// 滚动中心高度（简化：下叉臂延长线与地面交点，过车轮接地点的横向线交点）
+function computeRollCenter(B_l, alpha_l) {
+  // 下叉臂方向
+  const armDir = new THREE.Vector3(0, Math.sin(alpha_l), Math.cos(alpha_l));
+  // 延长线与地面(y=0)交点
+  // P = lowerInnerMid + t * armDir, P.y = 0
+  // lowerInnerMid.y + t * sin(α_l) = 0
+  if (Math.abs(Math.sin(alpha_l)) < 1e-4) return { height: 0, lateral: 0 };
+  const t = -lowerInnerMid.y / Math.sin(alpha_l);
+  const groundIntersect = lowerInnerMid.clone().add(armDir.clone().multiplyScalar(t));
+  // 滚动中心高度 = 地面到该点连线的某比例（简化）
+  // 简化：取交点的Z位置作为滚动中心横向位置，高度为0（不准确但可作示意）
+  // 更精确：滚动中心 = (车轮接地点z) 与 (下叉臂地面交点z) 的连线与车辆中心线的交点
+  return { 
+    height: Math.abs(groundIntersect.z) * 0.3, // 简化估算
+    lateral: groundIntersect.z 
+  };
+}
+
+// ================== Three.js 场景 ==================
+const mainCanvas = document.getElementById('mainCanvas');
+const renderer = new THREE.WebGLRenderer({ canvas: mainCanvas, antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x0f1115, 1);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x0f1115, 1500, 3500);
+
+const camera = new THREE.PerspectiveCamera(35, 1, 1, 5000);
+camera.position.set(900, 700, 1100);
+
+// 光照
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+dirLight.position.set(500, 800, 300);
+scene.add(dirLight);
+const fillLight = new THREE.DirectionalLight(0x88aaff, 0.25);
+fillLight.position.set(-400, 200, -300);
+scene.add(fillLight);
+
+// ================== 网格地面 ==================
+const gridGroup = new THREE.Group();
+const gridSize = 1400;
+const gridDiv = 28;
+const gridMat = new THREE.LineBasicMaterial({ color: 0x1f2329, transparent: true, opacity: 0.85 });
+const gridMatMajor = new THREE.LineBasicMaterial({ color: 0x2d3239, transparent: true, opacity: 0.9 });
+for (let i = 0; i <= gridDiv; i++) {
+  const v = -gridSize/2 + i * gridSize / gridDiv;
+  const isMajor = i % 4 === 0;
+  const mat = isMajor ? gridMatMajor : gridMat;
+  gridGroup.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(v, 0, -gridSize/2), new THREE.Vector3(v, 0, gridSize/2)]),
+    mat
+  ));
+  gridGroup.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-gridSize/2, 0, v), new THREE.Vector3(gridSize/2, 0, v)]),
+    mat
+  ));
+}
+// 中心十字
+const crossMat = new THREE.LineBasicMaterial({ color: 0x4a4f58 });
+gridGroup.add(new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-gridSize/2, 0.1, 0), new THREE.Vector3(gridSize/2, 0.1, 0)]),
+  crossMat
+));
+gridGroup.add(new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0.1, -gridSize/2), new THREE.Vector3(0, 0.1, gridSize/2)]),
+  crossMat
+));
+scene.add(gridGroup);
+
+// 坐标轴
+const axesHelper = new THREE.AxesHelper(80);
+axesHelper.position.set(0, 1, 0);
+scene.add(axesHelper);
+
+// ================== 车架结构 ==================
+const chassisGroup = new THREE.Group();
+const matChassis = new THREE.LineBasicMaterial({ color: 0x4a4f58 });
+const matChassisBold = new THREE.LineBasicMaterial({ color: 0x5a606a });
+const matChassisDim = new THREE.LineBasicMaterial({ color: 0x3a3f48, transparent: true, opacity: 0.7 });
+
+// 副车架
+chassisGroup.add(new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-220, SUSPENSION.subframeY, 180),
+    new THREE.Vector3(220, SUSPENSION.subframeY, 180),
+    new THREE.Vector3(220, SUSPENSION.subframeY, 380),
+    new THREE.Vector3(-220, SUSPENSION.subframeY, 380),
+    new THREE.Vector3(-220, SUSPENSION.subframeY, 180),
+  ]),
+  matChassisBold
+));
+// 副车架纵梁
+chassisGroup.add(new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-220, SUSPENSION.subframeY, 180),
+    new THREE.Vector3(-220, SUSPENSION.subframeY + 20, 180),
+    new THREE.Vector3(-220, SUSPENSION.subframeY + 20, 380),
+    new THREE.Vector3(-220, SUSPENSION.subframeY, 380),
+  ]),
+  matChassis
+));
+chassisGroup.add(new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(220, SUSPENSION.subframeY, 180),
+    new THREE.Vector3(220, SUSPENSION.subframeY + 20, 180),
+    new THREE.Vector3(220, SUSPENSION.subframeY + 20, 380),
+    new THREE.Vector3(220, SUSPENSION.subframeY, 380),
+  ]),
+  matChassis
+));
+// 上叉臂安装支架
+chassisGroup.add(new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-100, 380, 240),
+    new THREE.Vector3(-100, 440, 240),
+    new THREE.Vector3(100, 440, 240),
+    new THREE.Vector3(100, 380, 240),
+  ]),
+  matChassisBold
+));
+// 主车架纵梁
+chassisGroup.add(new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-180, 600, 200),
+    new THREE.Vector3(-180, 200, 200),
+  ]),
+  matChassisDim
+));
+chassisGroup.add(new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(180, 600, 200),
+    new THREE.Vector3(180, 200, 200),
+  ]),
+  matChassisDim
+));
+// 减震器塔顶
+chassisGroup.add(new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-70, 600, 260),
+    new THREE.Vector3(40, 600, 260),
+    new THREE.Vector3(40, 600, 320),
+    new THREE.Vector3(-70, 600, 320),
+    new THREE.Vector3(-70, 600, 260),
+  ]),
+  matChassisBold
+));
+// 转向机
+chassisGroup.add(new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-100, 215, 60),
+    new THREE.Vector3(150, 215, 60),
+  ]),
+  matChassisBold
+));
+// 转向机齿条
+chassisGroup.add(new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-100, 215, 70),
+    new THREE.Vector3(150, 215, 70),
+  ]),
+  matChassis
+));
+scene.add(chassisGroup);
+
+// ================== 悬挂组件 ==================
+const suspensionGroup = new THREE.Group();
+scene.add(suspensionGroup);
+
+// 材质
+const matUpperArm = new THREE.LineBasicMaterial({ color: 0x4dabf7 });
+const matLowerArm = new THREE.LineBasicMaterial({ color: 0x51cf66 });
+const matSpindle = new THREE.LineBasicMaterial({ color: 0xff4d4d });
+const matDamper = new THREE.LineBasicMaterial({ color: 0xb8bdc6 });
+const matSpring = new THREE.LineBasicMaterial({ color: 0xff944d });
+const matTierod = new THREE.LineBasicMaterial({ color: 0xffd43b });
+const matWheel = new THREE.LineBasicMaterial({ color: 0x6a707a });
+const matWheelAccent = new THREE.LineBasicMaterial({ color: 0xff7a18 });
+const matKnuckle = new THREE.LineBasicMaterial({ color: 0x9aa0a8 });
+const matKingpinExt = new THREE.LineBasicMaterial({ color: 0xff4d4d, transparent: true, opacity: 0.45 });
+const matContact = new THREE.LineBasicMaterial({ color: 0xff7a18, transparent: true, opacity: 0.7 });
+const matTraceWheel = new THREE.LineBasicMaterial({ color: 0xff7a18, transparent: true, opacity: 0.55 });
+const matTraceBall = new THREE.LineBasicMaterial({ color: 0x4dabf7, transparent: true, opacity: 0.45 });
+const matTraceTierod = new THREE.LineBasicMaterial({ color: 0xffd43b, transparent: true, opacity: 0.5 });
+
+// 节点工厂
+function createNode(pos, color, size = 6) {
+  const geo = new THREE.BoxGeometry(size, size, size);
+  const mat = new THREE.MeshBasicMaterial({ color });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(pos);
+  return mesh;
+}
+function createNodeRing(pos, color, radius = 8) {
+  const geo = new THREE.RingGeometry(radius - 1, radius, 24);
+  const mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(pos);
+  return mesh;
+}
+
+// 创建静态节点
+const nodeUpperInnerFront = createNode(SUSPENSION.upperInnerFront, 0x4dabf7, 5);
+const nodeUpperInnerRear = createNode(SUSPENSION.upperInnerRear, 0x4dabf7, 5);
+const nodeLowerInnerFront = createNode(SUSPENSION.lowerInnerFront, 0x51cf66, 5);
+const nodeLowerInnerRear = createNode(SUSPENSION.lowerInnerRear, 0x51cf66, 5);
+const nodeTierodInner = createNode(SUSPENSION.tierodInner, 0xffd43b, 5);
+const nodeDamperUpper = createNode(SUSPENSION.damperUpper, 0xb8bdc6, 5);
+scene.add(nodeUpperInnerFront, nodeUpperInnerRear, nodeLowerInnerFront, nodeLowerInnerRear, nodeTierodInner, nodeDamperUpper);
+
+// 动态节点
+const nodeBl = createNode(B_l_0, 0xff4d4d, 7);
+const nodeBu = createNode(B_u_0, 0xff4d4d, 7);
+const nodeWheelCenter = createNode(B_l_0.clone().add(SUSPENSION.wheelCenterLocal), 0xff7a18, 6);
+const nodeTierodOuter = createNode(B_l_0, 0xffd43b, 5);
+const nodeDamperLower = createNode(B_l_0, 0xb8bdc6, 5);
+scene.add(nodeBl, nodeBu, nodeWheelCenter, nodeTierodOuter, nodeDamperLower);
+
+// 接地节点
+const nodeContact = createNodeRing(new THREE.Vector3(B_l_0.x, 1, B_l_0.z + SUSPENSION.wheelCenterLocal.z), 0xff7a18, 10);
+const nodeKingpinGround = createNodeRing(new THREE.Vector3(0, 1, 0), 0xff4d4d, 12);
+nodeKingpinGround.visible = false;
+scene.add(nodeContact, nodeKingpinGround);
+
+// 上叉臂线（A臂）
+const upperArmLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+  SUSPENSION.upperInnerFront, B_u_0, SUSPENSION.upperInnerRear, SUSPENSION.upperInnerFront
+]), matUpperArm);
+suspensionGroup.add(upperArmLine);
+
+// 上叉臂内部交叉线（A臂结构）
+const upperArmCrossLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([SUSPENSION.upperInnerFront, SUSPENSION.upperInnerRear]),
+  new THREE.LineBasicMaterial({ color: 0x3a7ca5, transparent: true, opacity: 0.6 })
+);
+suspensionGroup.add(upperArmCrossLine);
+
+// 下叉臂线
+const lowerArmLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+  SUSPENSION.lowerInnerFront, B_l_0, SUSPENSION.lowerInnerRear, SUSPENSION.lowerInnerFront
+]), matLowerArm);
+suspensionGroup.add(lowerArmLine);
+
+// 下叉臂加强板
+const lowerArmReinforce = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([SUSPENSION.lowerInnerFront, SUSPENSION.lowerInnerRear]),
+  new THREE.LineBasicMaterial({ color: 0x2f8a4d, transparent: true, opacity: 0.6 })
+);
+suspensionGroup.add(lowerArmReinforce);
+
+// 转向节主轴（上下球头连线）
+const spindleLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([B_l_0, B_u_0]),
+  matSpindle
+);
+suspensionGroup.add(spindleLine);
+
+// 主销延长线
+const kingpinExtLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    B_l_0.clone().addScaledVector(K0, -200),
+    B_u_0.clone().addScaledVector(K0, 200),
+  ]),
+  matKingpinExt
+);
+suspensionGroup.add(kingpinExtLine);
+
+// 转向节臂
+const knuckleArmLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([B_l_0, B_l_0.clone().add(SUSPENSION.tierodEndLocal)]),
+  matKnuckle
+);
+suspensionGroup.add(knuckleArmLine);
+
+// 转向节轮毂轴
+const knuckleHubLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    B_l_0.clone().add(SUSPENSION.wheelCenterLocal).addScaledVector(A0, -SUSPENSION.wheelWidth/2 - 20),
+    B_l_0.clone().add(SUSPENSION.wheelCenterLocal).addScaledVector(A0, SUSPENSION.wheelWidth/2 + 20),
+  ]),
+  matKnuckle
+);
+suspensionGroup.add(knuckleHubLine);
+
+// 转向拉杆
+const tierodLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([SUSPENSION.tierodInner, B_l_0.clone().add(SUSPENSION.tierodEndLocal)]),
+  matTierod
+);
+suspensionGroup.add(tierodLine);
+
+// 减震器
+const damperLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([SUSPENSION.damperUpper, B_l_0]),
+  matDamper
+);
+suspensionGroup.add(damperLine);
+
+// 弹簧
+const springGroup = new THREE.Group();
+suspensionGroup.add(springGroup);
+
+function createSpringGeometry(p1, p2, coils = 7, radius = 28) {
+  const points = [];
+  const dir = new THREE.Vector3().subVectors(p2, p1);
+  const length = dir.length();
+  if (length < 1) return new THREE.BufferGeometry();
+  const dirN = dir.clone().normalize();
+  const up = Math.abs(dirN.y) < 0.99 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+  const right = new THREE.Vector3().crossVectors(dirN, up).normalize();
+  const normal = new THREE.Vector3().crossVectors(right, dirN).normalize();
+  const segments = coils * 20;
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const angle = t * coils * 2 * Math.PI;
+    const center = p1.clone().add(dirN.clone().multiplyScalar(t * length));
+    const offset = right.clone().multiplyScalar(Math.cos(angle) * radius)
+      .add(normal.clone().multiplyScalar(Math.sin(angle) * radius));
+    points.push(center.add(offset));
+  }
+  return new THREE.BufferGeometry().setFromPoints(points);
+}
+springGroup.add(new THREE.Line(createSpringGeometry(SUSPENSION.damperUpper, initialDamper.lower), matSpring));
+
+// ================== 车轮 ==================
+const wheelGroup = new THREE.Group();
+suspensionGroup.add(wheelGroup);
+
+// 车轮外圈（前侧）
+const wheelCircleGeo = new THREE.BufferGeometry();
+const circlePts = [];
+const segs = 40;
+for (let i = 0; i <= segs; i++) {
+  const a = i / segs * 2 * Math.PI;
+  circlePts.push(new THREE.Vector3(0, Math.cos(a) * SUSPENSION.wheelRadius, Math.sin(a) * SUSPENSION.wheelRadius));
+}
+wheelCircleGeo.setFromPoints(circlePts);
+
+const wheelFront = new THREE.Line(wheelCircleGeo, matWheel);
+wheelFront.position.x = SUSPENSION.wheelWidth/2;
+wheelGroup.add(wheelFront);
+
+const wheelBack = new THREE.Line(wheelCircleGeo.clone(), matWheel);
+wheelBack.position.x = -SUSPENSION.wheelWidth/2;
+wheelGroup.add(wheelBack);
+
+// 轮胎花纹（连接线）
+for (let i = 0; i < 12; i++) {
+  const a = i / 12 * 2 * Math.PI;
+  const y = Math.cos(a) * SUSPENSION.wheelRadius;
+  const z = Math.sin(a) * SUSPENSION.wheelRadius;
+  const geo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-SUSPENSION.wheelWidth/2, y, z),
+    new THREE.Vector3(SUSPENSION.wheelWidth/2, y, z),
+  ]);
+  wheelGroup.add(new THREE.Line(geo, matWheel));
+}
+
+// 轮毂中心
+const hubGeo = new THREE.BufferGeometry().setFromPoints([
+  new THREE.Vector3(-SUSPENSION.wheelWidth/2 - 5, 0, 0),
+  new THREE.Vector3(SUSPENSION.wheelWidth/2 + 5, 0, 0),
+]);
+wheelGroup.add(new THREE.Line(hubGeo, matWheelAccent));
+
+// 轮辐
+for (let i = 0; i < 6; i++) {
+  const a = i / 6 * 2 * Math.PI;
+  const y = Math.cos(a) * SUSPENSION.wheelRadius * 0.65;
+  const z = Math.sin(a) * SUSPENSION.wheelRadius * 0.65;
+  const geo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, y, z),
+  ]);
+  wheelGroup.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x4a4f58 })));
+}
+
+// 轮毂外圈（小圆）
+const hubCircleGeo = new THREE.BufferGeometry();
+const hubCirclePts = [];
+for (let i = 0; i <= 24; i++) {
+  const a = i / 24 * 2 * Math.PI;
+  hubCirclePts.push(new THREE.Vector3(0, Math.cos(a) * 70, Math.sin(a) * 70));
+}
+hubCircleGeo.setFromPoints(hubCirclePts);
+wheelGroup.add(new THREE.Line(hubCircleGeo, matWheel));
+
+// 接地标志线
+const contactLineGeo = new THREE.BufferGeometry().setFromPoints([
+  new THREE.Vector3(-40, 0, 0),
+  new THREE.Vector3(40, 0, 0),
+]);
+const contactLine = new THREE.Line(contactLineGeo, matContact);
+scene.add(contactLine);
+
+// 主销地面投影线（从下球头到主销地面交点）
+const kingpinGroundLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+  new THREE.LineBasicMaterial({ color: 0xff4d4d, transparent: true, opacity: 0.4 })
+);
+scene.add(kingpinGroundLine);
+
+// ================== 轨迹系统 ==================
+const traces = {
+  spindleLines: [], // 主销轴线段（每帧一条）
+  wheelCenter: [],
+  ballLower: [],
+  ballUpper: [],
+  tierodOuter: [],
+};
+const MAX_TRACE = 180;
+
+const traceGroup = new THREE.Group();
+scene.add(traceGroup);
+
+const traceWheelLine = new THREE.Line(new THREE.BufferGeometry(), matTraceWheel);
+traceWheelLine.frustumCulled = false;
+traceGroup.add(traceWheelLine);
+
+const traceBallLowerLine = new THREE.Line(new THREE.BufferGeometry(), matTraceBall);
+traceBallLowerLine.frustumCulled = false;
+traceGroup.add(traceBallLowerLine);
+
+const traceBallUpperLine = new THREE.Line(new THREE.BufferGeometry(), matTraceBall);
+traceBallUpperLine.frustumCulled = false;
+traceGroup.add(traceBallUpperLine);
+
+const traceTierodLine = new THREE.Line(new THREE.BufferGeometry(), matTraceTierod);
+traceTierodLine.frustumCulled = false;
+traceGroup.add(traceTierodLine);
+
+const traceSpindleGroup = new THREE.Group();
+traceGroup.add(traceSpindleGroup);
+
+// 运动包络
+const envelopeGroup = new THREE.Group();
+scene.add(envelopeGroup);
+const envelopeMat = new THREE.LineBasicMaterial({ color: 0xff7a18, transparent: true, opacity: 0.25 });
+
+function generateEnvelope() {
+  envelopeGroup.clear();
+  const wheelCenterPath = [];
+  const ballLowerPath = [];
+  const ballUpperPath = [];
+  const tierodPath = [];
+  const spindleLines = [];
+  
+  for (let h = -100; h <= 100; h += 5) {
+    const r = solveSuspension(h);
+    if (!r) continue;
+    const k = computeKnuckle(r.B_l, r.B_u, 0);
+    wheelCenterPath.push(k.wheelCenter);
+    ballLowerPath.push(r.B_l);
+    ballUpperPath.push(r.B_u);
+    tierodPath.push(k.tierodEnd);
+    spindleLines.push({ lower: r.B_l.clone(), upper: r.B_u.clone() });
+  }
+  
+  // 包络线
+  envelopeGroup.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(wheelCenterPath),
+    new THREE.LineBasicMaterial({ color: 0xff7a18, transparent: true, opacity: 0.4 })
+  ));
+  envelopeGroup.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(ballLowerPath),
+    new THREE.LineBasicMaterial({ color: 0x4dabf7, transparent: true, opacity: 0.3 })
+  ));
+  envelopeGroup.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(ballUpperPath),
+    new THREE.LineBasicMaterial({ color: 0x4dabf7, transparent: true, opacity: 0.3 })
+  ));
+  
+  // 主销轨迹（线段集）
+  const positions = [];
+  spindleLines.forEach(s => {
+    positions.push(s.lower.x, s.lower.y, s.lower.z);
+    positions.push(s.upper.x, s.upper.y, s.upper.z);
+  });
+  envelopeGroup.add(new THREE.LineSegments(
+    new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)),
+    new THREE.LineBasicMaterial({ color: 0xff4d4d, transparent: true, opacity: 0.2 })
+  ));
+}
+generateEnvelope();
+
+// ================== 相机控制 ==================
+let cameraDistance = 1500;
+let cameraTheta = Math.PI / 4;
+let cameraPhi = Math.PI / 2.6;
+let cameraTarget = new THREE.Vector3(0, 320, 380);
+let isDragging = false;
+let dragStart = { x: 0, y: 0 };
+let dragStartTheta = 0;
+let dragStartPhi = 0;
+
+function updateCamera() {
+  camera.position.x = cameraTarget.x + cameraDistance * Math.sin(cameraPhi) * Math.cos(cameraTheta);
+  camera.position.y = cameraTarget.y + cameraDistance * Math.cos(cameraPhi);
+  camera.position.z = cameraTarget.z + cameraDistance * Math.sin(cameraPhi) * Math.sin(cameraTheta);
+  camera.lookAt(cameraTarget);
+}
+updateCamera();
+
+mainCanvas.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  dragStart.x = e.clientX;
+  dragStart.y = e.clientY;
+  dragStartTheta = cameraTheta;
+  dragStartPhi = cameraPhi;
+  mainCanvas.style.cursor = 'grabbing';
+});
+window.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const dx = e.clientX - dragStart.x;
+  const dy = e.clientY - dragStart.y;
+  cameraTheta = dragStartTheta - dx * 0.005;
+  cameraPhi = THREE.MathUtils.clamp(dragStartPhi - dy * 0.005, 0.1, Math.PI - 0.1);
+  updateCamera();
+});
+window.addEventListener('mouseup', () => { 
+  isDragging = false; 
+  mainCanvas.style.cursor = 'grab';
+});
+mainCanvas.style.cursor = 'grab';
+
+mainCanvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  cameraDistance *= (1 + e.deltaY * 0.001);
+  cameraDistance = THREE.MathUtils.clamp(cameraDistance, 500, 3500);
+  updateCamera();
+}, { passive: false });
+
+function setView(view) {
+  switch(view) {
+    case 'iso':
+      cameraTheta = Math.PI / 4; cameraPhi = Math.PI / 2.6; cameraDistance = 1500;
+      cameraTarget.set(0, 320, 380); break;
+    case 'front':
+      cameraTheta = 0; cameraPhi = Math.PI / 2; cameraDistance = 1200;
+      cameraTarget.set(0, 320, 380); break;
+    case 'side':
+      cameraTheta = Math.PI / 2; cameraPhi = Math.PI / 2; cameraDistance = 1300;
+      cameraTarget.set(0, 320, 380); break;
+    case 'top':
+      cameraTheta = 0; cameraPhi = 0.15; cameraDistance = 1800;
+      cameraTarget.set(0, 0, 380); break;
+    case 'reset':
+      cameraTarget.set(0, 320, 380);
+      cameraTheta = Math.PI / 4; cameraPhi = Math.PI / 2.6; cameraDistance = 1500; break;
+    case 'fit':
+      cameraDistance = 1500; break;
+  }
+  updateCamera();
+}
+
+// ================== 多视图 ==================
+const frontCanvas = document.getElementById('frontCanvas');
+const sideCanvas = document.getElementById('sideCanvas');
+const topCanvas = document.getElementById('topCanvas');
+const frontRenderer = new THREE.WebGLRenderer({ canvas: frontCanvas, antialias: true });
+const sideRenderer = new THREE.WebGLRenderer({ canvas: sideCanvas, antialias: true });
+const topRenderer = new THREE.WebGLRenderer({ canvas: topCanvas, antialias: true });
+frontRenderer.setClearColor(0x111318, 1);
+sideRenderer.setClearColor(0x111318, 1);
+topRenderer.setClearColor(0x111318, 1);
+frontRenderer.setPixelRatio(window.devicePixelRatio);
+sideRenderer.setPixelRatio(window.devicePixelRatio);
+topRenderer.setPixelRatio(window.devicePixelRatio);
+
+// 前视图：从+X方向看（看YZ平面）
+const frontCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, -3000, 3000);
+frontCamera.position.set(2000, 350, 380);
+frontCamera.lookAt(0, 350, 380);
+
+// 侧视图：从+Z方向看（看XY平面）
+const sideCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, -3000, 3000);
+sideCamera.position.set(0, 350, 2000);
+sideCamera.lookAt(0, 350, 0);
+
+// 俯视图：从+Y方向看（看XZ平面）
+const topCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, -3000, 3000);
+topCamera.position.set(0, 2000, 380);
+topCamera.up.set(0, 0, -1);
+topCamera.lookAt(0, 0, 380);
+
+function updateOrthoCameras() {
+  const configure = (canvas, renderer, camera, viewSize) => {
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    if (w === 0 || h === 0) return;
+    renderer.setSize(w, h, false);
+    const aspect = w / h;
+    camera.left = -viewSize * aspect / 2;
+    camera.right = viewSize * aspect / 2;
+    camera.top = viewSize / 2;
+    camera.bottom = -viewSize / 2;
+    camera.updateProjectionMatrix();
+  };
+  configure(frontCanvas, frontRenderer, frontCamera, 850);
+  configure(sideCanvas, sideRenderer, sideCamera, 850);
+  configure(topCanvas, topRenderer, topCamera, 850);
+}
+
+function resizeMain() {
+  const w = mainCanvas.clientWidth;
+  const h = mainCanvas.clientHeight;
+  if (w === 0 || h === 0) return;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+
+// ================== 状态 ==================
+const state = {
+  jounce: 0,
+  jounceMode: 'auto',
+  jounceFreq: 0.5,
+  steer: 0,
+  steerMode: 'manual',
+  steerFreq: 0.3,
+  speed: 1.0,
+  showTraceSpindle: true,
+  showTraceWheel: true,
+  showTraceBall: true,
+  showTraceTierod: false,
+  showEnvelope: true,
+  showGrid: true,
+  showChassis: true,
+  showSpring: true,
+  showKingpinExt: true,
+  showContact: true,
+  showLabels: true,
+};
+
+let isPlaying = true;
+let simTime = 0;
+let lastTime = performance.now();
+let fps = 60;
+let fpsCounter = 0;
+let fpsLastTime = lastTime;
+let traceCounter = 0;
+let sweepT = 0;
+
+// ================== UI 绑定 ==================
+document.getElementById('jounceSlider').addEventListener('input', (e) => {
+  state.jounce = parseFloat(e.target.value);
+  state.jounceMode = 'manual';
+  document.querySelectorAll('[data-jounce-mode]').forEach(b => b.classList.remove('active'));
+  document.querySelector('[data-jounce-mode="manual"]').classList.add('active');
+});
+document.getElementById('freqSlider').addEventListener('input', (e) => {
+  state.jounceFreq = parseFloat(e.target.value) / 100;
+  document.getElementById('freqVal').textContent = state.jounceFreq.toFixed(2) + ' Hz';
+});
+document.querySelectorAll('[data-jounce-mode]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-jounce-mode]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.jounceMode = btn.dataset.jounceMode;
+  });
+});
+document.getElementById('steerSlider').addEventListener('input', (e) => {
+  state.steer = parseFloat(e.target.value) * Math.PI / 180;
+  state.steerMode = 'manual';
+  document.querySelectorAll('[data-steer-mode]').forEach(b => b.classList.remove('active'));
+  document.querySelector('[data-steer-mode="manual"]').classList.add('active');
+});
+document.getElementById('sweepSlider').addEventListener('input', (e) => {
+  state.steerFreq = parseFloat(e.target.value) / 100;
+  document.getElementById('sweepVal').textContent = state.steerFreq.toFixed(2) + ' Hz';
+});
+document.querySelectorAll('[data-steer-mode]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-steer-mode]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.steerMode = btn.dataset.steerMode;
+  });
+});
+
+['showTraceSpindle', 'showTraceWheel', 'showTraceBall', 'showTraceTierod', 'showEnvelope',
+ 'showGrid', 'showChassis', 'showSpring', 'showKingpinExt', 'showContact'].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener('change', () => {
+    state[id] = el.checked;
+    updateVisibility();
+  });
+});
+
+document.querySelectorAll('[data-view]').forEach(btn => {
+  btn.addEventListener('click', () => setView(btn.dataset.view));
+});
+
+document.getElementById('playPause').addEventListener('click', () => {
+  isPlaying = !isPlaying;
+  document.getElementById('playPause').innerHTML = isPlaying 
+    ? '<span class="indicator"></span>PAUSE'
+    : '<span class="indicator"></span>PLAY';
+  document.getElementById('statusDot').className = isPlaying ? 'dot' : 'dot warn';
+  document.getElementById('statusText').textContent = isPlaying ? 'SOLVER ACTIVE' : 'SOLVER PAUSED';
+});
+
+document.getElementById('resetTraces').addEventListener('click', () => {
+  traces.spindleLines = [];
+  traces.wheelCenter = [];
+  traces.ballLower = [];
+  traces.ballUpper = [];
+  traces.tierodOuter = [];
+  updateTraceLines();
+});
+
+document.getElementById('speedSlider').addEventListener('input', (e) => {
+  state.speed = parseFloat(e.target.value) / 100;
+  document.getElementById('speedVal').textContent = state.speed.toFixed(2) + 'x';
+});
+
+document.getElementById('btnGrid').addEventListener('click', (e) => {
+  state.showGrid = !state.showGrid;
+  e.target.classList.toggle('active', state.showGrid);
+  updateVisibility();
+});
+document.getElementById('btnLabels').addEventListener('click', (e) => {
+  state.showLabels = !state.showLabels;
+  e.target.classList.toggle('active', state.showLabels);
+  document.querySelector('.viewport-legend').style.display = state.showLabels ? 'block' : 'none';
+});
+document.getElementById('btnAxis').addEventListener('click', (e) => {
+  axesHelper.visible = !axesHelper.visible;
+  e.target.classList.toggle('active', axesHelper.visible);
+});
+
+function updateVisibility() {
+  gridGroup.visible = state.showGrid;
+  chassisGroup.visible = state.showChassis;
+  springGroup.visible = state.showSpring;
+  kingpinExtLine.visible = state.showKingpinExt;
+  nodeKingpinGround.visible = state.showContact;
+  contactLine.visible = state.showContact;
+  kingpinGroundLine.visible = state.showContact;
+  envelopeGroup.visible = state.showEnvelope;
+  
+  traceSpindleGroup.visible = state.showTraceSpindle;
+  traceWheelLine.visible = state.showTraceWheel;
+  traceBallLowerLine.visible = state.showTraceBall;
+  traceBallUpperLine.visible = state.showTraceBall;
+  traceTierodLine.visible = state.showTraceTierod;
+}
+
+function clearTraceGroup(group) {
+  while (group.children.length > 0) {
+    const c = group.children[0];
+    if (c.geometry) c.geometry.dispose();
+    if (c.material && c.material.dispose) c.material.dispose();
+    group.remove(c);
+  }
+}
+
+function updateTraceLines() {
+  // 主销轨迹
+  clearTraceGroup(traceSpindleGroup);
+  if (traces.spindleLines.length > 0) {
+    const positions = [];
+    traces.spindleLines.forEach(s => {
+      positions.push(s.lower.x, s.lower.y, s.lower.z);
+      positions.push(s.upper.x, s.upper.y, s.upper.z);
+    });
+    const geo = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    const mat = new THREE.LineBasicMaterial({ color: 0xff4d4d, transparent: true, opacity: 0.35 });
+    traceSpindleGroup.add(new THREE.LineSegments(geo, mat));
+  }
+  
+  // 车轮中心轨迹
+  if (traces.wheelCenter.length > 1) {
+    const geo = new THREE.BufferGeometry().setAttribute('position', 
+      new THREE.Float32BufferAttribute(traces.wheelCenter.flatMap(p => [p.x, p.y, p.z]), 3));
+    traceWheelLine.geometry.dispose();
+    traceWheelLine.geometry = geo;
+  }
+  
+  // 下球头轨迹
+  if (traces.ballLower.length > 1) {
+    const geo = new THREE.BufferGeometry().setAttribute('position', 
+      new THREE.Float32BufferAttribute(traces.ballLower.flatMap(p => [p.x, p.y, p.z]), 3));
+    traceBallLowerLine.geometry.dispose();
+    traceBallLowerLine.geometry = geo;
+  }
+  
+  // 上球头轨迹
+  if (traces.ballUpper.length > 1) {
+    const geo = new THREE.BufferGeometry().setAttribute('position', 
+      new THREE.Float32BufferAttribute(traces.ballUpper.flatMap(p => [p.x, p.y, p.z]), 3));
+    traceBallUpperLine.geometry.dispose();
+    traceBallUpperLine.geometry = geo;
+  }
+  
+  // 转向拉杆外端轨迹
+  if (traces.tierodOuter.length > 1) {
+    const geo = new THREE.BufferGeometry().setAttribute('position', 
+      new THREE.Float32BufferAttribute(traces.tierodOuter.flatMap(p => [p.x, p.y, p.z]), 3));
+    traceTierodLine.geometry.dispose();
+    traceTierodLine.geometry = geo;
+  }
+}
+
+// ================== 主更新 ==================
+function updateScene() {
+  const solveStart = performance.now();
+  
+  const result = solveSuspension(state.jounce);
+  if (!result) return;
+  const { B_l, B_u, alpha_l, alpha_u } = result;
+  const knuckle = computeKnuckle(B_l, B_u, state.steer);
+  const damper = computeDamper(alpha_l);
+  const kingpinGround = computeKingpinGround(B_l, knuckle.kingpinDir);
+  
+  // 更新节点
+  nodeBl.position.copy(B_l);
+  nodeBu.position.copy(B_u);
+  nodeWheelCenter.position.copy(knuckle.wheelCenter);
+  nodeTierodOuter.position.copy(knuckle.tierodEnd);
+  nodeDamperLower.position.copy(damper.lower);
+  
+  // 接地点（车轮中心垂直投影到地面）
+  const contactPoint = new THREE.Vector3(knuckle.wheelCenter.x, 0.5, knuckle.wheelCenter.z);
+  nodeContact.position.copy(contactPoint);
+  contactLine.position.copy(contactPoint);
+  
+  // 主销地面交点
+  if (kingpinGround) {
+    nodeKingpinGround.position.set(kingpinGround.x, 0.5, kingpinGround.z);
+    kingpinGroundLine.geometry.dispose();
+    kingpinGroundLine.geometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(B_l.x, B_l.y, B_l.z),
+      new THREE.Vector3(kingpinGround.x, 0, kingpinGround.z),
+    ]);
+  }
+  
+  // 上叉臂
+  upperArmLine.geometry.dispose();
+  upperArmLine.geometry = new THREE.BufferGeometry().setFromPoints([
+    SUSPENSION.upperInnerFront, B_u, SUSPENSION.upperInnerRear, SUSPENSION.upperInnerFront
+  ]);
+  
+  // 下叉臂
+  lowerArmLine.geometry.dispose();
+  lowerArmLine.geometry = new THREE.BufferGeometry().setFromPoints([
+    SUSPENSION.lowerInnerFront, B_l, SUSPENSION.lowerInnerRear, SUSPENSION.lowerInnerFront
+  ]);
+  
+  // 转向节
+  spindleLine.geometry.dispose();
+  spindleLine.geometry = new THREE.BufferGeometry().setFromPoints([B_l, B_u]);
+  
+  // 主销延长线
+  const K = knuckle.kingpinDir;
+  kingpinExtLine.geometry.dispose();
+  kingpinExtLine.geometry = new THREE.BufferGeometry().setFromPoints([
+    B_l.clone().addScaledVector(K, -220),
+    B_u.clone().addScaledVector(K, 220),
+  ]);
+  
+  // 转向节臂
+  knuckleArmLine.geometry.dispose();
+  knuckleArmLine.geometry = new THREE.BufferGeometry().setFromPoints([B_l, knuckle.tierodEnd]);
+  
+  // 转向节轮毂轴
+  knuckleHubLine.geometry.dispose();
+  knuckleHubLine.geometry = new THREE.BufferGeometry().setFromPoints([
+    knuckle.wheelCenter.clone().addScaledVector(knuckle.axleDir, -SUSPENSION.wheelWidth/2 - 20),
+    knuckle.wheelCenter.clone().addScaledVector(knuckle.axleDir, SUSPENSION.wheelWidth/2 + 20),
+  ]);
+  
+  // 转向拉杆
+  tierodLine.geometry.dispose();
+  tierodLine.geometry = new THREE.BufferGeometry().setFromPoints([SUSPENSION.tierodInner, knuckle.tierodEnd]);
+  
+  // 减震器
+  damperLine.geometry.dispose();
+  damperLine.geometry = new THREE.BufferGeometry().setFromPoints([damper.upper, damper.lower]);
+  
+  // 弹簧
+  if (state.showSpring) {
+    clearTraceGroup(springGroup);
+    springGroup.add(new THREE.Line(createSpringGeometry(damper.upper, damper.lower), matSpring));
+  }
+  
+  // 车轮位置和方向
+  wheelGroup.position.copy(knuckle.wheelCenter);
+  const defaultAxle = new THREE.Vector3(0, 1, 0); // 车轮Group的默认轴方向是Y
+  // 注意：wheelGroup的圆在YZ平面，轴向是X
+  // 但我们需要：轴向 = knuckle.axleDir
+  // 静态时 A0 ≈ (0,0,1)，但wheelGroup默认轴向是X
+  // 让我们重新定义：wheelGroup的轴是X方向（圆在YZ平面）
+  // 我们需要旋转使X方向对齐到knuckle.axleDir
+  const wheelDefaultAxis = new THREE.Vector3(1, 0, 0);
+  const wheelQuat = new THREE.Quaternion().setFromUnitVectors(wheelDefaultAxis, knuckle.axleDir);
+  wheelGroup.quaternion.copy(wheelQuat);
+  
+  // 记录轨迹（仅在自动模式或非零运动时）
+  traceCounter++;
+  if (isPlaying && state.speed > 0 && traceCounter % 2 === 0) {
+    const isAuto = state.jounceMode !== 'manual' || state.steerMode !== 'manual';
+    if (isAuto) {
+      traces.spindleLines.push({ lower: B_l.clone(), upper: B_u.clone() });
+      traces.wheelCenter.push(knuckle.wheelCenter.clone());
+      traces.ballLower.push(B_l.clone());
+      traces.ballUpper.push(B_u.clone());
+      traces.tierodOuter.push(knuckle.tierodEnd.clone());
+      
+      if (traces.spindleLines.length > MAX_TRACE) traces.spindleLines.shift();
+      if (traces.wheelCenter.length > MAX_TRACE) traces.wheelCenter.shift();
+      if (traces.ballLower.length > MAX_TRACE) traces.ballLower.shift();
+      if (traces.ballUpper.length > MAX_TRACE) traces.ballUpper.shift();
+      if (traces.tierodOuter.length > MAX_TRACE) traces.tierodOuter.shift();
+      
+      if (traceCounter % 6 === 0) updateTraceLines();
+    }
+  }
+  
+  // 计算数据
+  const angles = computeAngles(B_l, B_u, knuckle, state.jounce, state.steer);
+  const rollCenter = computeRollCenter(B_l, alpha_l);
+  
+  // 接地点相关
+  const wheelCenter0 = B_l_0.clone()
+    .add(F0.clone().multiplyScalar(SUSPENSION.wheelCenterLocal.x))
+    .add(K0.clone().multiplyScalar(SUSPENSION.wheelCenterLocal.y))
+    .add(A0.clone().multiplyScalar(SUSPENSION.wheelCenterLocal.z));
+  const trackChange = knuckle.wheelCenter.z - wheelCenter0.z;
+  const wheelBaseChange = knuckle.wheelCenter.x - wheelCenter0.x;
+  
+  // Scrub radius（主销地面交点与车轮接地点在车宽方向的距离）
+  let scrubRadius = 0, mechTrail = 0;
+  if (kingpinGround) {
+    scrubRadius = kingpinGround.z - knuckle.wheelCenter.z;
+    mechTrail = kingpinGround.x - knuckle.wheelCenter.x;
+  }
+  
+  // Bump steer（在转向输入为0时，由于跳动引起的转向角变化）
+  // 通过比较转向拉杆实际长度与初始长度来估算
+  const tierodLen = SUSPENSION.tierodInner.distanceTo(knuckle.tierodEnd);
+  const tierodDelta = tierodLen - initialTierodLength;
+  // 简化估算：bump steer ≈ asin(delta / tierodArmLength)
+  const bumpSteer = Math.asin(THREE.MathUtils.clamp(tierodDelta / 120, -1, 1)) * 180 / Math.PI;
+  
+  // 更新UI
+  document.getElementById('jounceVal').textContent = state.jounce.toFixed(1) + ' mm';
+  document.getElementById('steerVal').textContent = (state.steer * 180 / Math.PI).toFixed(1) + '°';
+  document.getElementById('dJounce').innerHTML = state.jounce.toFixed(1) + '<span class="unit">mm</span>';
+  document.getElementById('dSteer').innerHTML = (state.steer * 180 / Math.PI).toFixed(2) + '<span class="unit">deg</span>';
+  document.getElementById('dCamber').innerHTML = angles.camber.toFixed(2) + '<span class="unit">deg</span>';
+  document.getElementById('dToe').innerHTML = angles.toe.toFixed(2) + '<span class="unit">deg</span>';
+  document.getElementById('dCaster').innerHTML = angles.caster.toFixed(2) + '<span class="unit">deg</span>';
+  document.getElementById('dKpi').innerHTML = angles.KPI.toFixed(2) + '<span class="unit">deg</span>';
+  document.getElementById('dScrub').innerHTML = scrubRadius.toFixed(1) + '<span class="unit">mm</span>';
+  document.getElementById('dTrail').innerHTML = mechTrail.toFixed(1) + '<span class="unit">mm</span>';
+  document.getElementById('dTrack').innerHTML = trackChange.toFixed(1) + '<span class="unit">mm</span>';
+  document.getElementById('dBase').innerHTML = wheelBaseChange.toFixed(1) + '<span class="unit">mm</span>';
+  document.getElementById('dDamper').innerHTML = damper.length.toFixed(1) + '<span class="unit">mm</span>';
+  document.getElementById('dDamperDelta').innerHTML = (damper.length - initialDamper.length).toFixed(1) + '<span class="unit">mm</span>';
+  document.getElementById('dTierod').innerHTML = tierodLen.toFixed(1) + '<span class="unit">mm</span>';
+  document.getElementById('dBumpSteer').innerHTML = bumpSteer.toFixed(3) + '<span class="unit">deg</span>';
+  document.getElementById('dRollH').innerHTML = rollCenter.height.toFixed(1) + '<span class="unit">mm</span>';
+  document.getElementById('dRollL').innerHTML = rollCenter.lateral.toFixed(1) + '<span class="unit">mm</span>';
+  
+  const solveTime = performance.now() - solveStart;
+  document.getElementById('ovSolve').textContent = solveTime.toFixed(2) + 'ms';
+}
+
+// ================== 坐标轴指示器 ==================
+const axesCanvas = document.getElementById('axesCanvas');
+const axesCtx = axesCanvas.getContext('2d');
+
+function drawAxesIndicator() {
+  const w = axesCanvas.width;
+  const h = axesCanvas.height;
+  axesCtx.clearRect(0, 0, w, h);
+  
+  const cx = w / 2;
+  const cy = h / 2;
+  const len = 30;
+  
+  const projectAxis = (v) => {
+    const proj = v.clone();
+    proj.applyMatrix4(camera.matrixWorldInverse);
+    return { x: proj.x, y: -proj.y, z: proj.z };
+  };
+  
+  const xAxis = projectAxis(new THREE.Vector3(1, 0, 0));
+  const yAxis = projectAxis(new THREE.Vector3(0, 1, 0));
+  const zAxis = projectAxis(new THREE.Vector3(0, 0, 1));
+  
+  const axes = [
+    { axis: xAxis, color: '#ff4d4d', label: 'X' },
+    { axis: yAxis, color: '#51cf66', label: 'Y' },
+    { axis: zAxis, color: '#4dabf7', label: 'Z' },
+  ];
+  // 按z排序，远的先画
+  axes.sort((a, b) => a.axis.z - b.axis.z);
+  
+  axesCtx.lineWidth = 1.5;
+  axes.forEach(({ axis, color, label }) => {
+    axesCtx.strokeStyle = color;
+    axesCtx.beginPath();
+    axesCtx.moveTo(cx, cy);
+    axesCtx.lineTo(cx + axis.x * len, cy + axis.y * len);
+    axesCtx.stroke();
+    
+    axesCtx.fillStyle = color;
+    axesCtx.font = 'bold 11px JetBrains Mono';
+    axesCtx.fillText(label, cx + axis.x * (len + 4) - 3, cy + axis.y * (len + 4) + 4);
+  });
+  
+  // 中心点
+  axesCtx.fillStyle = '#5a606a';
+  axesCtx.fillRect(cx - 1, cy - 1, 2, 2);
+}
+
+// ================== 多视图标注覆盖 ==================
+const frontOverlay = document.createElement('canvas');
+const sideOverlay = document.createElement('canvas');
+const topOverlay = document.createElement('canvas');
+
+function drawViewOverlay(canvas, renderer, camera, viewType) {
+  // 这里可以添加2D标注，但目前简化
+}
+
+// ================== 渲染循环 ==================
+function render() {
+  renderer.render(scene, camera);
+  frontRenderer.render(scene, frontCamera);
+  sideRenderer.render(scene, sideCamera);
+  topRenderer.render(scene, topCamera);
+  drawAxesIndicator();
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  
+  const now = performance.now();
+  const dt = Math.min((now - lastTime) / 1000, 0.1);
+  lastTime = now;
+  
+  fpsCounter++;
+  if (now - fpsLastTime > 500) {
+    fps = fpsCounter / ((now - fpsLastTime) / 1000);
+    fpsCounter = 0;
+    fpsLastTime = now;
+    document.getElementById('ovFps').textContent = Math.round(fps);
+  }
+  
+  if (isPlaying) {
+    simTime += dt * state.speed;
+    
+    // 自动跳动
+    if (state.jounceMode === 'auto') {
+      state.jounce = Math.sin(simTime * state.jounceFreq * 2 * Math.PI) * 80;
+      document.getElementById('jounceSlider').value = state.jounce;
+    } else if (state.jounceMode === 'cycle') {
+      // 扫频
+      sweepT += dt * 0.05;
+      const freq = 0.1 + (sweepT % 2) * 0.5;
+      state.jounce = Math.sin(simTime * freq * 2 * Math.PI) * 80;
+      document.getElementById('jounceSlider').value = state.jounce;
+    }
+    
+    // 自动转向
+    if (state.steerMode === 'sine') {
+      state.steer = Math.sin(simTime * state.steerFreq * 2 * Math.PI) * 25 * Math.PI / 180;
+      document.getElementById('steerSlider').value = state.steer * 180 / Math.PI;
+    } else if (state.steerMode === 'sweep') {
+      const sweepFreq = 0.1 + (simTime * 0.1) % 1.0;
+      state.steer = Math.sin(simTime * sweepFreq * 2 * Math.PI) * 30 * Math.PI / 180;
+      document.getElementById('steerSlider').value = state.steer * 180 / Math.PI;
+    }
+  }
+  
+  updateScene();
+  render();
+}
+
+// ================== 初始化 ==================
+window.addEventListener('resize', () => {
+  resizeMain();
+  updateOrthoCameras();
+});
+
+resizeMain();
+updateOrthoCameras();
+updateVisibility();
+
+const sid = 'SES-' + Math.floor(Math.random() * 9000 + 1000) + '-' + String(new Date().getFullYear()).slice(-2);
+document.getElementById('sessionId').textContent = sid;
+
+animate();
+</script>
+</body>
+</html>

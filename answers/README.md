@@ -26,6 +26,7 @@ answers/
 │   └── qwen-3.8-max-preview/
 └── 05-double-wishbone-suspension/
     ├── deepseek/
+    ├── glm-5.2/
     └── qwen-3.8-max-preview/
 ```
 
