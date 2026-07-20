@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FPV 穿越机花飞模拟器</title>
+<style>
+  :root { --hud-green: #4dff9e; --hud-red: #ff4d5e; --hud-amber: #ffd24d; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "SFMono-Regular", "Consolas", monospace; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  #hud {
+    position: fixed; inset: 0; pointer-events: none; z-index: 10;
+    color: var(--hud-green); text-shadow: 0 0 6px rgba(0,0,0,0.9);
+    font-size: 13px; letter-spacing: 0.5px;
+  }
+  /* Scanline / CRT vignette baked into HUD layer only */
+  #hud::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%);
+    mix-blend-mode: multiply;
+  }
+  .panel {
+    position: absolute; padding: 8px 12px;
+    background: rgba(0,10,6,0.28); border: 1px solid rgba(77,255,158,0.28);
+    border-radius: 4px; backdrop-filter: blur(1px);
+  }
+  #tl { top: 14px; left: 14px; min-width: 210px; }
+  #tr { top: 14px; right: 14px; text-align: right; min-width: 190px; }
+  #bl { bottom: 14px; left: 14px; }
+  .row { display: flex; justify-content: space-between; gap: 14px; line-height: 1.6; }
+  .k { color: rgba(77,255,158,0.65); }
+  .v { color: var(--hud-green); font-weight: 700; }
+  .warn { color: var(--hud-amber); }
+  .crit { color: var(--hud-red); }
+
+  /* Signal bar */
+  #sigWrap { margin-top: 6px; }
+  #sigBar { height: 8px; width: 100%; background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(77,255,158,0.3); border-radius: 3px; overflow: hidden; }
+  #sigFill { height: 100%; width: 100%; background: var(--hud-green);
+             transition: width 0.08s linear, background 0.2s linear; }
+
+  /* Center reticle */
+  #reticle { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+             width: 46px; height: 46px; opacity: 0.75; }
+  #reticle svg { width: 100%; height: 100%; }
+
+  /* Stick visualizers */
+  #sticks { position: absolute; bottom: 14px; right: 14px; display: flex; gap: 12px; }
+  .stickbox { width: 96px; height: 96px; position: relative;
+              background: rgba(0,10,6,0.28); border: 1px solid rgba(77,255,158,0.28); border-radius: 6px; }
+  .stickbox .lbl { position: absolute; top: 3px; left: 6px; font-size: 10px; color: rgba(77,255,158,0.6); }
+  .stickbox .cross { position: absolute; inset: 8px; }
+  .stickbox .cross::before, .stickbox .cross::after {
+    content:""; position:absolute; background: rgba(77,255,158,0.15); }
+  .stickbox .cross::before { left:50%; top:0; bottom:0; width:1px; transform:translateX(-.5px); }
+  .stickbox .cross::after { top:50%; left:0; right:0; height:1px; transform:translateY(-.5px); }
+  .dot { position:absolute; width:10px; height:10px; border-radius:50%; background: var(--hud-green);
+         box-shadow:0 0 8px var(--hud-green); transform: translate(-50%,-50%); left:50%; top:50%; }
+
+  #banner {
+    position: absolute; left: 50%; top: 30%; transform: translate(-50%,-50%);
+    text-align:center; font-size: 30px; font-weight: 800; letter-spacing: 3px;
+    color: var(--hud-red); text-shadow: 0 0 14px rgba(255,77,94,0.7); display: none;
+  }
+  #banner small { display:block; font-size: 14px; font-weight: 500; color: #fff; letter-spacing:1px; margin-top:8px; }
+
+  #help { position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
+          font-size:11px; color: rgba(77,255,158,0.55); text-align:center; line-height:1.5; }
+  b.kbd { color: var(--hud-green); font-weight:700; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="hud">
+  <div id="tl" class="panel">
+    <div class="row"><span class="k">MODE</span><span class="v" id="hMode">ACRO</span></div>
+    <div class="row"><span class="k">ARM</span><span class="v" id="hArm">DISARMED</span></div>
+    <div class="row"><span class="k">INPUT</span><span class="v" id="hInput">KEYBOARD</span></div>
+    <div class="row"><span class="k">THR</span><span class="v" id="hThr">0%</span></div>
+    <div id="sigWrap">
+      <div class="row"><span class="k">VTX SIGNAL</span><span class="v" id="hSig">100%</span></div>
+      <div id="sigBar"><div id="sigFill"></div></div>
+    </div>
+  </div>
+
+  <div id="tr" class="panel">
+    <div class="row"><span class="k">DIST</span><span class="v" id="hDist">0 m</span></div>
+    <div class="row"><span class="k">ALT</span><span class="v" id="hAlt">0.0 m</span></div>
+    <div class="row"><span class="k">SPD</span><span class="v" id="hSpd">0.0 m/s</span></div>
+    <div class="row"><span class="k">RATE p/r/y</span><span class="v" id="hRate">0/0/0</span></div>
+  </div>
+
+  <div id="reticle">
+    <svg viewBox="0 0 46 46">
+      <circle cx="23" cy="23" r="16" fill="none" stroke="rgba(77,255,158,0.8)" stroke-width="1.2"/>
+      <line x1="23" y1="2" x2="23" y2="10" stroke="rgba(77,255,158,0.8)" stroke-width="1.2"/>
+      <line x1="23" y1="36" x2="23" y2="44" stroke="rgba(77,255,158,0.8)" stroke-width="1.2"/>
+      <line x1="2" y1="23" x2="10" y2="23" stroke="rgba(77,255,158,0.8)" stroke-width="1.2"/>
+      <line x1="36" y1="23" x2="44" y2="23" stroke="rgba(77,255,158,0.8)" stroke-width="1.2"/>
+      <circle cx="23" cy="23" r="1.6" fill="rgba(77,255,158,0.9)"/>
+    </svg>
+  </div>
+
+  <div id="sticks">
+    <div class="stickbox"><span class="lbl">YAW / THR</span><div class="cross"></div><div class="dot" id="stickL"></div></div>
+    <div class="stickbox"><span class="lbl">ROLL / PITCH</span><div class="cross"></div><div class="dot" id="stickR"></div></div>
+  </div>
+
+  <div id="banner"></div>
+
+  <div id="help">
+    <b class="kbd">遥控器</b>: 插入 USB HID (OpenTX/EdgeTX) 摇杆自动接管 &nbsp;·&nbsp;
+    键盘: <b class="kbd">W/S</b> 油门 · <b class="kbd">↑/↓</b> 俯仰 · <b class="kbd">←/→</b> 横滚 · <b class="kbd">A/D</b> 偏航 ·
+    <b class="kbd">空格</b> 解锁/上锁 · <b class="kbd">R</b> 复位
+  </div>
+</div>
+
+<!-- Three.js core + postprocessing (UMD globals, no module config needed) -->
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/MaskPass.js"></script>
+
+<script>
+/* =====================================================================
+ *  FPV 穿越机花飞模拟器
+ *  - SO(3) 姿态积分（李代数指数映射 / Rodrigues）
+ *  - 手写平动动力学（重力 + 速度平方阻力 + 电机推力）
+ *  - Acro 模式 + 三轴 PID 角速度闭环
+ *  - Web Gamepad API (OpenTX/EdgeTX HID)
+ *  - GLSL VTX 图传衰弱后处理
+ *  无第三方物理引擎，全部积分手写。
+ * ===================================================================== */
+"use strict";
+
+/* ---------------------------------------------------------------------
+ * 0. 小型线性代数工具 (3x3 旋转矩阵按行主序存于 Float64Array[9])
+ * ------------------------------------------------------------------- */
+const Mat3 = {
+  identity() { return new Float64Array([1,0,0, 0,1,0, 0,0,1]); },
+  // C = A * B (row-major)
+  mul(A, B, out) {
+    out = out || new Float64Array(9);
+    const a=A, b=B;
+    const t0=a[0]*b[0]+a[1]*b[3]+a[2]*b[6];
+    const t1=a[0]*b[1]+a[1]*b[4]+a[2]*b[7];
+    const t2=a[0]*b[2]+a[1]*b[5]+a[2]*b[8];
+    const t3=a[3]*b[0]+a[4]*b[3]+a[5]*b[6];
+    const t4=a[3]*b[1]+a[4]*b[4]+a[5]*b[7];
+    const t5=a[3]*b[2]+a[4]*b[5]+a[5]*b[8];
+    const t6=a[6]*b[0]+a[7]*b[3]+a[8]*b[6];
+    const t7=a[6]*b[1]+a[7]*b[4]+a[8]*b[7];
+    const t8=a[6]*b[2]+a[7]*b[5]+a[8]*b[8];
+    out[0]=t0;out[1]=t1;out[2]=t2;out[3]=t3;out[4]=t4;out[5]=t5;out[6]=t6;out[7]=t7;out[8]=t8;
+    return out;
+  },
+  // v' = M * v  (v: THREE.Vector3-like {x,y,z})
+  mulVec(M, x, y, z, out) {
+    out.x = M[0]*x + M[1]*y + M[2]*z;
+    out.y = M[3]*x + M[4]*y + M[5]*z;
+    out.z = M[6]*x + M[7]*y + M[8]*z;
+    return out;
+  },
+  // Gram-Schmidt 正交化，抑制数值漂移，保持 R ∈ SO(3)
+  orthonormalize(M) {
+    // 取三列作为基向量
+    let x0=M[0], x1=M[3], x2=M[6]; // col0
+    let y0=M[1], y1=M[4], y2=M[7]; // col1
+    // 归一化 col0
+    let n = Math.hypot(x0,x1,x2) || 1; x0/=n; x1/=n; x2/=n;
+    // col1 减去在 col0 上的投影
+    let d = x0*y0 + x1*y1 + x2*y2;
+    y0-=d*x0; y1-=d*x1; y2-=d*x2;
+    n = Math.hypot(y0,y1,y2) || 1; y0/=n; y1/=n; y2/=n;
+    // col2 = col0 × col1
+    let z0 = x1*y2 - x2*y1;
+    let z1 = x2*y0 - x0*y2;
+    let z2 = x0*y1 - x1*y0;
+    M[0]=x0; M[3]=x1; M[6]=x2;
+    M[1]=y0; M[4]=y1; M[7]=y2;
+    M[2]=z0; M[5]=z1; M[8]=z2;
+    return M;
+  },
+  // 指数映射: exp(hat(w)) via Rodrigues, w = 旋转向量 (轴*角)
+  exp(wx, wy, wz, out) {
+    out = out || new Float64Array(9);
+    const theta = Math.hypot(wx, wy, wz);
+    if (theta < 1e-9) {
+      // 泰勒近似, 保持数值稳定
+      out[0]=1;    out[1]=-wz;  out[2]= wy;
+      out[3]= wz;  out[4]=1;    out[5]=-wx;
+      out[6]=-wy;  out[7]= wx;  out[8]=1;
+      return out;
+    }
+    const kx=wx/theta, ky=wy/theta, kz=wz/theta;
+    const s = Math.sin(theta), c = Math.cos(theta), v = 1 - c;
+    // R = I + s*K + v*K^2 , K = hat(k)
+    out[0] = c + kx*kx*v;      out[1] = kx*ky*v - kz*s;   out[2] = kx*kz*v + ky*s;
+    out[3] = ky*kx*v + kz*s;   out[4] = c + ky*ky*v;      out[5] = ky*kz*v - kx*s;
+    out[6] = kz*kx*v - ky*s;   out[7] = kz*ky*v + kx*s;   out[8] = c + kz*kz*v;
+    return out;
+  },
+  // 写入 THREE.Matrix4 的旋转部分 (列主序 elements)
+  toMatrix4(M, m4, pos) {
+    const e = m4.elements;
+    e[0]=M[0]; e[1]=M[3]; e[2]=M[6]; e[3]=0;
+    e[4]=M[1]; e[5]=M[4]; e[6]=M[7]; e[7]=0;
+    e[8]=M[2]; e[9]=M[5]; e[10]=M[8]; e[11]=0;
+    e[12]=pos.x; e[13]=pos.y; e[14]=pos.z; e[15]=1;
+    return m4;
+  }
+};
+
+/* ---------------------------------------------------------------------
+ * 1. 输入层：Gamepad (HID) + 键盘回退
+ *    输出统一的 4 通道: pitch/roll/yaw ∈ [-1,1], throttle ∈ [0,1]
+ * ------------------------------------------------------------------- */
+const Input = {
+  usingGamepad: false,
+  gpIndex: -1,
+  channels: { pitch: 0, roll: 0, yaw: 0, throttle: 0 },
+  // 键盘平滑状态
+  kb: { pitch: 0, roll: 0, yaw: 0, throttle: 0 },
+  keys: {},
+  // 摇杆->通道 轴映射(不同遥控器差异较大, 这里给 AETR 常见布局并做健壮化)
+  axisMap: { roll: 0, pitch: 1, throttle: 2, yaw: 3 },
+  invert:  { roll: 1, pitch: -1, throttle: 1, yaw: 1 }, // pitch 轴通常需反向
+
+  init() {
+    window.addEventListener("gamepadconnected", (e) => {
+      this.gpIndex = e.gamepad.index;
+      console.log("Gamepad connected:", e.gamepad.id, "axes:", e.gamepad.axes.length);
+    });
+    window.addEventListener("gamepaddisconnected", () => {
+      this.gpIndex = -1; this.usingGamepad = false;
+    });
+    window.addEventListener("keydown", (e) => {
+      this.keys[e.code] = true;
+      if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
+      if (e.code === "Space") Sim.toggleArm();
+      if (e.code === "KeyR") Sim.reset();
+    });
+    window.addEventListener("keyup", (e) => { this.keys[e.code] = false; });
+  },
+
+  poll(dt) {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    let gp = null;
+    if (this.gpIndex >= 0 && pads[this.gpIndex]) gp = pads[this.gpIndex];
+    else { for (const p of pads) { if (p) { gp = p; this.gpIndex = p.index; break; } } }
+
+    if (gp && gp.axes.length >= 4) {
+      this.usingGamepad = true;
+      const ax = gp.axes;
+      const dz = (v) => Math.abs(v) < 0.04 ? 0 : v; // 死区
+      const roll  = dz(ax[this.axisMap.roll]  ?? 0) * this.invert.roll;
+      const pitch = dz(ax[this.axisMap.pitch] ?? 0) * this.invert.pitch;
+      const yaw   = dz(ax[this.axisMap.yaw]   ?? 0) * this.invert.yaw;
+      // 油门轴一般是 [-1,1], 归一到 [0,1]
+      let thrRaw = (ax[this.axisMap.throttle] ?? -1) * this.invert.throttle;
+      const throttle = Math.min(1, Math.max(0, (thrRaw + 1) * 0.5));
+      this.channels.roll = clamp(roll, -1, 1);
+      this.channels.pitch = clamp(pitch, -1, 1);
+      this.channels.yaw = clamp(yaw, -1, 1);
+      this.channels.throttle = throttle;
+      return;
+    }
+
+    // ---- 键盘回退, 带平滑 (模拟摇杆行程) ----
+    this.usingGamepad = false;
+    const k = this.keys, kb = this.kb;
+    const towards = (cur, target, rate) => {
+      const d = target - cur; const step = rate * dt;
+      if (Math.abs(d) <= step) return target;
+      return cur + Math.sign(d) * step;
+    };
+    const tPitch = (k.ArrowUp ? -1 : 0) + (k.ArrowDown ? 1 : 0);   // 前推(上箭头)=低头
+    const tRoll  = (k.ArrowRight ? 1 : 0) + (k.ArrowLeft ? -1 : 0);
+    const tYaw   = (k.KeyD ? 1 : 0) + (k.KeyA ? -1 : 0);
+    kb.pitch = towards(kb.pitch, tPitch, 4.0);
+    kb.roll  = towards(kb.roll,  tRoll,  4.0);
+    kb.yaw   = towards(kb.yaw,   tYaw,   4.0);
+    const tThr = kb.throttle + ((k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0)) * 0.9 * dt;
+    kb.throttle = clamp(tThr, 0, 1);
+
+    this.channels.pitch = kb.pitch;
+    this.channels.roll = kb.roll;
+    this.channels.yaw = kb.yaw;
+    this.channels.throttle = kb.throttle;
+  }
+};
+
+function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+
+/* ---------------------------------------------------------------------
+ * 2. 三轴 PID (角速度闭环)
+ * ------------------------------------------------------------------- */
+class PID {
+  constructor(kp, ki, kd, iLimit) {
+    this.kp = kp; this.ki = ki; this.kd = kd; this.iLimit = iLimit;
+    this.integral = 0; this.prevErr = 0;
+  }
+  reset() { this.integral = 0; this.prevErr = 0; }
+  update(err, dt) {
+    this.integral = clamp(this.integral + err * dt, -this.iLimit, this.iLimit);
+    const deriv = dt > 1e-6 ? (err - this.prevErr) / dt : 0;
+    this.prevErr = err;
+    return this.kp * err + this.ki * this.integral + this.kd * deriv;
+  }
+}
+
+/* ---------------------------------------------------------------------
+ * 3. 无人机刚体 (自定义动力学)
+ * ------------------------------------------------------------------- */
+class Drone {
+  constructor() {
+    // ---- 物理常量 ----
+    this.mass = 0.55;                 // kg
+    this.g = 9.81;                    // m/s^2
+    this.maxThrust = 22.0;            // N (推重比 ~4)
+    this.dragCoef = 0.28;             // 平动空气阻力 (∝ v^2)
+    this.angDrag = 0.04;              // 角速度自然阻尼
+    // 对角惯量 (kg·m^2) [pitch(x), yaw(y), roll(z)]
+    this.I = { x: 0.006, y: 0.010, z: 0.006 };
+
+    // 手感: 摇杆->目标角速度 (rad/s)
+    this.rate = { pitch: 8.0, roll: 9.5, yaw: 5.5 };
+
+    // 三轴 PID (输出力矩)
+    this.pidPitch = new PID(0.9, 0.6, 0.012, 4.0);
+    this.pidRoll  = new PID(0.9, 0.6, 0.012, 4.0);
+    this.pidYaw   = new PID(1.1, 0.4, 0.006, 4.0);
+
+    this.reset();
+  }
+
+  reset() {
+    this.R = Mat3.identity();
+    this.pos = new THREE.Vector3(0, 1.2, 6);   // 起飞点附近
+    this.vel = new THREE.Vector3(0, 0, 0);
+    this.omega = new THREE.Vector3(0, 0, 0);   // body-frame 角速度
+    this.armed = false;
+    this.crashed = false;
+    this._m4 = new THREE.Matrix4();
+    this._tmp = new THREE.Vector3();
+    this._thrustDir = new THREE.Vector3();
+    this.pidPitch.reset(); this.pidRoll.reset(); this.pidYaw.reset();
+  }
+
+  /* 半隐式积分步进 */
+  step(dt, ch, signal) {
+    if (this.crashed) return;
+
+    // ---- (a) Acro: 摇杆 -> 目标角速度 ----
+    // body 轴约定: x=右(pitch), y=上(yaw), z=后(roll 绕前向 -z)
+    const tgtPitch = -ch.pitch * this.rate.pitch; // 前推低头 => 绕 +x 负向
+    const tgtRoll  =  ch.roll  * this.rate.roll;
+    const tgtYaw   = -ch.yaw   * this.rate.yaw;
+
+    // ---- (b) PID: 误差 = 目标角速度 - 当前角速度 -> 力矩 ----
+    let armGain = this.armed ? 1 : 0;
+    const tqx = this.pidPitch.update(tgtPitch - this.omega.x, dt) * armGain;
+    const tqy = this.pidYaw.update(  tgtYaw  - this.omega.y, dt) * armGain;
+    const tqz = this.pidRoll.update( tgtRoll - this.omega.z, dt) * armGain;
+
+    // ---- (c) 角加速度 (欧拉方程含陀螺项) ----
+    const wx=this.omega.x, wy=this.omega.y, wz=this.omega.z;
+    const Ix=this.I.x, Iy=this.I.y, Iz=this.I.z;
+    const gyroX = (Iy - Iz) * wy * wz;
+    const gyroY = (Iz - Ix) * wz * wx;
+    const gyroZ = (Ix - Iy) * wx * wy;
+    let ax = (tqx - gyroX) / Ix - this.angDrag * wx;
+    let ay = (tqy - gyroY) / Iy - this.angDrag * wy;
+    let az = (tqz - gyroZ) / Iz - this.angDrag * wz;
+    this.omega.x += ax * dt;
+    this.omega.y += ay * dt;
+    this.omega.z += az * dt;
+
+    // ---- (d) 姿态积分: R <- R * exp(hat(omega)*dt) ----
+    const expR = Mat3.exp(this.omega.x*dt, this.omega.y*dt, this.omega.z*dt);
+    this.R = Mat3.mul(this.R, expR, this.R);
+    Mat3.orthonormalize(this.R);
+
+    // ---- (e) 平动动力学 ----
+    // 电机总推力沿机体 +y, 变换到世界系
+    let thrustMag = ch.throttle * this.maxThrust;
+    // 图传彻底失联 => 失去推力 (信号=0)
+    if (signal <= 0.001) thrustMag = 0;
+    if (!this.armed) thrustMag = 0;
+
+    Mat3.mulVec(this.R, 0, thrustMag, 0, this._thrustDir); // 世界系推力
+
+    const v = this.vel;
+    const speed = v.length();
+    // 阻力 ∝ v^2, 方向 -v
+    const dragMag = this.dragCoef * speed * speed;
+    let dfx = 0, dfy = 0, dfz = 0;
+    if (speed > 1e-5) { dfx = -dragMag * v.x/speed; dfy = -dragMag * v.y/speed; dfz = -dragMag * v.z/speed; }
+
+    const Fx = this._thrustDir.x + dfx;
+    const Fy = this._thrustDir.y + dfy - this.mass * this.g; // 重力
+    const Fz = this._thrustDir.z + dfz;
+
+    v.x += (Fx / this.mass) * dt;
+    v.y += (Fy / this.mass) * dt;
+    v.z += (Fz / this.mass) * dt;
+
+    this.pos.x += v.x * dt;
+    this.pos.y += v.y * dt;
+    this.pos.z += v.z * dt;
+
+    // ---- (f) 地面碰撞 ----
+    if (this.pos.y < 0.12) {
+      this.pos.y = 0.12;
+      const impact = -v.y;
+      if (impact > 6.5 && this.armed) { this.crash("触地过猛 — 炸机"); }
+      v.y = Math.max(0, v.y * -0.15);     // 轻微反弹
+      v.x *= 0.7; v.z *= 0.7;             // 摩擦
+      this.omega.multiplyScalar(0.6);
+    }
+  }
+
+  crash(reason) {
+    this.crashed = true; this.armed = false;
+    Sim.onCrash(reason);
+  }
+
+  applyToObject(obj) {
+    Mat3.toMatrix4(this.R, this._m4, this.pos);
+    obj.matrixAutoUpdate = false;
+    obj.matrix.copy(this._m4);
+  }
+
+  // FPV 相机: 位于机头, 带上仰角
+  updateCamera(cam, tiltDeg) {
+    // 相机基向量来自 R; three 相机看向本地 -z
+    const R = this.R;
+    // 应用一个绕机体 x 轴的上仰(摄像头 tilt)
+    const t = THREE.MathUtils.degToRad(tiltDeg);
+    const ct = Math.cos(t), st = Math.sin(t);
+    // Rtilt 绕 x: 使视线上抬
+    const tiltR = new Float64Array([1,0,0, 0,ct,-st, 0,st,ct]);
+    const RC = Mat3.mul(R, tiltR, new Float64Array(9));
+    // 相机偏移(机体系): 稍微靠前/靠上
+    const off = new THREE.Vector3();
+    Mat3.mulVec(R, 0, 0.05, -0.12, off);
+    cam.position.set(this.pos.x + off.x, this.pos.y + off.y, this.pos.z + off.z);
+    const m4 = new THREE.Matrix4();
+    Mat3.toMatrix4(RC, m4, cam.position);
+    cam.matrixAutoUpdate = false;
+    cam.matrix.copy(m4);
+    cam.matrixWorldNeedsUpdate = true;
+  }
+}
+
+/* ---------------------------------------------------------------------
+ * 4. 程序化纹理 (草地 / 天空渐变) —— 无外部资源依赖
+ * ------------------------------------------------------------------- */
+function makeGrassTexture() {
+  const s = 256;
+  const cv = document.createElement("canvas"); cv.width = cv.height = s;
+  const ctx = cv.getContext("2d");
+  // 基色
+  ctx.fillStyle = "#3a5f2a"; ctx.fillRect(0, 0, s, s);
+  // 噪点草叶
+  const img = ctx.getImageData(0, 0, s, s);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 60;
+    d[i]   = clamp(58 + n * 0.6, 0, 255);
+    d[i+1] = clamp(95 + n, 0, 255);
+    d[i+2] = clamp(42 + n * 0.5, 0, 255);
+  }
+  ctx.putImageData(img, 0, 0);
+  // 少量深色斑块
+  for (let i = 0; i < 200; i++) {
+    ctx.fillStyle = `rgba(${20+Math.random()*30},${50+Math.random()*40},${15+Math.random()*20},0.25)`;
+    const x = Math.random()*s, y = Math.random()*s, r = 1+Math.random()*3;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(400, 400);
+  tex.anisotropy = 8;
+  return tex;
+}
+
+function makeSkyTexture() {
+  // 竖直渐变 -> 等距柱状(equirect)贴图, 供背景与环境反射
+  const w = 512, h = 256;
+  const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+  const ctx = cv.getContext("2d");
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0.0, "#153a6b");
+  g.addColorStop(0.45, "#4d86c9");
+  g.addColorStop(0.55, "#a9c9e8");
+  g.addColorStop(0.62, "#dfeaf3");
+  g.addColorStop(1.0, "#eef4f7");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  // 太阳辉光
+  const sun = ctx.createRadialGradient(w*0.72, h*0.30, 4, w*0.72, h*0.30, 90);
+  sun.addColorStop(0, "rgba(255,250,230,0.95)");
+  sun.addColorStop(1, "rgba(255,250,230,0)");
+  ctx.fillStyle = sun; ctx.fillRect(0, 0, w, h);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  return tex;
+}
+
+/* ---------------------------------------------------------------------
+ * 5. VTX 图传衰弱 后处理 Shader
+ * ------------------------------------------------------------------- */
+const VTXShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    uTime:    { value: 0 },
+    uSignal:  { value: 1.0 },   // 1=完美, 0=失联
+    uRes:     { value: new THREE.Vector2(1, 1) }
+  },
+  vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */`
+    precision highp float;
+    uniform sampler2D tDiffuse;
+    uniform float uTime;
+    uniform float uSignal;   // [0,1]
+    uniform vec2  uRes;
+    varying vec2 vUv;
+
+    // hash / noise
+    float hash(vec2 p){ p = fract(p*vec2(123.34, 456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
+    float rand(float x){ return fract(sin(x*12.9898)*43758.5453); }
+
+    void main() {
+      float sig = clamp(uSignal, 0.0, 1.0);
+      float weak = 1.0 - sig;               // 衰弱程度
+      vec2 uv = vUv;
+
+      // ---------- 横向撕裂 (Horizontal Tearing) ----------
+      // 随信号变差, 行位移增强, 呈块状
+      float lineId = floor(uv.y * uRes.y);
+      float band = floor(uv.y * 24.0);
+      float tearAmt = weak * weak;
+      float tearRand = rand(band + floor(uTime*12.0));
+      float tearStep = step(0.75 - weak*0.5, tearRand); // 越弱越多行撕裂
+      float tear = (tearRand - 0.5) * 0.12 * tearAmt * tearStep;
+      // 高频行抖动
+      tear += (hash(vec2(lineId, floor(uTime*60.0))) - 0.5) * 0.02 * weak;
+      uv.x += tear;
+
+      // ---------- 滚动黑色条纹 (Rolling Bands) ----------
+      float rollPos = fract(uv.y * 2.0 - uTime * (0.15 + weak*0.6));
+      float rollBand = smoothstep(0.0, 0.06, rollPos) * (1.0 - smoothstep(0.10, 0.22, rollPos));
+      float rollDark = rollBand * weak * 0.85;
+
+      // ---------- 采样 (含轻微色度分离, 模拟模拟信号相位错误) ----------
+      float ca = weak * 0.010;
+      vec3 col;
+      col.r = texture2D(tDiffuse, uv + vec2( ca, 0.0)).r;
+      col.g = texture2D(tDiffuse, uv).g;
+      col.b = texture2D(tDiffuse, uv + vec2(-ca, 0.0)).b;
+
+      // ---------- 横向雪花纹 (Static Noise, 横条状) ----------
+      float nseed = hash(vec2(floor(uv.y*uRes.y*0.5), floor(uTime*50.0)))
+                  + hash(vec2(uv.x*uRes.x, floor(uTime*90.0)))*0.6;
+      float noise = fract(nseed*1.7);
+      float noiseAmt = smoothstep(0.15, 1.0, weak); // 中距开始出现
+      col = mix(col, vec3(noise), noiseAmt * (0.15 + 0.55*weak));
+
+      // 横向雪花条 (整行随机亮暗)
+      float streak = step(0.985 - weak*0.3, hash(vec2(band, floor(uTime*30.0))));
+      col = mix(col, vec3(noise), streak * weak * 0.7);
+
+      // ---------- 饱和度下降 ----------
+      float lum = dot(col, vec3(0.299, 0.587, 0.114));
+      float sat = mix(1.0, 0.25, weak);         // 越弱越灰
+      col = mix(vec3(lum), col, sat);
+
+      // ---------- 应用滚动暗条 ----------
+      col *= (1.0 - rollDark);
+
+      // ---------- 亮度/对比波动 ----------
+      float flick = 1.0 + (rand(floor(uTime*20.0)) - 0.5) * 0.15 * weak;
+      col *= flick;
+
+      // ---------- 边缘暗角随衰弱加深 ----------
+      vec2 q = vUv - 0.5;
+      float vig = 1.0 - dot(q, q) * (0.6 + weak*1.2);
+      col *= clamp(vig, 0.0, 1.0);
+
+      // ---------- 彻底失联: 纯雪花 ----------
+      float lost = smoothstep(0.04, 0.0, sig); // sig->0 时 =1
+      float fullNoise = fract(hash(vUv*uRes + uTime*60.0)*2.3);
+      col = mix(col, vec3(fullNoise), lost);
+
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+};
+
+/* ---------------------------------------------------------------------
+ * 6. 世界构建 + 主循环
+ * ------------------------------------------------------------------- */
+const Sim = {
+  init() {
+    const app = document.getElementById("app");
+    // Renderer
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    this.renderer.outputEncoding = THREE.sRGBEncoding;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
+    app.appendChild(this.renderer.domElement);
+
+    // Scene / Camera
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(95, window.innerWidth/window.innerHeight, 0.05, 3000);
+
+    // 天空 + 环境反射 (渐变等效 HDRI)
+    const skyTex = makeSkyTexture();
+    this.scene.background = skyTex;
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromEquirectangular(skyTex).texture;
+    pmrem.dispose();
+
+    // 光照
+    const hemi = new THREE.HemisphereLight(0xbcd6ef, 0x3a5f2a, 0.9);
+    this.scene.add(hemi);
+    const sun = new THREE.DirectionalLight(0xfff4e0, 2.2);
+    sun.position.set(120, 180, -60);
+    this.scene.add(sun);
+    this.scene.fog = new THREE.Fog(0xbcd0e0, 250, 900);
+
+    this.buildWorld();
+
+    // 无人机
+    this.drone = new Drone();
+    this.buildDroneMesh();
+
+    // 后处理
+    this.composer = new THREE.EffectComposer(this.renderer);
+    this.composer.addPass(new THREE.RenderPass(this.scene, this.camera));
+    this.vtxPass = new THREE.ShaderPass(VTXShader);
+    this.vtxPass.renderToScreen = true;
+    this.composer.addPass(this.vtxPass);
+    this.onResize();
+
+    // 图传参数
+    this.signalStart = 120;   // m: 开始衰减
+    this.signalMax   = 340;   // m: 彻底失联
+    this.signal = 1;
+
+    Input.init();
+    window.addEventListener("resize", () => this.onResize());
+
+    this.clock = new THREE.Clock();
+    this.acc = 0;
+    this.fixedDt = 1/240;   // 物理定步长, 保证积分稳定
+    this.loop = this.loop.bind(this);
+    requestAnimationFrame(this.loop);
+  },
+
+  buildWorld() {
+    // 地面
+    const grass = makeGrassTexture();
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(4000, 4000),
+      new THREE.MeshStandardMaterial({ map: grass, roughness: 1.0, metalness: 0.0 })
+    );
+    ground.rotation.x = -Math.PI/2;
+    this.scene.add(ground);
+
+    // 起飞垫
+    const pad = new THREE.Mesh(
+      new THREE.CircleGeometry(2.2, 40),
+      new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 })
+    );
+    pad.rotation.x = -Math.PI/2; pad.position.set(0, 0.02, 6);
+    this.scene.add(pad);
+    const padH = new THREE.Mesh(
+      new THREE.RingGeometry(0.9, 1.05, 32),
+      new THREE.MeshBasicMaterial({ color: 0xffcc00 })
+    );
+    padH.rotation.x = -Math.PI/2; padH.position.set(0, 0.03, 6);
+    this.scene.add(padH);
+
+    this.gates = [];
+    this.buildTrack();
+  },
+
+  buildTrack() {
+    // ---- 环形门 (TorusGeometry) ----
+    const gateColors = [0xff3b6b, 0x35d0ff, 0xffd23b, 0x7cff5a, 0xb46bff];
+    const gateDefs = [
+      { pos: [0, 3.2, -6],   r: 2.4, rot: 0,           tube: 0.22 },
+      { pos: [10, 4.0, -20],  r: 2.2, rot: Math.PI/5,   tube: 0.22 },
+      { pos: [-12, 2.6, -34], r: 2.6, rot: -Math.PI/6,  tube: 0.24 },
+      { pos: [4, 6.5, -50],   r: 2.0, rot: Math.PI/2.5, tube: 0.20 },
+      { pos: [-6, 3.4, -66],  r: 2.4, rot: -Math.PI/8,  tube: 0.22 },
+    ];
+    gateDefs.forEach((g, i) => {
+      const mat = new THREE.MeshStandardMaterial({
+        color: gateColors[i % gateColors.length],
+        emissive: gateColors[i % gateColors.length], emissiveIntensity: 0.35,
+        metalness: 0.3, roughness: 0.4
+      });
+      const torus = new THREE.Mesh(new THREE.TorusGeometry(g.r, g.tube, 16, 48), mat);
+      torus.position.set(g.pos[0], g.pos[1], g.pos[2]);
+      torus.rotation.y = g.rot;
+      this.scene.add(torus);
+      // 门支柱
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.09, 0.12, g.pos[1], 10),
+        new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.7 })
+      );
+      post.position.set(g.pos[0], g.pos[1]/2, g.pos[2]);
+      this.scene.add(post);
+      this.gates.push(torus);
+    });
+
+    // ---- 绕柱立柱 (CylinderGeometry) ----
+    const pillarMat = new THREE.MeshStandardMaterial({ color: 0xdedede, roughness: 0.6, metalness: 0.1 });
+    const pillarPos = [[18, -12], [-20, -28], [8, -40], [-4, -58], [16, -60]];
+    pillarPos.forEach((p) => {
+      const h = 9 + Math.random()*5;
+      const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.7, h, 24), pillarMat);
+      cyl.position.set(p[0], h/2, p[1]);
+      this.scene.add(cyl);
+      // 红白条带顶
+      const cap = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.75, 0.75, 0.6, 24),
+        new THREE.MeshStandardMaterial({ color: 0xff2b2b, emissive: 0xff2b2b, emissiveIntensity: 0.3 })
+      );
+      cap.position.set(p[0], h, p[1]);
+      this.scene.add(cap);
+    });
+
+    // ---- 废墟墙 / 钻越桥 (BoxGeometry 组合) ----
+    // 一面带洞的墙: 用左右两块 + 顶梁模拟"门洞"可钻越
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x6b6f76, roughness: 0.85 });
+    const makeGapWall = (cx, cz, ry, gapW, wallH) => {
+      const grp = new THREE.Group();
+      const side = 5;
+      const l = new THREE.Mesh(new THREE.BoxGeometry(side, wallH, 0.6), wallMat);
+      l.position.set(-(gapW/2 + side/2), wallH/2, 0);
+      const r = new THREE.Mesh(new THREE.BoxGeometry(side, wallH, 0.6), wallMat);
+      r.position.set(+(gapW/2 + side/2), wallH/2, 0);
+      const top = new THREE.Mesh(new THREE.BoxGeometry(gapW + side*2, 1.2, 0.6), wallMat);
+      top.position.set(0, wallH + 0.6, 0);
+      grp.add(l, r, top);
+      grp.position.set(cx, 0, cz);
+      grp.rotation.y = ry;
+      this.scene.add(grp);
+    };
+    makeGapWall(0, -14, 0, 3.2, 5.5);
+    makeGapWall(-14, -44, Math.PI/6, 3.0, 6.5);
+    makeGapWall(12, -30, -Math.PI/5, 3.4, 5.0);
+
+    // 高架桥 (可从桥下钻越)
+    const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x8a6d4b, roughness: 0.8 });
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(16, 0.8, 3.5), bridgeMat);
+    deck.position.set(0, 7, -26);
+    this.scene.add(deck);
+    [-7, 7].forEach((x) => {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.9, 7, 0.9), bridgeMat);
+      leg.position.set(x, 3.5, -26);
+      this.scene.add(leg);
+    });
+
+    // 远处地标 (帮助恢复空间感)
+    const towerMat = new THREE.MeshStandardMaterial({ color: 0x3a4048, roughness: 0.9 });
+    [[-80, -120, 40], [90, -160, 55], [-140, -60, 32]].forEach((t) => {
+      const h = t[2];
+      const tw = new THREE.Mesh(new THREE.BoxGeometry(10, h, 10), towerMat);
+      tw.position.set(t[0], h/2, t[1]);
+      this.scene.add(tw);
+    });
+  },
+
+  buildDroneMesh() {
+    const g = new THREE.Group();
+    // 中心板
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(0.16, 0.05, 0.22),
+      new THREE.MeshStandardMaterial({ color: 0x101418, roughness: 0.5, metalness: 0.4 })
+    );
+    g.add(body);
+    // 4 机臂 + 电机 + 桨 (X 形)
+    const armMat = new THREE.MeshStandardMaterial({ color: 0x1b1f24, roughness: 0.5, metalness: 0.5 });
+    const propMat = new THREE.MeshStandardMaterial({ color: 0x33ff99, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+    const arms = [[1,1],[1,-1],[-1,1],[-1,-1]];
+    this.props = [];
+    arms.forEach((a) => {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.24), armMat);
+      arm.position.set(a[0]*0.09, 0, a[1]*0.09);
+      arm.lookAt(new THREE.Vector3(0,0,0));
+      g.add(arm);
+      const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.04,10), armMat);
+      motor.position.set(a[0]*0.12, 0.02, a[1]*0.12);
+      g.add(motor);
+      const prop = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.005,16), propMat);
+      prop.position.set(a[0]*0.12, 0.045, a[1]*0.12);
+      g.add(prop);
+      this.props.push(prop);
+    });
+    // 机头指示 (红色, 朝 -z)
+    const nose = new THREE.Mesh(
+      new THREE.ConeGeometry(0.03, 0.08, 8),
+      new THREE.MeshStandardMaterial({ color: 0xff2b2b, emissive: 0xff2b2b, emissiveIntensity: 0.5 })
+    );
+    nose.rotation.x = -Math.PI/2; nose.position.set(0, 0.02, -0.13);
+    g.add(nose);
+
+    this.droneMesh = g;
+    this.scene.add(g);
+  },
+
+  toggleArm() {
+    if (this.drone.crashed) { this.reset(); return; }
+    this.drone.armed = !this.drone.armed;
+    if (this.drone.armed) {
+      this.drone.pidPitch.reset(); this.drone.pidRoll.reset(); this.drone.pidYaw.reset();
+    }
+  },
+
+  reset() {
+    this.drone.reset();
+    document.getElementById("banner").style.display = "none";
+  },
+
+  onCrash(reason) {
+    const b = document.getElementById("banner");
+    b.innerHTML = "CRASH<small>" + reason + " — 按 R 或 空格 复位</small>";
+    b.style.display = "block";
+  },
+
+  onResize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(w, h);
+    this.composer.setSize(w, h);
+    this.vtxPass.uniforms.uRes.value.set(w * this.renderer.getPixelRatio(), h * this.renderer.getPixelRatio());
+  },
+
+  computeSignal() {
+    const D = Math.hypot(this.drone.pos.x - 0, this.drone.pos.y - 1.2, this.drone.pos.z - 6);
+    this.dist = D;
+    // 反比 + 平滑: 近距 100%, 到达 signalMax 归零
+    let s;
+    if (D <= this.signalStart) s = 1.0;
+    else if (D >= this.signalMax) s = 0.0;
+    else {
+      const t = (D - this.signalStart) / (this.signalMax - this.signalStart);
+      s = 1.0 - t;
+      s = s * s; // 反比感: 越远衰减越快
+    }
+    return clamp(s, 0, 1);
+  },
+
+  loop() {
+    requestAnimationFrame(this.loop);
+    let frameDt = Math.min(this.clock.getDelta(), 0.05);
+
+    Input.poll(frameDt);
+    const ch = Input.channels;
+
+    // 固定步长物理积分
+    this.signal = this.computeSignal();
+    this.acc += frameDt;
+    let steps = 0;
+    while (this.acc >= this.fixedDt && steps < 8) {
+      this.drone.step(this.fixedDt, ch, this.signal);
+      this.acc -= this.fixedDt; steps++;
+    }
+
+    // 若彻底失联 -> 强制上锁(推力已在 step 内切断)
+    if (this.signal <= 0.001 && this.drone.armed && !this.drone.crashed) {
+      // 保持 armed=false 效果由 step 处理; 提示
+    }
+
+    // 同步渲染对象
+    this.drone.applyToObject(this.droneMesh);
+    this.drone.updateCamera(this.camera, 25); // 25° 摄像头上仰
+
+    // 桨叶旋转 (视觉)
+    const spin = (this.drone.armed ? 1 : 0.15) * (0.4 + ch.throttle);
+    if (this.props) this.props.forEach((p, i) => { p.rotation.y += (i%2?1:-1) * spin; });
+
+    // 更新 shader
+    this.time = (this.time || 0) + frameDt;
+    this.vtxPass.uniforms.uTime.value = this.time;
+    this.vtxPass.uniforms.uSignal.value = this.signal;
+
+    this.composer.render();
+    this.updateHUD(ch);
+  },
+
+  updateHUD(ch) {
+    const d = this.drone;
+    const sigPct = Math.round(this.signal * 100);
+    document.getElementById("hArm").textContent = d.crashed ? "CRASHED" : (d.armed ? "ARMED" : "DISARMED");
+    document.getElementById("hArm").className = "v " + (d.crashed ? "crit" : (d.armed ? "" : "warn"));
+    document.getElementById("hInput").textContent = Input.usingGamepad ? "HID GAMEPAD" : "KEYBOARD";
+    document.getElementById("hThr").textContent = Math.round(ch.throttle*100) + "%";
+    document.getElementById("hSig").textContent = sigPct + "%";
+    document.getElementById("hDist").textContent = Math.round(this.dist) + " m";
+    document.getElementById("hAlt").textContent = d.pos.y.toFixed(1) + " m";
+    document.getElementById("hSpd").textContent = d.vel.length().toFixed(1) + " m/s";
+    document.getElementById("hRate").textContent =
+      d.omega.x.toFixed(1) + "/" + d.omega.z.toFixed(1) + "/" + d.omega.y.toFixed(1);
+
+    const fill = document.getElementById("hSigFill") || document.getElementById("sigFill");
+    fill.style.width = sigPct + "%";
+    fill.style.background = sigPct > 55 ? "var(--hud-green)" : (sigPct > 22 ? "var(--hud-amber)" : "var(--hud-red)");
+    const hSig = document.getElementById("hSig");
+    hSig.className = "v " + (sigPct > 55 ? "" : (sigPct > 22 ? "warn" : "crit"));
+
+    // stick dots
+    const place = (id, x, y) => {
+      const el = document.getElementById(id);
+      el.style.left = (50 + x*40) + "%";
+      el.style.top  = (50 - y*40) + "%";
+    };
+    place("stickL", ch.yaw, ch.throttle*2 - 1);
+    place("stickR", ch.roll, -ch.pitch);
+  }
+};
+
+window.addEventListener("load", () => Sim.init());
+</script>
+</body>
+</html>

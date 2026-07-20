@@ -15,7 +15,8 @@ answers/
 │   ├── kimi-k3/
 │   ├── glm-5.2/
 │   ├── qwen-3.8-max-preview/
-│   └── gpt-5.6-sol/
+│   ├── gpt-5.6-sol/
+│   └── opus-4.8/
 ├── 03-racing-telemetry-analyzer/
 │   ├── deepseek/
 │   ├── kimi-k3/
