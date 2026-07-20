@@ -36,7 +36,8 @@ answers/
     ├── glm-5.2/
     ├── qwen-3.8-max-preview/
     ├── gpt-5.6-sol/
-    └── kimi-k3/
+    ├── kimi-k3/
+    └── opus-4.8/
 ```
 
 最终对比模型及目录名：

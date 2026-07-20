@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>双叉臂悬挂运动学模拟器 / Double Wishbone Suspension Kinematics</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#161a20; --panel2:#1b2027; --line:#262c35;
+    --grid:#1c2128; --gridax:#2c343f; --txt:#c3c9d2; --txt-dim:#7d8794;
+    --accent:#39a0e0;
+    --lower:#4aa3df; --upper:#54c2a8; --knuckle:#d7dbe0; --kingpin:#ff5b52;
+    --wheel:#8b929c; --tire:#5a616b; --spring:#d8a13a; --tie:#c678dd;
+    --node:#e8ebef; --ground:#3a4550; --trace:#48525f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--txt);
+    font-family:"SF Mono","JetBrains Mono","Consolas","Roboto Mono",monospace;
+    font-size:12px; overflow:hidden;
+  }
+  #app{display:grid; grid-template-columns:1fr 300px; grid-template-rows:36px 1fr; height:100vh}
+  header{
+    grid-column:1/3; background:var(--panel2); border-bottom:1px solid var(--line);
+    display:flex; align-items:center; padding:0 14px; gap:16px;
+  }
+  header .title{font-size:13px; letter-spacing:.5px; color:#e8ebef; font-weight:600}
+  header .sub{color:var(--txt-dim); font-size:11px}
+  header .spacer{flex:1}
+  header .stat{color:var(--txt-dim); font-size:11px}
+  header .stat b{color:var(--upper); font-weight:600}
+  #stage{grid-column:1/2; grid-row:2/3; position:relative; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:22px 1fr; background:var(--bg); min-width:0; min-height:0}
+  .vlabel{
+    background:var(--panel); border-bottom:1px solid var(--line); border-right:1px solid var(--line);
+    display:flex; align-items:center; padding:0 10px; color:var(--txt-dim);
+    font-size:11px; letter-spacing:.5px;
+  }
+  .vlabel b{color:var(--txt); font-weight:600; margin-right:6px}
+  .cvwrap{position:relative; border-right:1px solid var(--line); min-width:0; min-height:0}
+  .cvwrap:last-child{border-right:none}
+  canvas{display:block; width:100%; height:100%}
+  aside{
+    grid-column:2/3; grid-row:2/3; background:var(--panel); border-left:1px solid var(--line);
+    overflow-y:auto; padding:0; min-height:0;
+  }
+  .grp{border-bottom:1px solid var(--line); padding:12px 14px}
+  .grp h3{
+    font-size:11px; letter-spacing:1px; color:var(--txt-dim); font-weight:600;
+    text-transform:uppercase; margin-bottom:10px; display:flex; align-items:center; gap:6px;
+  }
+  .grp h3::before{content:""; width:3px; height:11px; background:var(--upper); display:inline-block}
+  .ctl{margin-bottom:12px}
+  .ctl:last-child{margin-bottom:0}
+  .ctl .row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px}
+  .ctl label{color:var(--txt); font-size:11px}
+  .ctl .val{color:var(--kingpin); font-size:12px; font-variant-numeric:tabular-nums; font-weight:600}
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; width:100%; height:3px;
+    background:var(--line); outline:none; cursor:pointer; border-radius:0;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:12px; height:16px;
+    background:var(--txt); cursor:pointer; border:1px solid #000; border-radius:0;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:12px; height:16px; background:var(--txt); cursor:pointer; border:1px solid #000; border-radius:0;
+  }
+  .toggles{display:flex; flex-direction:column; gap:8px}
+  .tg{display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none}
+  .tg input{appearance:none; -webkit-appearance:none; width:13px; height:13px; border:1px solid var(--line); background:var(--panel2); cursor:pointer; position:relative}
+  .tg input:checked{background:var(--upper); border-color:var(--upper)}
+  .tg input:checked::after{content:""; position:absolute; left:3px; top:0px; width:4px; height:8px; border:solid #0f1216; border-width:0 2px 2px 0; transform:rotate(45deg)}
+  .tg span{color:var(--txt); font-size:11px}
+  .btns{display:flex; gap:8px}
+  button{
+    flex:1; background:var(--panel2); color:var(--txt); border:1px solid var(--line);
+    padding:7px 8px; font-family:inherit; font-size:11px; cursor:pointer; letter-spacing:.5px;
+  }
+  button:hover{background:#222933; border-color:#333c48}
+  button.on{background:var(--upper); color:#0f1216; border-color:var(--upper); font-weight:600}
+  .readout{display:grid; grid-template-columns:1fr auto; gap:6px 10px; font-variant-numeric:tabular-nums}
+  .readout .k{color:var(--txt-dim); font-size:11px}
+  .readout .v{color:var(--txt); font-size:12px; text-align:right}
+  .readout .v.pos{color:var(--upper)} .readout .v.neg{color:var(--kingpin)}
+  .legend{display:flex; flex-direction:column; gap:6px}
+  .lg{display:flex; align-items:center; gap:8px; font-size:11px; color:var(--txt-dim)}
+  .lg i{width:16px; height:0; border-top:2px solid #fff; display:inline-block}
+  .lg i.sq{width:9px; height:9px; border:1px solid #fff; border-top:1px solid #fff}
+  .foot{padding:10px 14px; color:var(--txt-dim); font-size:10px; line-height:1.5}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span class="title">DOUBLE WISHBONE / 双叉臂悬挂运动学</span>
+    <span class="sub">刚性杆 · 可形变弹簧 · 铰接节点 四连杆求解</span>
+    <span class="spacer"></span>
+    <span class="stat">求解 <b id="solveStat">OK</b></span>
+    <span class="stat">帧率 <b id="fps">--</b></span>
+  </header>
+
+  <div id="stage">
+    <div class="vlabel"><b>正视图</b> FRONT — 悬挂跳动 / 外倾 / 主销运动路径</div>
+    <div class="vlabel"><b>俯视图</b> TOP — 转向拉杆联动车轮</div>
+    <div class="cvwrap"><canvas id="cvFront"></canvas></div>
+    <div class="cvwrap"><canvas id="cvTop"></canvas></div>
+  </div>
+
+  <aside>
+    <div class="grp">
+      <h3>运动输入 / INPUT</h3>
+      <div class="ctl">
+        <div class="row"><label>悬挂跳动 Jounce</label><span class="val" id="vJounce">0.0 mm</span></div>
+        <input type="range" id="sJounce" min="-100" max="100" value="0" step="0.5">
+      </div>
+      <div class="ctl">
+        <div class="row"><label>转向齿条 Steering rack</label><span class="val" id="vSteer">0.0 mm</span></div>
+        <input type="range" id="sSteer" min="-100" max="100" value="0" step="0.5">
+      </div>
+      <div class="btns">
+        <button id="btnAnim">跳动自动演示</button>
+        <button id="btnReset">复位</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h3>输出参数 / OUTPUT</h3>
+      <div class="readout" id="readout">
+        <span class="k">车轮垂向行程</span><span class="v" id="oTravel">0.0 mm</span>
+        <span class="k">车轮外倾角 Camber</span><span class="v" id="oCamber">0.00°</span>
+        <span class="k">主销内倾角 KPI</span><span class="v" id="oKpi">0.00°</span>
+        <span class="k">轮距变化 ΔTrack</span><span class="v" id="oTrack">0.0 mm</span>
+        <span class="k">主销偏移距 Scrub</span><span class="v" id="oScrub">0.0 mm</span>
+        <span class="k">转向角 Steer</span><span class="v" id="oSteerAng">0.00°</span>
+        <span class="k">下摆臂角 Lower arm</span><span class="v" id="oLower">0.00°</span>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h3>显示 / DISPLAY</h3>
+      <div class="toggles">
+        <label class="tg"><input type="checkbox" id="tPath" checked><span>主销运动路径 / 节点轨迹</span></label>
+        <label class="tg"><input type="checkbox" id="tSpring" checked><span>弹簧减振器 (可形变线)</span></label>
+        <label class="tg"><input type="checkbox" id="tLabel" checked><span>节点标注 / 尺寸</span></label>
+        <label class="tg"><input type="checkbox" id="tKp" checked><span>主销轴线延长线</span></label>
+        <label class="tg"><input type="checkbox" id="tGrid" checked><span>坐标网格</span></label>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h3>图例 / LEGEND</h3>
+      <div class="legend">
+        <div class="lg"><i style="border-color:#4aa3df"></i>下摆臂 Lower A-arm (刚性)</div>
+        <div class="lg"><i style="border-color:#54c2a8"></i>上摆臂 Upper A-arm (刚性)</div>
+        <div class="lg"><i style="border-color:#d7dbe0"></i>转向节 Knuckle (刚性)</div>
+        <div class="lg"><i style="border-color:#ff5b52"></i>主销轴线 Kingpin axis</div>
+        <div class="lg"><i style="border-color:#c678dd"></i>转向拉杆 Tie rod (刚性)</div>
+        <div class="lg"><i style="border-color:#d8a13a"></i>弹簧 Spring (可形变)</div>
+        <div class="lg"><i class="sq"></i>铰接节点 Joint node</div>
+      </div>
+    </div>
+
+    <div class="foot">
+      模型基于四连杆约束求解：下摆臂角作为跳动驱动量，转向节长度为刚性约束，
+      经双圆求交解出上球节位置；转向侧以齿条位移驱动拉杆-转向臂连杆，绕主销回转车轮。
+      单位 mm / 角度以竖直方向为基准。
+    </div>
+  </aside>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   双叉臂悬挂运动学 —— 单文件实现
+   坐标系(世界): x 向外(离车身中线), y 向上, 单位 mm。地面 y=0。
+   ============================================================ */
+
+// ---------- 几何常量 (正视图 / FRONT) ----------
+const LI  = {x:   0, y: 180};   // 下摆臂内侧铰点 (车身固定)
+const UI  = {x:  60, y: 470};   // 上摆臂内侧铰点 (车身固定)
+const LBJ0= {x: 470, y: 165};   // 下球节 (静止位)
+const UBJ0= {x: 430, y: 495};   // 上球节 (静止位)
+const WC0 = {x: 560, y: 300};   // 车轮中心 (静止位)
+const R_WHEEL = 300;            // 车轮半径
+const TIRE_W  = 190;            // 轮胎断面宽(正视)
+const ST  = {x: 120, y: 640};   // 弹簧上安装点 (车身)
+const SPRING_F = 0.55;          // 弹簧下座在下摆臂上的比例
+
+const L_LOWER = Math.hypot(LBJ0.x-LI.x, LBJ0.y-LI.y);
+const L_UPPER = Math.hypot(UBJ0.x-UI.x, UBJ0.y-UI.y);
+const D_KNUCK = Math.hypot(UBJ0.x-LBJ0.x, UBJ0.y-LBJ0.y);
+const LOWER_A0= Math.atan2(LBJ0.y-LI.y, LBJ0.x-LI.x);   // 下摆臂静止角
+
+// 车轮中心在转向节局部坐标(以下球节为原点, u=沿主销向上, v=垂直向外)
+function knuckleFrame(LBJ, UBJ){
+  const dx=UBJ.x-LBJ.x, dy=UBJ.y-LBJ.y; const L=Math.hypot(dx,dy);
+  const ux=dx/L, uy=dy/L;          // 沿主销向上
+  const vx= uy, vy=-ux;            // 右手垂直 -> 指向外侧
+  return {ux,uy,vx,vy};
+}
+const F0 = knuckleFrame(LBJ0, UBJ0);
+const WC_LOCAL = {
+  a: (WC0.x-LBJ0.x)*F0.ux + (WC0.y-LBJ0.y)*F0.uy,
+  b: (WC0.x-LBJ0.x)*F0.vx + (WC0.y-LBJ0.y)*F0.vy
+};
+const KPI0 = Math.atan2(-(UBJ0.x-LBJ0.x), (UBJ0.y-LBJ0.y)); // 主销相对竖直角(顶内倾为正)
+
+// 静止主销触地点/轮距参考
+function kingpinGround(LBJ, UBJ){
+  const dx=LBJ.x-UBJ.x, dy=LBJ.y-UBJ.y;
+  if(Math.abs(dy)<1e-6) return {x:LBJ.x, y:0};
+  const t=(0-LBJ.y)/dy;  // 沿 LBJ 向下延伸到 y=0
+  return {x:LBJ.x+t*dx, y:0};
+}
+const KG0 = kingpinGround(LBJ0, UBJ0);
+const TRACK0 = WC0.x;
+
+// ---------- 几何常量 (俯视图 / TOP, 转向) ----------
+// x 向外(与正视一致), y 向车尾(canvas 下方为车尾)
+const SA  = {x: 470, y: 300};   // 主销在俯视的投影(回转轴)
+const KA0 = {x: 430, y: 392};   // 转向节臂端(拉杆外球头) 静止位
+const TRI0= {x: 245, y: 392};   // 齿条端(拉杆内球头) 静止位
+const RACK_MAX = 40;            // 齿条单侧最大位移 mm (保证连杆恒有解)
+const STEER_ARM = Math.hypot(KA0.x-SA.x, KA0.y-SA.y);
+const TIE_ROD   = Math.hypot(KA0.x-TRI0.x, KA0.y-TRI0.y);
+const KA_A0 = Math.atan2(KA0.y-SA.y, KA0.x-SA.x);
+const WHEEL_TOP_C = {x: 505, y: 300}; // 俯视车轮几何中心(略外于主销)
+const WHEEL_TOP_L = 300;  // 车轮直径(俯视纵向)
+const WHEEL_TOP_W = 190;  // 车轮宽
+
+// ---------- 圆交点 ----------
+function circleIntersect(x0,y0,r0,x1,y1,r1){
+  const dx=x1-x0, dy=y1-y0; const d=Math.hypot(dx,dy);
+  if(d>r0+r1+1e-6 || d<Math.abs(r0-r1)-1e-6 || d===0) return null;
+  const a=(r0*r0-r1*r1+d*d)/(2*d);
+  const h=Math.sqrt(Math.max(0,r0*r0-a*a));
+  const xm=x0+a*dx/d, ym=y0+a*dy/d;
+  const rx=-dy*(h/d), ry=dx*(h/d);
+  return [{x:xm+rx,y:ym+ry},{x:xm-rx,y:ym-ry}];
+}
+
+// ---------- 正视求解: 由下摆臂角求整套姿态 ----------
+function solveFront(lowerAngle){
+  const LBJ={x:LI.x+L_LOWER*Math.cos(lowerAngle), y:LI.y+L_LOWER*Math.sin(lowerAngle)};
+  const pts=circleIntersect(UI.x,UI.y,L_UPPER, LBJ.x,LBJ.y,D_KNUCK);
+  if(!pts) return null;
+  const UBJ = (pts[0].x>=pts[1].x)?pts[0]:pts[1];   // 取外侧解
+  const F=knuckleFrame(LBJ,UBJ);
+  const WC={x:LBJ.x+WC_LOCAL.a*F.ux+WC_LOCAL.b*F.vx,
+            y:LBJ.y+WC_LOCAL.a*F.uy+WC_LOCAL.b*F.vy};
+  const kpi=Math.atan2(-(UBJ.x-LBJ.x),(UBJ.y-LBJ.y));
+  const camber = kpi - KPI0;      // 相对静止的外倾变化(顶外倾为负习惯: 这里 kpi 增大=顶更内倾=负外倾)
+  const KG=kingpinGround(LBJ,UBJ);
+  const SB={x:LI.x+SPRING_F*(LBJ.x-LI.x), y:LI.y+SPRING_F*(LBJ.y-LI.y)};
+  return {LBJ,UBJ,WC,F,kpi,camber,KG,SB};
+}
+
+// ---------- 俯视求解: 由齿条位移求转向 ----------
+function solveTop(rackDx){
+  const TRI={x:TRI0.x+rackDx, y:TRI0.y};
+  const pts=circleIntersect(SA.x,SA.y,STEER_ARM, TRI.x,TRI.y,TIE_ROD);
+  let KA=KA0, ok=true;
+  if(pts){ KA=(pts[0].y>=pts[1].y)?pts[0]:pts[1]; } // 取靠车尾解
+  else { ok=false; return solveTop(rackDx>0?rackDx-0.5:rackDx+0.5); } // 逼近边界, 保持连续
+  const ang=Math.atan2(KA.y-SA.y, KA.x-SA.x);
+  const steer = ang - KA_A0;      // 转向角(绕主销)
+  return {TRI,KA,steer,ok};
+}
+
+// ---------- 预计算主销/节点运动路径 ----------
+const TRAVEL_DEG = {min:-11, max:14};
+function buildTraces(){
+  const N=60; const kg=[],lbj=[],ubj=[],wc=[];
+  for(let i=0;i<=N;i++){
+    const deg=TRAVEL_DEG.min+(TRAVEL_DEG.max-TRAVEL_DEG.min)*i/N;
+    const s=solveFront(LOWER_A0+deg*Math.PI/180);
+    if(!s) continue;
+    kg.push(s.KG); lbj.push(s.LBJ); ubj.push(s.UBJ); wc.push(s.WC);
+  }
+  return {kg,lbj,ubj,wc};
+}
+const TRACES=buildTraces();
+
+// ============================================================
+//  相机 (世界 -> 屏幕)
+// ============================================================
+class Camera{
+  constructor(bounds){ this.b=bounds; this.s=1; this.ox=0; this.oy=0; this.h=0; }
+  fit(w,h,pad=40){
+    const {x0,x1,y0,y1}=this.b; const bw=x1-x0, bh=y1-y0;
+    this.s=Math.min((w-2*pad)/bw,(h-2*pad)/bh);
+    this.ox=(w-bw*this.s)/2 - x0*this.s;
+    this.oy=(h-bh*this.s)/2 - y0*this.s;
+    this.h=h;
+  }
+  X(x){return x*this.s+this.ox}
+  Y(y){return this.h-(y*this.s+this.oy)}   // y 向上
+  L(v){return v*this.s}
+}
+
+// ============================================================
+//  绘图基元
+// ============================================================
+function setupCanvas(cv){
+  const dpr=window.devicePixelRatio||1;
+  const r=cv.getBoundingClientRect();
+  cv.width=Math.max(1,Math.round(r.width*dpr));
+  cv.height=Math.max(1,Math.round(r.height*dpr));
+  const ctx=cv.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w:r.width,h:r.height};
+}
+function grid(ctx,cam,w,h,step){
+  ctx.save();
+  ctx.lineWidth=1;
+  const {x0,x1,y0,y1}=cam.b;
+  ctx.strokeStyle="#1b2027";
+  for(let x=Math.ceil(x0/step)*step;x<=x1;x+=step){
+    ctx.beginPath();ctx.moveTo(cam.X(x),0);ctx.lineTo(cam.X(x),h);ctx.stroke();
+  }
+  for(let y=Math.ceil(y0/step)*step;y<=y1;y+=step){
+    ctx.beginPath();ctx.moveTo(0,cam.Y(y));ctx.lineTo(w,cam.Y(y));ctx.stroke();
+  }
+  ctx.restore();
+}
+function line(ctx,cam,a,b,color,width,dash){
+  ctx.save();
+  ctx.strokeStyle=color; ctx.lineWidth=width||2; ctx.lineCap="round";
+  if(dash) ctx.setLineDash(dash);
+  ctx.beginPath();ctx.moveTo(cam.X(a.x),cam.Y(a.y));ctx.lineTo(cam.X(b.x),cam.Y(b.y));ctx.stroke();
+  ctx.restore();
+}
+function member(ctx,cam,a,b,color){  // 刚性杆: 粗线 + 端部
+  line(ctx,cam,a,b,color,3.5);
+}
+function node(ctx,cam,p,label,color){
+  const x=cam.X(p.x), y=cam.Y(p.y);
+  ctx.save();
+  ctx.fillStyle="#0f1216"; ctx.strokeStyle=color||"#e8ebef"; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.rect(x-4,y-4,8,8); ctx.fill(); ctx.stroke();
+  ctx.restore();
+  if(label && SHOW.label){
+    ctx.save();
+    ctx.fillStyle="#8b929c"; ctx.font="10px monospace";
+    ctx.fillText(label, x+7, y-6);
+    ctx.restore();
+  }
+}
+function pivot(ctx,cam,p,label){  // 车身固定铰点: 带三角地标
+  const x=cam.X(p.x), y=cam.Y(p.y);
+  ctx.save();
+  ctx.strokeStyle="#5a616b"; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-7,y+11); ctx.lineTo(x+7,y+11); ctx.closePath(); ctx.stroke();
+  for(let i=-6;i<=6;i+=4){ ctx.beginPath(); ctx.moveTo(x+i,y+11); ctx.lineTo(x+i-3,y+15); ctx.stroke(); }
+  ctx.fillStyle="#0f1216"; ctx.strokeStyle="#e8ebef"; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+  if(label && SHOW.label){
+    ctx.save(); ctx.fillStyle="#8b929c"; ctx.font="10px monospace";
+    ctx.fillText(label,x+8,y-4); ctx.restore();
+  }
+}
+function poly(ctx,cam,pts,color,width,dash){
+  if(!pts||pts.length<2) return;
+  ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=width||1; if(dash)ctx.setLineDash(dash);
+  ctx.beginPath(); ctx.moveTo(cam.X(pts[0].x),cam.Y(pts[0].y));
+  for(let i=1;i<pts.length;i++) ctx.lineTo(cam.X(pts[i].x),cam.Y(pts[i].y));
+  ctx.stroke(); ctx.restore();
+}
+function spring(ctx,cam,a,b,coils,amp){
+  const dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx,dy);
+  const ux=dx/L, uy=dy/L, px=-uy, py=ux;
+  const lead=L*0.16, mid=L-2*lead, segs=coils*2;
+  ctx.save(); ctx.strokeStyle="#d8a13a"; ctx.lineWidth=2; ctx.lineJoin="round";
+  ctx.beginPath();
+  let sx=a.x, sy=a.y; ctx.moveTo(cam.X(sx),cam.Y(sy));
+  const l1={x:a.x+ux*lead,y:a.y+uy*lead}; ctx.lineTo(cam.X(l1.x),cam.Y(l1.y));
+  for(let i=0;i<=segs;i++){
+    const t=i/segs; const along=lead+t*mid;
+    const off=(i%2? amp:-amp);
+    const x=a.x+ux*along+px*off, y=a.y+uy*along+py*off;
+    ctx.lineTo(cam.X(x),cam.Y(y));
+  }
+  const l2={x:b.x-ux*lead,y:b.y-uy*lead};
+  ctx.lineTo(cam.X(l2.x),cam.Y(l2.y));
+  ctx.lineTo(cam.X(b.x),cam.Y(b.y));
+  ctx.stroke();
+  ctx.restore();
+}
+function wheelFront(ctx,cam,WC,F){
+  // 车轮平面沿转向节 u 方向(=主销)，宽度沿 v。绘制轮辋与轮胎断面。
+  const up={x:F.ux,y:F.uy}, rt={x:F.vx,y:F.vy};
+  function P(a,b){return {x:WC.x+up.x*a+rt.x*b, y:WC.y+up.y*a+rt.y*b};}
+  const c1=P( R_WHEEL, -TIRE_W/2), c2=P( R_WHEEL, TIRE_W/2),
+        c3=P(-R_WHEEL, TIRE_W/2), c4=P(-R_WHEEL,-TIRE_W/2);
+  ctx.save();
+  ctx.strokeStyle="#5a616b"; ctx.lineWidth=2; ctx.fillStyle="rgba(90,97,107,0.10)";
+  ctx.beginPath();
+  ctx.moveTo(cam.X(c1.x),cam.Y(c1.y));ctx.lineTo(cam.X(c2.x),cam.Y(c2.y));
+  ctx.lineTo(cam.X(c3.x),cam.Y(c3.y));ctx.lineTo(cam.X(c4.x),cam.Y(c4.y));
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // 轮辋
+  const r1=P( R_WHEEL*0.55,-TIRE_W/2), r2=P( R_WHEEL*0.55,TIRE_W/2),
+        r3=P(-R_WHEEL*0.55,TIRE_W/2), r4=P(-R_WHEEL*0.55,-TIRE_W/2);
+  ctx.strokeStyle="#8b929c"; ctx.lineWidth=1.5;
+  ctx.beginPath();
+  ctx.moveTo(cam.X(r1.x),cam.Y(r1.y));ctx.lineTo(cam.X(r2.x),cam.Y(r2.y));
+  ctx.lineTo(cam.X(r3.x),cam.Y(r3.y));ctx.lineTo(cam.X(r4.x),cam.Y(r4.y));
+  ctx.closePath(); ctx.stroke();
+  // 车轮中心线(外倾指示)
+  ctx.strokeStyle="rgba(139,146,156,0.5)"; ctx.setLineDash([4,4]);
+  const t1=P(R_WHEEL,0), t2=P(-R_WHEEL,0);
+  ctx.beginPath();ctx.moveTo(cam.X(t1.x),cam.Y(t1.y));ctx.lineTo(cam.X(t2.x),cam.Y(t2.y));ctx.stroke();
+  ctx.restore();
+  // 中心节点
+  node(ctx,cam,WC,SHOW.label?"WC":"",null);
+}
+
+// ============================================================
+//  状态
+// ============================================================
+const SHOW={path:true,spring:true,label:true,kp:true,grid:true};
+let jouncePct=0, steerPct=0, anim=false, animT=0;
+
+const camF=new Camera({x0:-120,x1:820,y0:-60,y1:720});
+const camT=new Camera({x0:-40,x1:760,y0:120,y1:560}); // 俯视: 世界y 120..560
+
+const cvF=document.getElementById("cvFront");
+const cvT=document.getElementById("cvTop");
+
+// ---------- 正视渲染 ----------
+function renderFront(){
+  const {ctx,w,h}=setupCanvas(cvF);
+  camF.fit(w,h,44);
+  ctx.clearRect(0,0,w,h);
+  if(SHOW.grid) grid(ctx,camF,w,h,50);
+
+  const lowerAngle=LOWER_A0 + (TRAVEL_DEG.min + (jouncePct+100)/200*(TRAVEL_DEG.max-TRAVEL_DEG.min))*Math.PI/180;
+  const s=solveFront(lowerAngle);
+  document.getElementById("solveStat").textContent = s? "OK":"NO-SOL";
+  document.getElementById("solveStat").style.color = s? "#54c2a8":"#ff5b52";
+  if(!s){ return null; }
+
+  // 地面
+  ctx.save();
+  ctx.strokeStyle="#39424e"; ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(0,camF.Y(0));ctx.lineTo(w,camF.Y(0));ctx.stroke();
+  ctx.fillStyle="#8b929c"; ctx.font="10px monospace";
+  ctx.fillText("GROUND y=0",10,camF.Y(0)-6);
+  // 车身中线
+  ctx.strokeStyle="#2c343f"; ctx.setLineDash([3,5]);
+  ctx.beginPath();ctx.moveTo(camF.X(0),0);ctx.lineTo(camF.X(0),h);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillText("车身中线 CL",camF.X(0)+4,16);
+  ctx.restore();
+
+  // 运动路径
+  if(SHOW.path){
+    poly(ctx,camF,TRACES.wc ,"#48525f",1,[2,3]);
+    poly(ctx,camF,TRACES.ubj,"#3a5a52",1.2,[3,3]);
+    poly(ctx,camF,TRACES.lbj,"#2f5570",1.2,[3,3]);
+    poly(ctx,camF,TRACES.kg ,"#7a3b38",1.4,[4,3]);
+  }
+
+  // 弹簧减振器 (可形变线)
+  if(SHOW.spring){
+    spring(ctx,camF,ST,s.SB,7,26);
+    // 减振杆
+    line(ctx,camF,ST,s.SB,"rgba(216,161,58,0.35)",1.5);
+    node(ctx,camF,ST,SHOW.label?"S":"", "#d8a13a");
+    node(ctx,camF,s.SB,"", "#d8a13a");
+  }
+
+  // 主销轴线及延长线
+  if(SHOW.kp){
+    line(ctx,camF,s.UBJ,s.LBJ,"#ff5b52",2.5);
+    line(ctx,camF,s.LBJ,s.KG,"#ff5b52",1.5,[5,4]);
+    node(ctx,camF,s.KG,SHOW.label?"触地":"", "#ff5b52");
+  }
+
+  // 刚性杆
+  member(ctx,camF,LI,s.LBJ,"#4aa3df");   // 下摆臂
+  member(ctx,camF,UI,s.UBJ,"#54c2a8");   // 上摆臂
+  member(ctx,camF,s.LBJ,s.UBJ,"#d7dbe0");// 转向节(与主销重合, 但独立粗杆表现刚性)
+
+  // 车轮
+  wheelFront(ctx,camF,s.WC,s.F);
+
+  // 节点
+  pivot(ctx,camF,LI,"LI 下内铰");
+  pivot(ctx,camF,UI,"UI 上内铰");
+  node(ctx,camF,s.LBJ,SHOW.label?"LBJ 下球节":"", "#4aa3df");
+  node(ctx,camF,s.UBJ,SHOW.label?"UBJ 上球节":"", "#54c2a8");
+
+  return s;
+}
+
+// ---------- 俯视渲染 ----------
+function renderTop(){
+  const {ctx,w,h}=setupCanvas(cvT);
+  camT.fit(w,h,44);
+  ctx.clearRect(0,0,w,h);
+  if(SHOW.grid) grid(ctx,camT,w,h,50);
+
+  const rackDx = steerPct/100 * RACK_MAX;
+  const st=solveTop(rackDx);
+
+  // 车头/车尾指示
+  ctx.save();
+  ctx.fillStyle="#5a616b"; ctx.font="10px monospace";
+  ctx.fillText("▲ 车头 FRONT", 12, camT.Y(540)+4);
+  ctx.fillText("▼ 车尾 REAR", 12, camT.Y(150)+4);
+  // 车身中线
+  ctx.strokeStyle="#2c343f"; ctx.setLineDash([3,5]);
+  ctx.beginPath();ctx.moveTo(camT.X(0),0);ctx.lineTo(camT.X(0),h);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // 齿条导轨
+  line(ctx,camT,{x:120,y:TRI0.y},{x:400,y:TRI0.y},"#2c343f",6);
+  line(ctx,camT,{x:120,y:TRI0.y},{x:400,y:TRI0.y},"#39424e",1.5);
+
+  // 车轮 (绕主销 SA 旋转 steer)
+  const cs=Math.cos(st.steer), sn=Math.sin(st.steer);
+  function rot(p){
+    const dx=p.x-SA.x, dy=p.y-SA.y;
+    return {x:SA.x+dx*cs-dy*sn, y:SA.y+dx*sn+dy*cs};
+  }
+  const wc=WHEEL_TOP_C;
+  const corners=[
+    {x:wc.x-WHEEL_TOP_W/2,y:wc.y-WHEEL_TOP_L/2},
+    {x:wc.x+WHEEL_TOP_W/2,y:wc.y-WHEEL_TOP_L/2},
+    {x:wc.x+WHEEL_TOP_W/2,y:wc.y+WHEEL_TOP_L/2},
+    {x:wc.x-WHEEL_TOP_W/2,y:wc.y+WHEEL_TOP_L/2},
+  ].map(rot);
+  ctx.save();
+  ctx.strokeStyle="#5a616b"; ctx.lineWidth=2; ctx.fillStyle="rgba(90,97,107,0.10)";
+  ctx.beginPath();
+  ctx.moveTo(camT.X(corners[0].x),camT.Y(corners[0].y));
+  for(let i=1;i<4;i++) ctx.lineTo(camT.X(corners[i].x),camT.Y(corners[i].y));
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // 车轮朝向中心线
+  const hc1=rot({x:wc.x,y:wc.y-WHEEL_TOP_L/2}), hc2=rot({x:wc.x,y:wc.y+WHEEL_TOP_L/2});
+  ctx.strokeStyle="rgba(139,146,156,0.55)"; ctx.setLineDash([5,4]);
+  ctx.beginPath();ctx.moveTo(camT.X(hc1.x),camT.Y(hc1.y));ctx.lineTo(camT.X(hc2.x),camT.Y(hc2.y));ctx.stroke();
+  ctx.restore();
+
+  // 主销回转轴向前后的参考(初始朝向)
+  ctx.save();
+  ctx.strokeStyle="#2f3945"; ctx.setLineDash([3,4]); ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(camT.X(SA.x),camT.Y(150));ctx.lineTo(camT.X(SA.x),camT.Y(540));ctx.stroke();
+  ctx.restore();
+
+  // 连杆: 齿条端 - 拉杆 - 转向节臂
+  const KA=st.KA;
+  line(ctx,camT,st.TRI,KA,"#c678dd",3.5);      // 转向拉杆(刚性)
+  line(ctx,camT,SA,KA,"#d7dbe0",3.5);          // 转向节臂(刚性)
+
+  // 主销点
+  ctx.save();
+  ctx.strokeStyle="#ff5b52"; ctx.fillStyle="#0f1216"; ctx.lineWidth=2;
+  const sx=camT.X(SA.x), sy=camT.Y(SA.y);
+  ctx.beginPath();ctx.arc(sx,sy,6,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.beginPath();ctx.moveTo(sx-6,sy);ctx.lineTo(sx+6,sy);ctx.moveTo(sx,sy-6);ctx.lineTo(sx,sy+6);ctx.stroke();
+  ctx.restore();
+
+  node(ctx,camT,st.TRI,SHOW.label?"齿条端":"", "#c678dd");
+  node(ctx,camT,KA,SHOW.label?"拉杆外球头":"", "#c678dd");
+  if(SHOW.label){
+    ctx.save(); ctx.fillStyle="#8b929c"; ctx.font="10px monospace";
+    ctx.fillText("主销 SA", camT.X(SA.x)+9, camT.Y(SA.y)-8); ctx.restore();
+  }
+
+  return st;
+}
+
+// ---------- 读数 ----------
+function setV(id,txt,cls){
+  const e=document.getElementById(id); e.textContent=txt;
+  e.className="v"+(cls?(" "+cls):"");
+}
+function updateReadout(s,st){
+  if(!s) return;
+  const travel=s.WC.y-WC0.y;
+  const camberDeg=-s.camber*180/Math.PI;         // 顶外倾为正
+  const kpiDeg=s.kpi*180/Math.PI;
+  const dtrack=s.WC.x-TRACK0;
+  const scrub=s.WC.x-s.KG.x;
+  const lowerCur=Math.atan2(s.LBJ.y-LI.y,s.LBJ.x-LI.x)*180/Math.PI;
+  setV("oTravel", travel.toFixed(1)+" mm", travel>=0?"pos":"neg");
+  setV("oCamber", camberDeg.toFixed(2)+"°", camberDeg>=0?"pos":"neg");
+  setV("oKpi", kpiDeg.toFixed(2)+"°");
+  setV("oTrack", dtrack.toFixed(1)+" mm", dtrack>=0?"pos":"neg");
+  setV("oScrub", scrub.toFixed(1)+" mm");
+  setV("oSteerAng", st? (st.steer*180/Math.PI).toFixed(2)+"°":"--");
+  setV("oLower", lowerCur.toFixed(2)+"°");
+}
+
+// ---------- 主循环 ----------
+let last=performance.now(), fps=0, fpsAcc=0, fpsN=0;
+function loop(t){
+  const dt=t-last; last=t;
+  fpsAcc+=1000/Math.max(dt,1); fpsN++;
+  if(fpsN>=15){ document.getElementById("fps").textContent=(fpsAcc/fpsN).toFixed(0); fpsAcc=0;fpsN=0; }
+
+  if(anim){
+    animT+=dt/1000;
+    jouncePct=Math.sin(animT*1.4)*100;
+    document.getElementById("sJounce").value=jouncePct;
+    document.getElementById("vJounce").textContent=travelLabel();
+  }
+  const s=renderFront();
+  const st=renderTop();
+  updateReadout(s,st);
+  requestAnimationFrame(loop);
+}
+
+function travelLabel(){
+  const lowerAngle=LOWER_A0 + (TRAVEL_DEG.min + (jouncePct+100)/200*(TRAVEL_DEG.max-TRAVEL_DEG.min))*Math.PI/180;
+  const s=solveFront(lowerAngle);
+  return s? (s.WC.y-WC0.y).toFixed(1)+" mm" : "--";
+}
+
+// ---------- 交互 ----------
+const sJ=document.getElementById("sJounce"), sS=document.getElementById("sSteer");
+sJ.addEventListener("input",e=>{ jouncePct=+e.target.value; anim=false;
+  document.getElementById("btnAnim").classList.remove("on");
+  document.getElementById("vJounce").textContent=travelLabel(); });
+sS.addEventListener("input",e=>{ steerPct=+e.target.value;
+  document.getElementById("vSteer").textContent=(steerPct/100*RACK_MAX).toFixed(1)+" mm"; });
+
+document.getElementById("btnAnim").addEventListener("click",e=>{
+  anim=!anim; e.target.classList.toggle("on",anim); if(anim) animT=0;
+});
+document.getElementById("btnReset").addEventListener("click",()=>{
+  anim=false; document.getElementById("btnAnim").classList.remove("on");
+  jouncePct=0; steerPct=0; sJ.value=0; sS.value=0;
+  document.getElementById("vJounce").textContent="0.0 mm";
+  document.getElementById("vSteer").textContent="0.0 mm";
+});
+
+function bindTg(id,key){ document.getElementById(id).addEventListener("change",e=>{ SHOW[key]=e.target.checked; }); }
+bindTg("tPath","path"); bindTg("tSpring","spring"); bindTg("tLabel","label"); bindTg("tKp","kp"); bindTg("tGrid","grid");
+
+window.addEventListener("resize",()=>{});
+document.getElementById("vJounce").textContent="0.0 mm";
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
